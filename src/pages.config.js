@@ -56,6 +56,7 @@ import IntuneDevices from './pages/IntuneDevices';
 import IntuneProfiles from './pages/IntuneProfiles';
 import SecurityBaselines from './pages/SecurityBaselines';
 import ExportCenter from './pages/ExportCenter';
+import DeviceScripts from './pages/DeviceScripts';
 import __Layout from './Layout.jsx';
 
 
@@ -69,6 +70,7 @@ export const PAGES = {
     "IntuneProfiles": IntuneProfiles,
     "SecurityBaselines": SecurityBaselines,
     "ExportCenter": ExportCenter,
+    "DeviceScripts": DeviceScripts,
 }
 
 export const pagesConfig = {
