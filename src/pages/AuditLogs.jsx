@@ -35,10 +35,15 @@ const CATEGORIES = ["all", "tenant", "entra_user", "entra_group", "entra_policy"
 
 export default function AuditLogs({ selectedTenant }) {
   const [search, setSearch] = useState("");
+  const [actorSearch, setActorSearch] = useState("");
+  const [targetSearch, setTargetSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [category, setCategory] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const PAGE_SIZE = 25;
 
   const { data: logs = [], isLoading, refetch } = useQuery({
