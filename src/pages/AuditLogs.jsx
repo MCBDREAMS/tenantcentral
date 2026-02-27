@@ -51,25 +51,64 @@ export default function AuditLogs({ selectedTenant }) {
     queryFn: () => base44.entities.AuditLog.list("-created_date", 500),
   });
 
+  const activeFilterCount = [
+    search, actorSearch, targetSearch, dateFrom, dateTo,
+    category !== "all" ? category : "",
+    severity !== "all" ? severity : "",
+    status !== "all" ? status : "",
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSearch(""); setActorSearch(""); setTargetSearch("");
+    setDateFrom(""); setDateTo("");
+    setCategory("all"); setSeverity("all"); setStatus("all");
+    setPage(0);
+  };
+
   const filtered = useMemo(() => {
     return logs.filter(l => {
       if (selectedTenant?.id && l.tenant_id && l.tenant_id !== selectedTenant.id) return false;
       if (category !== "all" && l.category !== category) return false;
       if (severity !== "all" && l.severity !== severity) return false;
       if (status !== "all" && l.status !== status) return false;
+
+      // Date range filter
+      if (dateFrom) {
+        const logDate = new Date(l.created_date);
+        if (logDate < new Date(dateFrom)) return false;
+      }
+      if (dateTo) {
+        const logDate = new Date(l.created_date);
+        const toEnd = new Date(dateTo);
+        toEnd.setHours(23, 59, 59, 999);
+        if (logDate > toEnd) return false;
+      }
+
+      // Action / general search
       if (search) {
         const s = search.toLowerCase();
-        return (
+        if (!(
           (l.action || "").toLowerCase().includes(s) ||
-          (l.actor || "").toLowerCase().includes(s) ||
-          (l.target_name || "").toLowerCase().includes(s) ||
           (l.tenant_name || "").toLowerCase().includes(s) ||
           (l.details || "").toLowerCase().includes(s)
-        );
+        )) return false;
       }
+
+      // Actor (email) search
+      if (actorSearch) {
+        const s = actorSearch.toLowerCase();
+        if (!(l.actor || "").toLowerCase().includes(s)) return false;
+      }
+
+      // Target name search
+      if (targetSearch) {
+        const s = targetSearch.toLowerCase();
+        if (!(l.target_name || "").toLowerCase().includes(s)) return false;
+      }
+
       return true;
     });
-  }, [logs, search, category, severity, status, selectedTenant]);
+  }, [logs, search, actorSearch, targetSearch, dateFrom, dateTo, category, severity, status, selectedTenant]);
 
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
