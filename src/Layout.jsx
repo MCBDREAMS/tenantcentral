@@ -50,6 +50,14 @@ const navSections = [
     ]
   },
   {
+    label: "Infrastructure",
+    section: null,
+    items: [
+      { name: "MDM Solutions", icon: Layers, page: "MdmSolutions" },
+      { name: "On-Prem Sync", icon: Server, page: "OnPremSync" },
+    ]
+  },
+  {
     label: "Admin",
     section: "admin",
     items: [
