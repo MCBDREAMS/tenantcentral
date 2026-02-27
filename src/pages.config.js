@@ -47,13 +47,32 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import Dashboard from './pages/Dashboard';
+import Tenants from './pages/Tenants';
+import EntraUsers from './pages/EntraUsers';
+import EntraGroups from './pages/EntraGroups';
+import EntraPolicies from './pages/EntraPolicies';
+import IntuneDevices from './pages/IntuneDevices';
+import IntuneProfiles from './pages/IntuneProfiles';
+import SecurityBaselines from './pages/SecurityBaselines';
+import ExportCenter from './pages/ExportCenter';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "Dashboard": Dashboard,
+    "Tenants": Tenants,
+    "EntraUsers": EntraUsers,
+    "EntraGroups": EntraGroups,
+    "EntraPolicies": EntraPolicies,
+    "IntuneDevices": IntuneDevices,
+    "IntuneProfiles": IntuneProfiles,
+    "SecurityBaselines": SecurityBaselines,
+    "ExportCenter": ExportCenter,
 }
 
 export const pagesConfig = {
+    mainPage: "Dashboard",
     Pages: PAGES,
     Layout: __Layout,
 };
