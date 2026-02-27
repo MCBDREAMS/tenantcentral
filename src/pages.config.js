@@ -67,6 +67,7 @@ import IntuneAutopilot from './pages/IntuneAutopilot';
 import IntuneFilters from './pages/IntuneFilters';
 import IntuneReports from './pages/IntuneReports';
 import MobileDevices from './pages/MobileDevices';
+import MdmSolutions from './pages/MdmSolutions';
 import __Layout from './Layout.jsx';
 
 
@@ -91,6 +92,7 @@ export const PAGES = {
     "IntuneFilters": IntuneFilters,
     "IntuneReports": IntuneReports,
     "MobileDevices": MobileDevices,
+    "MdmSolutions": MdmSolutions,
 }
 
 export const pagesConfig = {
