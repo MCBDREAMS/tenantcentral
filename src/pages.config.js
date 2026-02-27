@@ -66,6 +66,7 @@ import EntraAuthMethods from './pages/EntraAuthMethods';
 import IntuneAutopilot from './pages/IntuneAutopilot';
 import IntuneFilters from './pages/IntuneFilters';
 import IntuneReports from './pages/IntuneReports';
+import MobileDevices from './pages/MobileDevices';
 import __Layout from './Layout.jsx';
 
 
@@ -89,6 +90,7 @@ export const PAGES = {
     "IntuneAutopilot": IntuneAutopilot,
     "IntuneFilters": IntuneFilters,
     "IntuneReports": IntuneReports,
+    "MobileDevices": MobileDevices,
 }
 
 export const pagesConfig = {
