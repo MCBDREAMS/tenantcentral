@@ -67,6 +67,7 @@ export default function Layout({ children, currentPageName }) {
   );
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenants, setTenants] = useState([]);
+  const { rbac, canAccess, filterTenants } = useRbac();
 
   useEffect(() => {
     base44.entities.Tenant.list().then(t => {
