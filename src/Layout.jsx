@@ -158,8 +158,17 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Footer */}
       {(sidebarOpen || mobile) && (
-        <div className="p-3 border-t border-slate-800 shrink-0">
-          <div className="flex items-center gap-2 px-2 py-2 rounded-lg text-xs text-slate-500">
+        <div className="p-3 border-t border-slate-800 shrink-0 space-y-1">
+          {rbac && (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/60">
+              <Lock className="h-3 w-3 text-slate-500" />
+              <span className="text-xs text-slate-400 truncate">{rbac.email}</span>
+              <Badge className="ml-auto text-[9px] px-1.5 py-0 bg-slate-700 text-slate-300 border-0 shrink-0">
+                {rbac.role?.replace(/_/g, " ")}
+              </Badge>
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500">
             <Globe className="h-3 w-3" />
             <span>Multi-Tenant Admin v1.0</span>
           </div>
