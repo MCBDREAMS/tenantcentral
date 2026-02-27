@@ -70,6 +70,10 @@ export default function Dashboard({ selectedTenant, tenants }) {
         <StatCard label="Devices" value={devices.length} icon={MonitorSmartphone} color="cyan" subtitle={`${compliantDevices} compliant`} />
       </div>
 
+      <div className="mb-6">
+        <GraphSyncPanel selectedTenant={selectedTenant} tenants={tenants} />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tenants Overview */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
