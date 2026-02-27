@@ -116,7 +116,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
-        {navSections.map((section, sIndex) => (
+        {navSections.filter(s => !s.section || canAccess(s.section)).map((section, sIndex) => (
           <div key={section.label} className="mb-1">
             {(sidebarOpen || mobile) && (
               <button
