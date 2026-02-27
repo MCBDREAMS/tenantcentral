@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Download, RefreshCw } from "lucide-react";
+import { ClipboardList, Download, RefreshCw, Search, X, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import PageHeader from "@/components/shared/PageHeader";
 import { exportToCSV } from "@/components/shared/exportUtils";
 
