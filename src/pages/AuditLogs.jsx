@@ -137,37 +137,110 @@ export default function AuditLogs({ selectedTenant }) {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-5">
-        <Input
-          placeholder="Search actions, actors, resources..."
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(0); }}
-          className="h-9 w-64 text-sm"
-        />
-        <Select value={category} onValueChange={v => { setCategory(v); setPage(0); }}>
-          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="Category" /></SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c === "all" ? "All Categories" : c.replace(/_/g, " ")}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={severity} onValueChange={v => { setSeverity(v); setPage(0); }}>
-          <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="Severity" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Severities</SelectItem>
-            <SelectItem value="info">Info</SelectItem>
-            <SelectItem value="warning">Warning</SelectItem>
-            <SelectItem value="critical">Critical</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={v => { setStatus(v); setPage(0); }}>
-          <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="success">Success</SelectItem>
-            <SelectItem value="failure">Failure</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-slate-400 self-center ml-auto">{filtered.length} records</span>
+      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-5 space-y-3">
+        {/* Row 1: Main search + quick filters */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Search by action, tenant, details..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(0); }}
+              className="h-9 pl-8 text-sm"
+            />
+          </div>
+          <Select value={severity} onValueChange={v => { setSeverity(v); setPage(0); }}>
+            <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="Severity" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Severities</SelectItem>
+              <SelectItem value="info">Info</SelectItem>
+              <SelectItem value="warning">Warning</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={v => { setStatus(v); setPage(0); }}>
+            <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="failure">Failure</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAdvanced(v => !v)}
+            className={`gap-1.5 ${showAdvanced ? "bg-slate-100" : ""}`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-blue-600 text-white border-0 rounded-full">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-slate-500 h-9">
+              <X className="h-3.5 w-3.5" /> Clear
+            </Button>
+          )}
+          <span className="text-sm text-slate-400 ml-auto">{filtered.length} records</span>
+        </div>
+
+        {/* Row 2: Advanced filters (collapsible) */}
+        {showAdvanced && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">User Email</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  placeholder="Filter by actor email..."
+                  value={actorSearch}
+                  onChange={e => { setActorSearch(e.target.value); setPage(0); }}
+                  className="h-9 pl-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Target Name</Label>
+              <Input
+                placeholder="Filter by resource name..."
+                value={targetSearch}
+                onChange={e => { setTargetSearch(e.target.value); setPage(0); }}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Date From</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={e => { setDateFrom(e.target.value); setPage(0); }}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Date To</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={e => { setDateTo(e.target.value); setPage(0); }}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+              <Label className="text-xs text-slate-500">Category</Label>
+              <Select value={category} onValueChange={v => { setCategory(v); setPage(0); }}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c === "all" ? "All Categories" : c.replace(/_/g, " ")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
