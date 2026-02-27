@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert
+  BarChart2, ShieldAlert, Smartphone, Server
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
