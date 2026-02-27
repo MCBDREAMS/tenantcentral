@@ -57,6 +57,9 @@ import IntuneProfiles from './pages/IntuneProfiles';
 import SecurityBaselines from './pages/SecurityBaselines';
 import ExportCenter from './pages/ExportCenter';
 import DeviceScripts from './pages/DeviceScripts';
+import AuditLogs from './pages/AuditLogs';
+import RbacAdmin from './pages/RbacAdmin';
+import IntuneApps from './pages/IntuneApps';
 import __Layout from './Layout.jsx';
 
 
@@ -71,6 +74,9 @@ export const PAGES = {
     "SecurityBaselines": SecurityBaselines,
     "ExportCenter": ExportCenter,
     "DeviceScripts": DeviceScripts,
+    "AuditLogs": AuditLogs,
+    "RbacAdmin": RbacAdmin,
+    "IntuneApps": IntuneApps,
 }
 
 export const pagesConfig = {
