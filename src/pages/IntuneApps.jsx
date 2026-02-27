@@ -331,5 +331,4 @@ export default function IntuneApps({ selectedTenant, tenants }) {
     </div>
   );
 
-  function getTenantName(tid) { return allTenants.find(t => t.id === tid)?.name || "Unknown"; }
 }
