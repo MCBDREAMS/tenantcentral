@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import { useRbac } from "@/components/shared/useRbac";
 import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers,
