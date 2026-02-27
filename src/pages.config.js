@@ -68,6 +68,7 @@ import IntuneFilters from './pages/IntuneFilters';
 import IntuneReports from './pages/IntuneReports';
 import MobileDevices from './pages/MobileDevices';
 import MdmSolutions from './pages/MdmSolutions';
+import OnPremSync from './pages/OnPremSync';
 import __Layout from './Layout.jsx';
 
 
@@ -93,6 +94,7 @@ export const PAGES = {
     "IntuneReports": IntuneReports,
     "MobileDevices": MobileDevices,
     "MdmSolutions": MdmSolutions,
+    "OnPremSync": OnPremSync,
 }
 
 export const pagesConfig = {

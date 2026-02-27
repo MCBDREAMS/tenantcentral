@@ -1,0 +1,275 @@
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Server, Plus, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Clock, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import PageHeader from "@/components/shared/PageHeader";
+
+const statusConfig = {
+  healthy: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50 border-emerald-200 text-emerald-700", dot: "bg-emerald-500" },
+  warning: { icon: AlertTriangle, color: "text-amber-500", bg: "bg-amber-50 border-amber-200 text-amber-700", dot: "bg-amber-500" },
+  error: { icon: XCircle, color: "text-red-500", bg: "bg-red-50 border-red-200 text-red-700", dot: "bg-red-500" },
+  stopped: { icon: XCircle, color: "text-slate-400", bg: "bg-slate-100 border-slate-200 text-slate-600", dot: "bg-slate-400" },
+  unknown: { icon: Clock, color: "text-slate-400", bg: "bg-slate-100 border-slate-200 text-slate-600", dot: "bg-slate-300" },
+};
+
+const syncTypeLabels = {
+  entra_connect: "Microsoft Entra Connect",
+  ad_connect: "AD Connect",
+  password_hash_sync: "Password Hash Sync",
+  pass_through_auth: "Pass-Through Auth",
+  federation: "Federation (ADFS)",
+};
+
+const EMPTY = {
+  server_name: "", sync_type: "entra_connect", sync_status: "unknown",
+  last_sync_time: "", last_sync_duration_minutes: 0, objects_synced: 0,
+  sync_errors: 0, password_sync_enabled: true, password_writeback_enabled: false,
+  device_writeback_enabled: false, version: "", domain: "", forest: "",
+  staging_mode: false, error_details: "", notes: ""
+};
+
+export default function OnPremSync({ selectedTenant, tenants }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY);
+  const [editing, setEditing] = useState(null);
+
+  const { data: servers = [], isLoading, refetch } = useQuery({
+    queryKey: ["onprem-sync", selectedTenant?.id],
+    queryFn: () => selectedTenant?.id
+      ? base44.entities.OnPremSync.filter({ tenant_id: selectedTenant.id })
+      : base44.entities.OnPremSync.list("-created_date", 100),
+  });
+
+  const save = useMutation({
+    mutationFn: (d) => editing
+      ? base44.entities.OnPremSync.update(editing.id, d)
+      : base44.entities.OnPremSync.create({ ...d, tenant_id: selectedTenant?.id || tenants?.[0]?.id }),
+    onSuccess: () => { qc.invalidateQueries(["onprem-sync"]); setOpen(false); setEditing(null); setForm(EMPTY); }
+  });
+
+  const del = useMutation({
+    mutationFn: (id) => base44.entities.OnPremSync.delete(id),
+    onSuccess: () => qc.invalidateQueries(["onprem-sync"])
+  });
+
+  const openEdit = (s) => { setEditing(s); setForm(s); setOpen(true); };
+  const openNew = () => { setEditing(null); setForm(EMPTY); setOpen(true); };
+
+  const summary = {
+    total: servers.length,
+    healthy: servers.filter(s => s.sync_status === "healthy").length,
+    warning: servers.filter(s => s.sync_status === "warning").length,
+    error: servers.filter(s => ["error", "stopped"].includes(s.sync_status)).length,
+    totalErrors: servers.reduce((a, s) => a + (s.sync_errors || 0), 0),
+    totalObjects: servers.reduce((a, s) => a + (s.objects_synced || 0), 0),
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="On-Prem Sync & AD Connect"
+        subtitle="Monitor Microsoft Entra Connect and on-premises directory synchronization"
+        icon={Server}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </Button>
+            <Button size="sm" onClick={openNew} className="gap-1.5 bg-slate-900 hover:bg-slate-800">
+              <Plus className="h-3.5 w-3.5" /> Add Server
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        {[
+          { label: "Servers", value: summary.total, color: "text-slate-800" },
+          { label: "Healthy", value: summary.healthy, color: "text-emerald-600" },
+          { label: "Warning", value: summary.warning, color: "text-amber-600" },
+          { label: "Error / Stopped", value: summary.error, color: "text-red-600" },
+          { label: "Sync Errors", value: summary.totalErrors, color: "text-red-500" },
+          { label: "Objects Synced", value: summary.totalObjects.toLocaleString(), color: "text-blue-600" },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-20 text-slate-400">Loading sync servers...</div>
+      ) : servers.length === 0 ? (
+        <div className="text-center py-20 text-slate-400">
+          <Server className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No sync servers configured yet.</p>
+          <Button size="sm" className="mt-4 bg-slate-900 hover:bg-slate-800" onClick={openNew}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Sync Server
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {servers.map(s => {
+            const cfg = statusConfig[s.sync_status] || statusConfig.unknown;
+            const StatusIcon = cfg.icon;
+            return (
+              <div key={s.id} className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="relative shrink-0">
+                      <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                        <Server className="h-5 w-5 text-slate-600" />
+                      </div>
+                      <div className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-white ${cfg.dot}`} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900">{s.server_name}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{syncTypeLabels[s.sync_type] || s.sync_type}</div>
+                      {(s.domain || s.forest) && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          {s.domain && <span>Domain: <span className="font-medium">{s.domain}</span></span>}
+                          {s.domain && s.forest && <span className="mx-2">·</span>}
+                          {s.forest && <span>Forest: <span className="font-medium">{s.forest}</span></span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className={`${cfg.bg} text-xs`}>
+                      <StatusIcon className="h-3 w-3 mr-1" />
+                      {(s.sync_status || "unknown").replace(/_/g, " ")}
+                    </Badge>
+                    {s.staging_mode && (
+                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-xs">Staging Mode</Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4 pt-4 border-t border-slate-100">
+                  {[
+                    { label: "Last Sync", value: s.last_sync_time || "Never" },
+                    { label: "Duration", value: s.last_sync_duration_minutes ? `${s.last_sync_duration_minutes} min` : "-" },
+                    { label: "Objects Synced", value: (s.objects_synced || 0).toLocaleString() },
+                    { label: "Sync Errors", value: s.sync_errors || 0, highlight: s.sync_errors > 0 },
+                    { label: "Version", value: s.version || "-" },
+                    { label: "Pwd Writeback", value: s.password_writeback_enabled ? "Enabled" : "Disabled" },
+                  ].map(m => (
+                    <div key={m.label}>
+                      <div className="text-[10px] text-slate-400 uppercase tracking-wide">{m.label}</div>
+                      <div className={`text-sm font-semibold mt-0.5 ${m.highlight ? "text-red-600" : "text-slate-800"}`}>{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Feature flags */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {[
+                    { label: "Password Hash Sync", val: s.password_sync_enabled },
+                    { label: "Password Writeback", val: s.password_writeback_enabled },
+                    { label: "Device Writeback", val: s.device_writeback_enabled },
+                  ].map(f => (
+                    <Badge key={f.label} variant="outline" className={`text-[10px] ${f.val ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+                      {f.label}: {f.val ? "On" : "Off"}
+                    </Badge>
+                  ))}
+                </div>
+
+                {/* Error details */}
+                {s.error_details && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
+                    <AlertTriangle className="inline h-3 w-3 mr-1" />
+                    {s.error_details}
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-4">
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEdit(s)}>Edit</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => del.mutate(s.id)}>Remove</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Sync Server" : "Add Sync Server"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2">
+              <Label className="text-xs">Server Name</Label>
+              <Input value={form.server_name || ""} onChange={e => setForm(p => ({ ...p, server_name: e.target.value }))} className="h-8 text-sm mt-1" placeholder="e.g. DC01-AADSYNC" />
+            </div>
+            {[
+              { label: "Sync Type", key: "sync_type", options: Object.entries(syncTypeLabels).map(([k, v]) => ({ value: k, label: v })) },
+              { label: "Sync Status", key: "sync_status", options: ["healthy", "warning", "error", "stopped", "unknown"].map(o => ({ value: o, label: o.replace(/_/g, " ") })) },
+            ].map(f => (
+              <div key={f.key}>
+                <Label className="text-xs">{f.label}</Label>
+                <Select value={form[f.key]} onValueChange={v => setForm(p => ({ ...p, [f.key]: v }))}>
+                  <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>{f.options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            ))}
+            {[
+              { label: "Domain", key: "domain", placeholder: "contoso.com" },
+              { label: "Forest", key: "forest", placeholder: "contoso.local" },
+              { label: "Version", key: "version", placeholder: "2.3.x" },
+              { label: "Last Sync", key: "last_sync_time", placeholder: "YYYY-MM-DD" },
+            ].map(f => (
+              <div key={f.key}>
+                <Label className="text-xs">{f.label}</Label>
+                <Input value={form[f.key] || ""} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} className="h-8 text-sm mt-1" placeholder={f.placeholder} />
+              </div>
+            ))}
+            {[
+              { label: "Objects Synced", key: "objects_synced" },
+              { label: "Sync Errors", key: "sync_errors" },
+              { label: "Sync Duration (min)", key: "last_sync_duration_minutes" },
+            ].map(f => (
+              <div key={f.key}>
+                <Label className="text-xs">{f.label}</Label>
+                <Input type="number" value={form[f.key] || 0} onChange={e => setForm(p => ({ ...p, [f.key]: parseInt(e.target.value) || 0 }))} className="h-8 text-sm mt-1" />
+              </div>
+            ))}
+            {[
+              { label: "Password Hash Sync", key: "password_sync_enabled" },
+              { label: "Password Writeback", key: "password_writeback_enabled" },
+              { label: "Device Writeback", key: "device_writeback_enabled" },
+              { label: "Staging Mode", key: "staging_mode" },
+            ].map(f => (
+              <div key={f.key} className="flex items-center gap-2">
+                <Switch checked={!!form[f.key]} onCheckedChange={v => setForm(p => ({ ...p, [f.key]: v }))} />
+                <Label className="text-xs">{f.label}</Label>
+              </div>
+            ))}
+            <div className="col-span-2">
+              <Label className="text-xs">Error Details</Label>
+              <Textarea value={form.error_details || ""} onChange={e => setForm(p => ({ ...p, error_details: e.target.value }))} className="text-sm mt-1 h-20" placeholder="Error messages or diagnostics..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending} className="bg-slate-900 hover:bg-slate-800">
+              {save.isPending ? "Saving..." : editing ? "Update" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
