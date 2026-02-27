@@ -6,13 +6,16 @@ import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
-  AppWindow, ClipboardList, UserCog
+  AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
+  BarChart2, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const navSections = [
   {
     label: "Overview",
+    section: null,
     items: [
       { name: "Dashboard", icon: LayoutDashboard, page: "Dashboard" },
       { name: "Tenants", icon: Building2, page: "Tenants" },
@@ -20,24 +23,33 @@ const navSections = [
   },
   {
     label: "Entra ID",
+    section: "entra",
     items: [
       { name: "Users", icon: Users, page: "EntraUsers" },
       { name: "Groups", icon: UserCheck, page: "EntraGroups" },
       { name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
+      { name: "Directory Roles", icon: ShieldAlert, page: "EntraRoles" },
+      { name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
+      { name: "Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
     ]
   },
   {
     label: "Intune",
+    section: "intune",
     items: [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
       { name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
       { name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },
       { name: "Device Scripts", icon: Terminal, page: "DeviceScripts" },
       { name: "Apps & Packages", icon: AppWindow, page: "IntuneApps" },
+      { name: "Autopilot", icon: Rocket, page: "IntuneAutopilot" },
+      { name: "Filters", icon: Filter, page: "IntuneFilters" },
+      { name: "Reports", icon: BarChart2, page: "IntuneReports" },
     ]
   },
   {
     label: "Admin",
+    section: "admin",
     items: [
       { name: "Export Center", icon: FileText, page: "ExportCenter" },
       { name: "Audit Logs", icon: ClipboardList, page: "AuditLogs" },
