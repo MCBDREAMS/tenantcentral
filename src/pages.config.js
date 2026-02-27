@@ -47,54 +47,54 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Dashboard from './pages/Dashboard';
-import Tenants from './pages/Tenants';
-import EntraUsers from './pages/EntraUsers';
-import EntraGroups from './pages/EntraGroups';
-import EntraPolicies from './pages/EntraPolicies';
-import IntuneDevices from './pages/IntuneDevices';
-import IntuneProfiles from './pages/IntuneProfiles';
-import SecurityBaselines from './pages/SecurityBaselines';
-import ExportCenter from './pages/ExportCenter';
-import DeviceScripts from './pages/DeviceScripts';
 import AuditLogs from './pages/AuditLogs';
-import RbacAdmin from './pages/RbacAdmin';
-import IntuneApps from './pages/IntuneApps';
-import EntraRoles from './pages/EntraRoles';
-import EntraNamedLocations from './pages/EntraNamedLocations';
+import Dashboard from './pages/Dashboard';
+import DeviceScripts from './pages/DeviceScripts';
 import EntraAuthMethods from './pages/EntraAuthMethods';
+import EntraGroups from './pages/EntraGroups';
+import EntraNamedLocations from './pages/EntraNamedLocations';
+import EntraPolicies from './pages/EntraPolicies';
+import EntraRoles from './pages/EntraRoles';
+import EntraUsers from './pages/EntraUsers';
+import ExportCenter from './pages/ExportCenter';
+import IntuneApps from './pages/IntuneApps';
 import IntuneAutopilot from './pages/IntuneAutopilot';
+import IntuneDevices from './pages/IntuneDevices';
 import IntuneFilters from './pages/IntuneFilters';
+import IntuneProfiles from './pages/IntuneProfiles';
 import IntuneReports from './pages/IntuneReports';
-import MobileDevices from './pages/MobileDevices';
 import MdmSolutions from './pages/MdmSolutions';
+import MobileDevices from './pages/MobileDevices';
 import OnPremSync from './pages/OnPremSync';
+import RbacAdmin from './pages/RbacAdmin';
+import SecurityBaselines from './pages/SecurityBaselines';
+import Tenants from './pages/Tenants';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Dashboard": Dashboard,
-    "Tenants": Tenants,
-    "EntraUsers": EntraUsers,
-    "EntraGroups": EntraGroups,
-    "EntraPolicies": EntraPolicies,
-    "IntuneDevices": IntuneDevices,
-    "IntuneProfiles": IntuneProfiles,
-    "SecurityBaselines": SecurityBaselines,
-    "ExportCenter": ExportCenter,
-    "DeviceScripts": DeviceScripts,
     "AuditLogs": AuditLogs,
-    "RbacAdmin": RbacAdmin,
-    "IntuneApps": IntuneApps,
-    "EntraRoles": EntraRoles,
-    "EntraNamedLocations": EntraNamedLocations,
+    "Dashboard": Dashboard,
+    "DeviceScripts": DeviceScripts,
     "EntraAuthMethods": EntraAuthMethods,
+    "EntraGroups": EntraGroups,
+    "EntraNamedLocations": EntraNamedLocations,
+    "EntraPolicies": EntraPolicies,
+    "EntraRoles": EntraRoles,
+    "EntraUsers": EntraUsers,
+    "ExportCenter": ExportCenter,
+    "IntuneApps": IntuneApps,
     "IntuneAutopilot": IntuneAutopilot,
+    "IntuneDevices": IntuneDevices,
     "IntuneFilters": IntuneFilters,
+    "IntuneProfiles": IntuneProfiles,
     "IntuneReports": IntuneReports,
-    "MobileDevices": MobileDevices,
     "MdmSolutions": MdmSolutions,
+    "MobileDevices": MobileDevices,
     "OnPremSync": OnPremSync,
+    "RbacAdmin": RbacAdmin,
+    "SecurityBaselines": SecurityBaselines,
+    "Tenants": Tenants,
 }
 
 export const pagesConfig = {

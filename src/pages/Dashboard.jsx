@@ -5,6 +5,7 @@ import { LayoutDashboard, Building2, Users, Shield, Laptop, ShieldCheck, Monitor
 import StatCard from "@/components/shared/StatCard";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
+import GraphSyncPanel from "@/components/sync/GraphSyncPanel";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
