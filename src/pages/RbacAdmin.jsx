@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import PageHeader from "@/components/shared/PageHeader";
-import { logAction } from "@/lib/auditLogger";
+import { logAction } from "@/components/shared/auditLogger";
 
 const roleColors = {
   global_admin: "bg-red-50 text-red-700",

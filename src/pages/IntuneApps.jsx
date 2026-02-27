@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { logAction } from "@/lib/auditLogger";
+import { logAction } from "@/components/shared/auditLogger";
 
 const appTypeColors = {
   win32: "bg-blue-50 text-blue-700",
