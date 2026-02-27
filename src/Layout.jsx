@@ -5,7 +5,8 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers,
-  MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal
+  MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
+  AppWindow, ClipboardList, UserCog
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,12 +33,15 @@ const navSections = [
       { name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
       { name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },
       { name: "Device Scripts", icon: Terminal, page: "DeviceScripts" },
+      { name: "Apps & Packages", icon: AppWindow, page: "IntuneApps" },
     ]
   },
   {
-    label: "Export",
+    label: "Admin",
     items: [
       { name: "Export Center", icon: FileText, page: "ExportCenter" },
+      { name: "Audit Logs", icon: ClipboardList, page: "AuditLogs" },
+      { name: "RBAC / Roles", icon: UserCog, page: "RbacAdmin" },
     ]
   }
 ];
