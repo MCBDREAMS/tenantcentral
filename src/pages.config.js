@@ -60,6 +60,12 @@ import DeviceScripts from './pages/DeviceScripts';
 import AuditLogs from './pages/AuditLogs';
 import RbacAdmin from './pages/RbacAdmin';
 import IntuneApps from './pages/IntuneApps';
+import EntraRoles from './pages/EntraRoles';
+import EntraNamedLocations from './pages/EntraNamedLocations';
+import EntraAuthMethods from './pages/EntraAuthMethods';
+import IntuneAutopilot from './pages/IntuneAutopilot';
+import IntuneFilters from './pages/IntuneFilters';
+import IntuneReports from './pages/IntuneReports';
 import __Layout from './Layout.jsx';
 
 
@@ -77,6 +83,12 @@ export const PAGES = {
     "AuditLogs": AuditLogs,
     "RbacAdmin": RbacAdmin,
     "IntuneApps": IntuneApps,
+    "EntraRoles": EntraRoles,
+    "EntraNamedLocations": EntraNamedLocations,
+    "EntraAuthMethods": EntraAuthMethods,
+    "IntuneAutopilot": IntuneAutopilot,
+    "IntuneFilters": IntuneFilters,
+    "IntuneReports": IntuneReports,
 }
 
 export const pagesConfig = {
