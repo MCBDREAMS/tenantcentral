@@ -71,12 +71,13 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     base44.entities.Tenant.list().then(t => {
-      setTenants(t);
-      if (t.length > 0 && !selectedTenant) {
-        setSelectedTenant(t[0]);
+      const scoped = filterTenants(t);
+      setTenants(scoped);
+      if (scoped.length > 0 && !selectedTenant) {
+        setSelectedTenant(scoped[0]);
       }
     });
-  }, []);
+  }, [rbac]);
 
   const toggleSection = (index) => {
     setExpandedSections(prev => prev.map((v, i) => i === index ? !v : v));
