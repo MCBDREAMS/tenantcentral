@@ -31,8 +31,12 @@ async function graphGetAll(token, path) {
   let url = `https://graph.microsoft.com/v1.0${path}`;
   while (url) {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) break;
     const data = await res.json();
+    if (!res.ok) {
+      console.error(`[graphGetAll] FAILED ${path}: ${res.status} - ${JSON.stringify(data)}`);
+      break;
+    }
+    console.log(`[graphGetAll] ${path} -> ${(data.value || []).length} items`);
     results = results.concat(data.value || []);
     url = data["@odata.nextLink"] || null;
   }
