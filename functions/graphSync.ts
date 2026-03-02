@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
 
     if (action === "sync_users") {
       const users = await graphGetAll(token, "/users?$select=id,displayName,userPrincipalName,mail,accountEnabled,userType,jobTitle,department,assignedLicenses,createdDateTime&$top=999");
+      console.log(`[sync_users] fetched ${users.length} users from Graph`);
       const tid = tenant_id;
       let created = 0, updated = 0;
 
