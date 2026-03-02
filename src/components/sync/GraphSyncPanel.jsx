@@ -17,14 +17,16 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
   const [loading, setLoading] = useState({});
   const [syncing, setSyncing] = useState(false);
 
-  const tenant_id = selectedTenant?.id || tenants?.[0]?.id;
+  const tenant = selectedTenant || tenants?.[0];
+  const tenant_id = tenant?.id; // DB record ID for entity storage
+  const azure_tenant_id = tenant?.tenant_id; // Azure GUID for Graph API
 
   const runSync = async (action) => {
-    if (!tenant_id) return;
+    if (!tenant_id || !azure_tenant_id) return;
     setLoading(p => ({ ...p, [action]: true }));
     setResults(p => ({ ...p, [action]: null }));
     try {
-      const res = await base44.functions.invoke("graphSync", { action, tenant_id });
+      const res = await base44.functions.invoke("graphSync", { action, tenant_id, azure_tenant_id });
       setResults(p => ({ ...p, [action]: { success: true, ...res.data } }));
     } catch (err) {
       setResults(p => ({ ...p, [action]: { success: false, error: err.message } }));
