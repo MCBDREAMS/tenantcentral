@@ -8,6 +8,8 @@ const SYNC_ACTIONS = [
   { action: "sync_groups", label: "Groups", description: "Entra ID Groups" },
   { action: "sync_devices", label: "Devices", description: "Intune Managed Devices" },
   { action: "sync_policies", label: "CA Policies", description: "Conditional Access" },
+  { action: "sync_intune_profiles", label: "Intune Profiles", description: "Compliance, Config & Endpoint Security" },
+  { action: "sync_intune_apps", label: "Intune Apps", description: "Managed Apps & Packages" },
 ];
 
 export default function GraphSyncPanel({ selectedTenant, tenants }) {
