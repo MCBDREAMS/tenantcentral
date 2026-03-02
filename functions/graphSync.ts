@@ -176,6 +176,98 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, action, created, updated, total: policies.length });
     }
 
+    if (action === "sync_intune_profiles") {
+      const [compliancePolicies, configProfiles, endpointSecurity] = await Promise.all([
+        graphGetAll(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,platforms,lastModifiedDateTime&$top=999"),
+        graphGetAll(token, "/deviceManagement/deviceConfigurations?$select=id,displayName,description,platforms,lastModifiedDateTime&$top=999"),
+        graphGetAll(token, "/deviceManagement/intents?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
+      ]);
+
+      const tid = tenant_id;
+      let created = 0, updated = 0;
+
+      const upsert = async (items, profile_type) => {
+        for (const p of items) {
+          const platformRaw = p.platforms || p.platform || "";
+          const platformMap = { windows10: "windows", macOS: "macos", iOS: "ios", android: "android", linux: "linux" };
+          const platform = platformMap[platformRaw] || "windows";
+          const existing = await base44.asServiceRole.entities.IntuneProfile.filter({ tenant_id: tid, profile_name: p.displayName });
+          const payload = {
+            tenant_id: tid,
+            profile_name: p.displayName || "",
+            profile_type,
+            platform,
+            state: "active",
+            description: p.description || "",
+            last_modified: p.lastModifiedDateTime ? p.lastModifiedDateTime.split("T")[0] : "",
+          };
+          if (existing.length > 0) {
+            await base44.asServiceRole.entities.IntuneProfile.update(existing[0].id, payload);
+            updated++;
+          } else {
+            await base44.asServiceRole.entities.IntuneProfile.create(payload);
+            created++;
+          }
+        }
+      };
+
+      await upsert(compliancePolicies, "compliance_policy");
+      await upsert(configProfiles, "configuration_profile");
+      await upsert(endpointSecurity, "endpoint_security");
+
+      const total = compliancePolicies.length + configProfiles.length + endpointSecurity.length;
+      return Response.json({ success: true, action, created, updated, total });
+    }
+
+    if (action === "sync_intune_apps") {
+      const apps = await graphGetAll(token, "/deviceAppManagement/mobileApps?$select=id,displayName,publisher,version,@odata.type,lastModifiedDateTime&$top=999");
+      const tid = tenant_id;
+      let created = 0, updated = 0;
+
+      for (const a of apps) {
+        const typeRaw = a["@odata.type"] || "";
+        const typeMap = {
+          "#microsoft.graph.win32LobApp": "win32",
+          "#microsoft.graph.windowsMobileMSI": "msi",
+          "#microsoft.graph.windowsUniversalAppX": "msix",
+          "#microsoft.graph.microsoftStoreForBusinessApp": "store",
+          "#microsoft.graph.webApp": "web_link",
+          "#microsoft.graph.iosStoreApp": "ios_store",
+          "#microsoft.graph.androidStoreApp": "android_store",
+          "#microsoft.graph.macOSPkgApp": "macos_pkg",
+          "#microsoft.graph.officeSuiteApp": "office365",
+        };
+        const app_type = typeMap[typeRaw] || "win32";
+
+        const platformRaw = typeRaw.toLowerCase();
+        const platform = platformRaw.includes("ios") || platformRaw.includes("ios") ? "ios"
+          : platformRaw.includes("android") ? "android"
+          : platformRaw.includes("macos") ? "macos"
+          : platformRaw.includes("office") ? "all"
+          : "windows";
+
+        const existing = await base44.asServiceRole.entities.IntuneApp.filter({ tenant_id: tid, app_name: a.displayName });
+        const payload = {
+          tenant_id: tid,
+          app_name: a.displayName || "",
+          publisher: a.publisher || "",
+          version: a.version || "",
+          app_type,
+          platform,
+          state: "published",
+          last_modified: a.lastModifiedDateTime ? a.lastModifiedDateTime.split("T")[0] : "",
+        };
+        if (existing.length > 0) {
+          await base44.asServiceRole.entities.IntuneApp.update(existing[0].id, payload);
+          updated++;
+        } else {
+          await base44.asServiceRole.entities.IntuneApp.create(payload);
+          created++;
+        }
+      }
+      return Response.json({ success: true, action, created, updated, total: apps.length });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
