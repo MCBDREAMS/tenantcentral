@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { action, azure_tenant_id } = await req.json();
-    const token = await getAccessToken(azure_tenant_id || tenant_id);
+    const token = await getAccessToken(azure_tenant_id);
 
     if (action === "analyze") {
       const findings = await analyzeSecurityPosture(token);
