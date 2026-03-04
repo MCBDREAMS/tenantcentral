@@ -58,6 +58,13 @@ const navSections = [
     ]
   },
   {
+    label: "Security",
+    section: null,
+    items: [
+      { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
+    ]
+  },
+  {
     label: "Admin",
     section: "admin",
     items: [
