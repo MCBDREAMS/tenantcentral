@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ShieldCheck, Play, RefreshCw, Filter, AlertCircle, CheckCircle2, AlertTriangle, ChevronDown } from "lucide-react";
+import { ShieldCheck, Play, RefreshCw, Filter, AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, Info, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageHeader from "@/components/shared/PageHeader";
