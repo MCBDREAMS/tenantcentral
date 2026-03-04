@@ -53,11 +53,21 @@ async function graphDelete(token, path) {
   return { success: true };
 }
 
-// Compliance Reporting: fetch all devices + their compliance status
+// Single-page fetch (no pagination loop) to stay within CPU limits
+async function graphGetPage(token, path) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) { console.warn(`graphGetPage FAILED ${path}: ${res.status}`); return []; }
+  const data = await res.json();
+  return data.value || [];
+}
+
+// Compliance Reporting: single-page fetch capped at 200 devices
 async function getComplianceReport(token) {
   const [devices, policies] = await Promise.all([
-    fetchAll(token, "/deviceManagement/managedDevices?$select=id,deviceName,complianceState,operatingSystem,userPrincipalName,lastSyncDateTime&$top=999"),
-    fetchAll(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,lastModifiedDateTime&$top=999"),
+    graphGetPage(token, "/deviceManagement/managedDevices?$select=id,deviceName,complianceState,operatingSystem,userPrincipalName,lastSyncDateTime&$top=200"),
+    graphGetPage(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,lastModifiedDateTime&$top=50"),
   ]);
   const compliant = devices.filter(d => d.complianceState === "compliant").length;
   const nonCompliant = devices.filter(d => d.complianceState === "noncompliant").length;
@@ -69,12 +79,14 @@ async function getComplianceReport(token) {
 async function fetchAll(token, path) {
   let results = [];
   let url = `https://graph.microsoft.com/v1.0${path}`;
-  while (url) {
+  let pages = 0;
+  while (url && pages < 5) { // max 5 pages to avoid CPU limit
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
     if (!res.ok) { console.warn(`fetchAll FAILED ${path}: ${res.status}`); break; }
     results = results.concat(data.value || []);
     url = data["@odata.nextLink"] || null;
+    pages++;
   }
   return results;
 }
