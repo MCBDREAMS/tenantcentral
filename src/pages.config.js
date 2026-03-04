@@ -69,6 +69,7 @@ import OnPremSync from './pages/OnPremSync';
 import RbacAdmin from './pages/RbacAdmin';
 import SecurityBaselines from './pages/SecurityBaselines';
 import Tenants from './pages/Tenants';
+import TenantAnalyzer from './pages/TenantAnalyzer';
 import __Layout from './Layout.jsx';
 
 
@@ -95,6 +96,7 @@ export const PAGES = {
     "RbacAdmin": RbacAdmin,
     "SecurityBaselines": SecurityBaselines,
     "Tenants": Tenants,
+    "TenantAnalyzer": TenantAnalyzer,
 }
 
 export const pagesConfig = {
