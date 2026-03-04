@@ -1,18 +1,18 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { FolderCog, Eye } from "lucide-react";
+import { FolderCog, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/shared/PageHeader";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { exportToCSV } from "@/components/shared/exportUtils";
+import ProfileEditDialog from "@/components/editor/ProfileEditDialog";
 
 export default function IntuneProfiles({ selectedTenant }) {
-  const [selected, setSelected] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
 
   const { data: profiles = [] } = useQuery({
@@ -31,14 +31,7 @@ export default function IntuneProfiles({ selectedTenant }) {
 
   const filtered = typeFilter === "all" ? profiles : profiles.filter(p => p.profile_type === typeFilter);
 
-  const platformIcons = {
-    windows: "🪟",
-    macos: "🍎",
-    ios: "📱",
-    android: "🤖",
-    linux: "🐧",
-    all: "🌐",
-  };
+  const platformIcons = { windows: "🪟", macos: "🍎", ios: "📱", android: "🤖", linux: "🐧", all: "🌐" };
 
   const columns = [
     { header: "Profile", accessor: "profile_name", render: (r) => <span className="font-medium text-slate-800">{r.profile_name}</span> },
@@ -49,11 +42,15 @@ export default function IntuneProfiles({ selectedTenant }) {
       <span className="text-sm">{platformIcons[r.platform] || ""} {r.platform}</span>
     )},
     { header: "State", accessor: "state", render: (r) => <StatusBadge status={r.state} /> },
+    { header: "Description", accessor: "description", render: (r) => (
+      <span className="text-xs text-slate-500 max-w-[200px] truncate block">{r.description || "—"}</span>
+    )},
     { header: "Groups", accessor: "assigned_groups", render: (r) => <span className="text-xs text-slate-500">{r.assigned_groups || "—"}</span> },
+    { header: "Last Modified", accessor: "last_modified", render: (r) => <span className="text-xs text-slate-500">{r.last_modified || "—"}</span> },
     { header: "Tenant", accessor: "tenant_id", render: (r) => <span className="text-xs text-slate-500">{getTenantName(r.tenant_id)}</span> },
     { header: "", accessor: "actions", render: (r) => (
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(r)}>
-        <Eye className="h-3.5 w-3.5 text-slate-400" />
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(r)}>
+        <Pencil className="h-3.5 w-3.5 text-slate-400" />
       </Button>
     )},
   ];
@@ -83,47 +80,13 @@ export default function IntuneProfiles({ selectedTenant }) {
         emptyMessage="No profiles found"
       />
 
-      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{selected?.profile_name}</DialogTitle>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500">Type</p>
-                  <p className="text-sm font-medium mt-0.5">{selected.profile_type?.replace(/_/g, ' ')}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Platform</p>
-                  <p className="text-sm mt-0.5">{platformIcons[selected.platform]} {selected.platform}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">State</p>
-                  <div className="mt-0.5"><StatusBadge status={selected.state} /></div>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Assigned Groups</p>
-                  <p className="text-sm mt-0.5">{selected.assigned_groups || "—"}</p>
-                </div>
-              </div>
-              {selected.description && (
-                <div>
-                  <p className="text-xs text-slate-500">Description</p>
-                  <p className="text-sm mt-0.5">{selected.description}</p>
-                </div>
-              )}
-              {selected.settings_summary && (
-                <div>
-                  <p className="text-xs text-slate-500">Settings</p>
-                  <pre className="text-xs bg-slate-50 rounded-lg p-3 mt-1 overflow-auto max-h-40">{selected.settings_summary}</pre>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {editing && (
+        <ProfileEditDialog
+          profile={editing}
+          tenants={allTenants}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
