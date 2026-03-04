@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { action, azure_tenant_id } = await req.json();
-    const token = await getAccessToken(azure_tenant_id);
+    const token = await getAccessToken(azure_tenant_id || tenant_id);
 
     if (action === "analyze") {
       const findings = await analyzeSecurityPosture(token);
@@ -549,13 +549,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "remediate") {
-      const { remediation_action } = await req.json().catch(() => ({}));
-      // re-read body since we already consumed it above
-    }
-
-    // Dedicated remediation endpoint - body already parsed, pass remediation_action in main body
-    return Response.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action. Use action: 'analyze'" }, { status: 400 });
 
   } catch (err) {
     console.error("[tenantAnalyzer] Error:", err.message);
