@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_devices") {
-      const devices = await graphGetAll(token, "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,ownerType,userPrincipalName,enrolledDateTime,lastSyncDateTime,serialNumber,model&$top=999");
+      const devices = await graphGetAll(token, "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,enrolledDateTime,lastSyncDateTime,serialNumber,model&$top=999");
       const tid = tenant_id;
       let created = 0, updated = 0;
 
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
           device_name: d.deviceName || "",
           os,
           compliance_state: compMap[d.complianceState] || "not_evaluated",
-          ownership: d.ownerType === "personal" ? "personal" : "corporate",
+          ownership: d.managedDeviceOwnerType === "personal" ? "personal" : "corporate",
           primary_user: d.userPrincipalName || "",
           enrolled_date: d.enrolledDateTime ? d.enrolledDateTime.split("T")[0] : "",
           last_check_in: d.lastSyncDateTime ? d.lastSyncDateTime.split("T")[0] : "",
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_policies") {
-      const policies = await graphGetAll(token, "/identity/conditionalAccess/policies?$select=id,displayName,state,description,conditions,grantControls,modifiedDateTime&$top=200");
+      const policies = await graphGetAll(token, "/identity/conditionalAccess/policies?$select=id,displayName,state,conditions,grantControls,modifiedDateTime&$top=200");
       const tid = tenant_id;
       let created = 0, updated = 0;
 
@@ -167,7 +167,6 @@ Deno.serve(async (req) => {
           policy_name: p.displayName || "",
           policy_type: "conditional_access",
           state: stateMap[p.state] || "disabled",
-          description: p.description || "",
           last_modified: p.modifiedDateTime ? p.modifiedDateTime.split("T")[0] : "",
         };
         if (existing.length > 0) {
@@ -182,11 +181,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_intune_profiles") {
-      const [compliancePolicies, configProfiles, endpointSecurity] = await Promise.all([
-        graphGetAll(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,platforms,lastModifiedDateTime&$top=999"),
-        graphGetAll(token, "/deviceManagement/deviceConfigurations?$select=id,displayName,description,platforms,lastModifiedDateTime&$top=999"),
-        graphGetAll(token, "/deviceManagement/intents?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
+      const [compliancePolicies, configProfiles] = await Promise.all([
+        graphGetAll(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
+        graphGetAll(token, "/deviceManagement/deviceConfigurations?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
       ]);
+      const endpointSecurity = [];
 
       const tid = tenant_id;
       let created = 0, updated = 0;
@@ -225,7 +224,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_intune_apps") {
-      const apps = await graphGetAll(token, "/deviceAppManagement/mobileApps?$select=id,displayName,publisher,version,@odata.type,lastModifiedDateTime&$top=999");
+      const apps = await graphGetAll(token, "/deviceAppManagement/mobileApps?$select=id,displayName,publisher,@odata.type,lastModifiedDateTime&$top=999");
       const tid = tenant_id;
       let created = 0, updated = 0;
 
@@ -256,7 +255,7 @@ Deno.serve(async (req) => {
           tenant_id: tid,
           app_name: a.displayName || "",
           publisher: a.publisher || "",
-          version: a.version || "",
+          version: "",
           app_type,
           platform,
           state: "published",
