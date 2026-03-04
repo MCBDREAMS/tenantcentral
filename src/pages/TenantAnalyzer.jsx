@@ -113,6 +113,38 @@ export default function TenantAnalyzer({ selectedTenant, tenants = [] }) {
           </div>
         </div>
 
+        {/* Permissions note */}
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex gap-2 text-xs text-blue-800">
+            <Info className="h-4 w-4 shrink-0 text-blue-500 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold">Required Microsoft Graph API Permissions</p>
+              <p className="text-blue-600">In <strong>Azure Portal → Enterprise Applications → [Your App] → API Permissions → Microsoft Graph</strong>, ensure these Application permissions are granted:</p>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {[
+                  "Policy.Read.All",
+                  "User.Read.All",
+                  "Directory.Read.All",
+                  "Application.Read.All",
+                  "SecurityEvents.Read.All",
+                  "DeviceManagementConfiguration.Read.All",
+                  "DeviceManagementManagedDevices.Read.All",
+                ].map(p => (
+                  <span key={p} className="bg-blue-100 text-blue-800 border border-blue-200 rounded px-2 py-0.5 font-mono text-[11px]">{p}</span>
+                ))}
+              </div>
+              <a
+                href="https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppAppsPreview"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-blue-600 hover:underline mt-1"
+              >
+                <ExternalLink className="h-3 w-3" /> Open Enterprise Applications in Azure Portal
+              </a>
+            </div>
+          </div>
+        </div>
+
         {error && (
           <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 flex gap-2 text-sm text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
