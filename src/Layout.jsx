@@ -64,6 +64,7 @@ const navSections = [
     items: [
       { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
       { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
+      { name: "Admin Console", icon: AppWindow, page: "AdminConsole" },
     ]
   },
   {
