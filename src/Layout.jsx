@@ -20,6 +20,7 @@ const navSections = [
     items: [
       { name: "Dashboard", icon: LayoutDashboard, page: "Dashboard" },
       { name: "Tenants", icon: Building2, page: "Tenants" },
+      { name: "Tenant Settings", icon: Settings, page: "TenantSettings" },
     ]
   },
   {
