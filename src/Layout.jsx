@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +64,17 @@ const navSections = [
     items: [
       { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
       { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
-      { name: "Admin Console", icon: AppWindow, page: "AdminConsole" },
+    ]
+  },
+  {
+    label: "Portals",
+    section: "entra",
+    items: [
+      { name: "Exchange", icon: Mail, page: "PortalExchange" },
+      { name: "Teams", icon: MessageSquare, page: "PortalTeams" },
+      { name: "SharePoint", icon: Globe, page: "PortalSharePoint" },
+      { name: "Defender Alerts", icon: Shield, page: "PortalDefender" },
+      { name: "Service Health", icon: Server, page: "PortalServiceHealth" },
     ]
   },
   {
