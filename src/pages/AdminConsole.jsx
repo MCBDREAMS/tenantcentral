@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { ExternalLink, Search, Shield, Mail, Users, MessageSquare, Globe, Server, Database, Lock, Settings, ChevronRight, BarChart2, FileText, Layers } from "lucide-react";
+import { Search, Shield, Mail, Users, MessageSquare, Globe, Server, Database, Lock, Settings, BarChart2, FileText, Layers, ArrowLeft, RefreshCw, ExternalLink, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/shared/PageHeader";
 
 const CONSOLES = [
@@ -64,36 +65,21 @@ const CONSOLES = [
 ];
 
 const tagColors = {
-  Core: "bg-blue-50 text-blue-700",
-  Exchange: "bg-amber-50 text-amber-700",
-  Teams: "bg-violet-50 text-violet-700",
-  SharePoint: "bg-emerald-50 text-emerald-700",
-  OneDrive: "bg-cyan-50 text-cyan-700",
-  Defender: "bg-red-50 text-red-700",
-  Purview: "bg-indigo-50 text-indigo-700",
-  Sentinel: "bg-orange-50 text-orange-700",
-  CASB: "bg-rose-50 text-rose-700",
-  MDE: "bg-red-50 text-red-800",
-  MDI: "bg-red-50 text-red-600",
-  Azure: "bg-slate-100 text-slate-700",
-  Entra: "bg-blue-50 text-blue-800",
-  AAD: "bg-blue-50 text-blue-600",
-  PIM: "bg-yellow-50 text-yellow-700",
-  CA: "bg-purple-50 text-purple-700",
-  Cost: "bg-green-50 text-green-700",
-  Intune: "bg-teal-50 text-teal-700",
-  W365: "bg-teal-50 text-teal-800",
-  Autopilot: "bg-emerald-50 text-emerald-800",
-  Analytics: "bg-violet-50 text-violet-800",
-  Reports: "bg-purple-50 text-purple-600",
-  Monitor: "bg-orange-50 text-orange-700",
-  Logs: "bg-slate-50 text-slate-600",
-  Health: "bg-green-50 text-green-800",
-  Viva: "bg-pink-50 text-pink-700",
+  Core: "bg-blue-50 text-blue-700", Exchange: "bg-amber-50 text-amber-700", Teams: "bg-violet-50 text-violet-700",
+  SharePoint: "bg-emerald-50 text-emerald-700", OneDrive: "bg-cyan-50 text-cyan-700", Defender: "bg-red-50 text-red-700",
+  Purview: "bg-indigo-50 text-indigo-700", Sentinel: "bg-orange-50 text-orange-700", CASB: "bg-rose-50 text-rose-700",
+  MDE: "bg-red-50 text-red-800", MDI: "bg-red-50 text-red-600", Azure: "bg-slate-100 text-slate-700",
+  Entra: "bg-blue-50 text-blue-800", AAD: "bg-blue-50 text-blue-600", PIM: "bg-yellow-50 text-yellow-700",
+  CA: "bg-purple-50 text-purple-700", Cost: "bg-green-50 text-green-700", Intune: "bg-teal-50 text-teal-700",
+  W365: "bg-teal-50 text-teal-800", Autopilot: "bg-emerald-50 text-emerald-800", Analytics: "bg-violet-50 text-violet-800",
+  Reports: "bg-purple-50 text-purple-600", Monitor: "bg-orange-50 text-orange-700", Logs: "bg-slate-50 text-slate-600",
+  Health: "bg-green-50 text-green-800", Viva: "bg-pink-50 text-pink-700",
 };
 
 export default function AdminConsole({ selectedTenant }) {
   const [search, setSearch] = useState("");
+  const [active, setActive] = useState(null); // { name, url, color, icon }
+  const [iframeKey, setIframeKey] = useState(0);
 
   const filtered = CONSOLES.map(cat => ({
     ...cat,
@@ -105,15 +91,65 @@ export default function AdminConsole({ selectedTenant }) {
     )
   })).filter(cat => cat.items.length > 0);
 
-  const openUrl = (url) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+  const launch = (item, cat) => {
+    setActive({ ...item, color: cat.color });
+    setIframeKey(k => k + 1);
   };
 
+  // ── Embedded viewer ──────────────────────────────────────────────────────
+  if (active) {
+    const Icon = active.icon;
+    return (
+      <div className="flex flex-col h-full">
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-slate-200 shrink-0">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-slate-600" onClick={() => setActive(null)}>
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <div className="h-4 w-px bg-slate-200" />
+          <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${active.color} flex items-center justify-center shrink-0`}>
+            <Icon className="h-3.5 w-3.5 text-white" />
+          </div>
+          <span className="text-sm font-semibold text-slate-800 flex-1 truncate">{active.name}</span>
+          <span className="text-xs text-slate-400 truncate hidden sm:block max-w-xs">{active.url}</span>
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="Reload" onClick={() => setIframeKey(k => k + 1)}>
+            <RefreshCw className="h-4 w-4 text-slate-500" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="Open in new tab" onClick={() => window.open(active.url, "_blank", "noopener,noreferrer")}>
+            <ExternalLink className="h-4 w-4 text-slate-500" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActive(null)}>
+            <X className="h-4 w-4 text-slate-400" />
+          </Button>
+        </div>
+
+        {/* Notice banner — Microsoft portals block embedding via X-Frame-Options */}
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 shrink-0">
+          <span className="text-xs text-amber-700">
+            <strong>Note:</strong> Microsoft portals enforce X-Frame-Options and may not load inside an iframe due to browser security policies.
+            Use the <button className="underline font-semibold" onClick={() => window.open(active.url, "_blank", "noopener,noreferrer")}>Open in new tab</button> button if the frame stays blank.
+          </span>
+        </div>
+
+        {/* iFrame */}
+        <iframe
+          key={iframeKey}
+          src={active.url}
+          title={active.name}
+          className="flex-1 w-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
+  // ── Portal grid ──────────────────────────────────────────────────────────
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PageHeader
         title="Admin Console"
-        subtitle="Quick access to all Microsoft 365, Azure, Security, and Intune admin portals"
+        subtitle="Access Microsoft 365, Azure, Security, and Intune admin portals within this app"
         icon={Settings}
       />
 
@@ -141,23 +177,19 @@ export default function AdminConsole({ selectedTenant }) {
                 return (
                   <button
                     key={item.name}
-                    onClick={() => openUrl(item.url)}
+                    onClick={() => launch(item, cat)}
                     className="group text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-md transition-all duration-150 flex items-start gap-3"
                   >
                     <div className={`h-9 w-9 rounded-lg bg-gradient-to-br ${cat.color} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform`}>
                       <Icon className="h-4 w-4 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{item.name}</p>
-                        <ExternalLink className="h-3 w-3 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
-                      </div>
+                      <p className="text-sm font-semibold text-slate-900 truncate mb-0.5">{item.name}</p>
                       <p className="text-xs text-slate-500 leading-snug">{item.desc}</p>
                       <Badge className={`mt-2 text-[10px] px-1.5 py-0 border-0 ${tagColors[item.tag] || "bg-slate-100 text-slate-500"}`}>
                         {item.tag}
                       </Badge>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-slate-200 group-hover:text-slate-400 shrink-0 mt-1 transition-colors" />
                   </button>
                 );
               })}
