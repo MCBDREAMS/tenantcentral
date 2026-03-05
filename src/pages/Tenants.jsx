@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Trash2, Pencil } from "lucide-react";
+import { Building2, Plus, Trash2, Pencil, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +52,11 @@ export default function Tenants() {
     }
   };
 
+  const handleLogin = (tenant) => {
+    const loginUrl = `https://portal.azure.com/${tenant.tenant_id || tenant.domain}`;
+    window.open(loginUrl, "_blank");
+  };
+
   const columns = [
     { header: "Name", accessor: "name", render: (row) => <span className="font-medium text-slate-800">{row.name}</span> },
     { header: "Tenant ID", accessor: "tenant_id", render: (row) => <code className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">{row.tenant_id}</code> },
@@ -60,7 +65,10 @@ export default function Tenants() {
     { header: "Status", accessor: "status", render: (row) => <StatusBadge status={row.status} /> },
     {
       header: "", accessor: "actions", render: (row) => (
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
+          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handleLogin(row)}>
+            <LogIn className="h-3.5 w-3.5" /> Login
+          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(row)}>
             <Pencil className="h-3.5 w-3.5 text-slate-400" />
           </Button>
