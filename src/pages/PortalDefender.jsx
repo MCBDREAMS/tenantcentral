@@ -29,13 +29,15 @@ export default function PortalDefender({ selectedTenant }) {
 
   const tenantId = selectedTenant?.tenant_id;
 
-  const { data: alerts = [], isLoading, error, refetch } = useQuery({
+  const { data: result, isLoading, error, refetch } = useQuery({
     queryKey: ["defender_alerts", tenantId, severity, status],
     enabled: !!tenantId,
     queryFn: () =>
       base44.functions.invoke("portalData", { action: "list_alerts", azure_tenant_id: tenantId, severity, status, top: 100 })
-        .then(r => r.data.alerts || []),
+        .then(r => r.data),
   });
+  const alerts = result?.alerts || [];
+  const permissionError = result?.permission_error;
 
   const updateMutation = useMutation({
     mutationFn: ({ alert_id, newStatus }) =>
@@ -111,6 +113,11 @@ export default function PortalDefender({ selectedTenant }) {
       </div>
 
       {error && <div className="text-sm text-red-500 mb-4">{error.message}</div>}
+      {permissionError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
+          <strong>Permission Required:</strong> Add <code className="bg-amber-100 px-1 rounded">SecurityAlert.Read.All</code> and <code className="bg-amber-100 px-1 rounded">SecurityAlert.ReadWrite.All</code> to your Azure App Registration API permissions and grant admin consent.
+        </div>
+      )}
 
       <div className="flex gap-6">
         {/* Alert list */}

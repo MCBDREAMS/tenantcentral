@@ -10,13 +10,15 @@ export default function PortalSharePoint({ selectedTenant }) {
   const [search, setSearch] = useState("");
   const tenantId = selectedTenant?.tenant_id;
 
-  const { data: sites = [], isLoading, error, refetch } = useQuery({
+  const { data: result, isLoading, error, refetch } = useQuery({
     queryKey: ["sharepoint_sites", tenantId],
     enabled: !!tenantId,
     queryFn: () =>
       base44.functions.invoke("portalData", { action: "list_sites", azure_tenant_id: tenantId, top: 100 })
-        .then(r => r.data.sites || []),
+        .then(r => r.data),
   });
+  const sites = result?.sites || [];
+  const warning = result?.warning;
 
   if (!tenantId) return (
     <div className="p-6">
@@ -52,6 +54,11 @@ export default function PortalSharePoint({ selectedTenant }) {
       </div>
 
       {error && <div className="text-sm text-red-500 mb-4">{error.message}</div>}
+      {warning && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
+          <strong>Permission Required:</strong> Add <code className="bg-amber-100 px-1 rounded">Sites.Read.All</code> to your Azure App Registration API permissions and grant admin consent.
+        </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <table className="w-full text-sm">

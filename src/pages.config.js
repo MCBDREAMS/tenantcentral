@@ -47,6 +47,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AdminConsole from './pages/AdminConsole';
 import AppPermissionsCopy from './pages/AppPermissionsCopy';
 import AuditLogs from './pages/AuditLogs';
 import ComplianceReporting from './pages/ComplianceReporting';
@@ -68,21 +69,21 @@ import IntuneReports from './pages/IntuneReports';
 import MdmSolutions from './pages/MdmSolutions';
 import MobileDevices from './pages/MobileDevices';
 import OnPremSync from './pages/OnPremSync';
+import PortalDefender from './pages/PortalDefender';
+import PortalExchange from './pages/PortalExchange';
+import PortalServiceHealth from './pages/PortalServiceHealth';
+import PortalSharePoint from './pages/PortalSharePoint';
+import PortalTeams from './pages/PortalTeams';
 import RbacAdmin from './pages/RbacAdmin';
 import SecurityBaselines from './pages/SecurityBaselines';
 import TenantAnalyzer from './pages/TenantAnalyzer';
 import TenantSettings from './pages/TenantSettings';
 import Tenants from './pages/Tenants';
-import AdminConsole from './pages/AdminConsole';
-import PortalExchange from './pages/PortalExchange';
-import PortalDefender from './pages/PortalDefender';
-import PortalServiceHealth from './pages/PortalServiceHealth';
-import PortalTeams from './pages/PortalTeams';
-import PortalSharePoint from './pages/PortalSharePoint';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminConsole": AdminConsole,
     "AppPermissionsCopy": AppPermissionsCopy,
     "AuditLogs": AuditLogs,
     "ComplianceReporting": ComplianceReporting,
@@ -104,17 +105,16 @@ export const PAGES = {
     "MdmSolutions": MdmSolutions,
     "MobileDevices": MobileDevices,
     "OnPremSync": OnPremSync,
+    "PortalDefender": PortalDefender,
+    "PortalExchange": PortalExchange,
+    "PortalServiceHealth": PortalServiceHealth,
+    "PortalSharePoint": PortalSharePoint,
+    "PortalTeams": PortalTeams,
     "RbacAdmin": RbacAdmin,
     "SecurityBaselines": SecurityBaselines,
     "TenantAnalyzer": TenantAnalyzer,
     "TenantSettings": TenantSettings,
     "Tenants": Tenants,
-    "AdminConsole": AdminConsole,
-    "PortalExchange": PortalExchange,
-    "PortalDefender": PortalDefender,
-    "PortalServiceHealth": PortalServiceHealth,
-    "PortalTeams": PortalTeams,
-    "PortalSharePoint": PortalSharePoint,
 }
 
 export const pagesConfig = {
