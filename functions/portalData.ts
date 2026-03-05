@@ -131,6 +131,57 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, sites });
     }
 
+    // ── Intune: list devices from Graph ─────────────────────────────────────
+    if (action === "list_intune_devices") {
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=${top}`);
+      return Response.json({ success: true, devices: data.value || [] });
+    }
+
+    // ── Intune: get single device full detail ────────────────────────────────
+    if (action === "get_device_detail") {
+      const { device_id } = body;
+      const [detail, health, configStatuses, compliancePolicies] = await Promise.all([
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}`),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceHealthAttestationState`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+      ]);
+      return Response.json({
+        success: true,
+        detail,
+        health,
+        configStatuses: configStatuses.value || [],
+        compliancePolicies: compliancePolicies.value || [],
+      });
+    }
+
+    // ── Intune: get device script deployment status ──────────────────────────
+    if (action === "get_device_scripts") {
+      const { device_id } = body;
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceRunStates?$expand=deviceHealthScriptRunSummary&$top=50`).catch(() => ({ value: [] }));
+      // Also try deviceManagementScripts run states
+      const scripts = await graphGetBeta(token, `/deviceManagement/deviceManagementScripts?$top=50`).catch(() => ({ value: [] }));
+      return Response.json({ success: true, scriptRunStates: data.value || [], scripts: scripts.value || [] });
+    }
+
+    // ── Intune: get device app deployment status ─────────────────────────────
+    if (action === "get_device_apps") {
+      const { device_id } = body;
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceInstallStates?$top=100`).catch(() => ({ value: [] }));
+      return Response.json({ success: true, appInstallStates: data.value || [] });
+    }
+
+    // ── Intune: sync device ──────────────────────────────────────────────────
+    if (action === "sync_device") {
+      const { device_id } = body;
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/syncDevice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
+      return Response.json({ success: true });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[portalData]", err.message);
