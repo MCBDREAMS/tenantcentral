@@ -173,6 +173,78 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, synced, failed, total: devices.length });
     }
 
+    // ── Read enterprise app permissions from a tenant ───────────────────────
+    if (action === "read_app_permissions") {
+      const { azure_tenant_id: srcTenantId } = body;
+      const srcToken = await getAccessToken(srcTenantId);
+
+      // Get all service principals (enterprise apps)
+      const sps = await graphGetPage(srcToken, "/servicePrincipals?$select=id,displayName,appId,servicePrincipalType&$top=100&$filter=servicePrincipalType eq 'Application'");
+
+      const results = [];
+      for (const sp of sps.slice(0, 40)) { // cap at 40 to avoid CPU limit
+        // OAuth2 delegated permission grants
+        const grants = await graphGetPage(srcToken, `/servicePrincipals/${sp.id}/oauth2PermissionGrants`);
+        // App role assignments (application permissions)
+        const appRoles = await graphGetPage(srcToken, `/servicePrincipals/${sp.id}/appRoleAssignments`);
+        if (grants.length > 0 || appRoles.length > 0) {
+          results.push({ sp, grants, appRoles });
+        }
+      }
+      return Response.json({ success: true, apps: results });
+    }
+
+    // ── Copy enterprise app permissions to a new tenant ─────────────────────
+    if (action === "copy_app_permissions") {
+      const { source_tenant_id, target_tenant_id, apps } = body;
+      // apps = array of { sp: {appId, displayName}, grants: [...], appRoles: [...] }
+      const targetToken = await getAccessToken(target_tenant_id);
+
+      const report = [];
+      for (const { sp, grants, appRoles } of apps) {
+        try {
+          // Find or create the service principal in target tenant by appId
+          let targetSps = await graphGetPage(targetToken, `/servicePrincipals?$filter=appId eq '${sp.appId}'&$select=id,displayName,appId`);
+          let targetSp = targetSps[0];
+          if (!targetSp) {
+            // Create the SP in the target tenant
+            targetSp = await graphPost(targetToken, "/servicePrincipals", { appId: sp.appId });
+          }
+
+          // Apply app role assignments (application permissions)
+          for (const ar of appRoles) {
+            // Find the resource SP in target
+            const resourceSps = await graphGetPage(targetToken, `/servicePrincipals?$filter=appId eq '${ar.resourceId}'&$select=id`);
+            const resourceSp = resourceSps[0];
+            if (!resourceSp) continue;
+            await graphPost(targetToken, `/servicePrincipals/${targetSp.id}/appRoleAssignments`, {
+              principalId: targetSp.id,
+              resourceId: resourceSp.id,
+              appRoleId: ar.appRoleId,
+            }).catch(() => {}); // ignore if already exists
+          }
+
+          // Apply OAuth2 delegated grants
+          for (const g of grants) {
+            const resourceSps = await graphGetPage(targetToken, `/servicePrincipals?$filter=appId eq '${g.resourceId}'&$select=id`);
+            const resourceSp = resourceSps[0];
+            if (!resourceSp) continue;
+            await graphPost(targetToken, "/oauth2PermissionGrants", {
+              clientId: targetSp.id,
+              consentType: g.consentType,
+              resourceId: resourceSp.id,
+              scope: g.scope,
+            }).catch(() => {});
+          }
+
+          report.push({ appId: sp.appId, displayName: sp.displayName, status: "ok" });
+        } catch (e) {
+          report.push({ appId: sp.appId, displayName: sp.displayName, status: "error", error: e.message });
+        }
+      }
+      return Response.json({ success: true, report });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[tenantWrite]", err.message);
