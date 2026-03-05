@@ -48,6 +48,7 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import AuditLogs from './pages/AuditLogs';
+import ComplianceReporting from './pages/ComplianceReporting';
 import Dashboard from './pages/Dashboard';
 import DeviceScripts from './pages/DeviceScripts';
 import EntraAuthMethods from './pages/EntraAuthMethods';
@@ -68,14 +69,15 @@ import MobileDevices from './pages/MobileDevices';
 import OnPremSync from './pages/OnPremSync';
 import RbacAdmin from './pages/RbacAdmin';
 import SecurityBaselines from './pages/SecurityBaselines';
-import Tenants from './pages/Tenants';
 import TenantAnalyzer from './pages/TenantAnalyzer';
-import ComplianceReporting from './pages/ComplianceReporting';
+import Tenants from './pages/Tenants';
+import TenantSettings from './pages/TenantSettings';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "AuditLogs": AuditLogs,
+    "ComplianceReporting": ComplianceReporting,
     "Dashboard": Dashboard,
     "DeviceScripts": DeviceScripts,
     "EntraAuthMethods": EntraAuthMethods,
@@ -96,9 +98,9 @@ export const PAGES = {
     "OnPremSync": OnPremSync,
     "RbacAdmin": RbacAdmin,
     "SecurityBaselines": SecurityBaselines,
-    "Tenants": Tenants,
     "TenantAnalyzer": TenantAnalyzer,
-    "ComplianceReporting": ComplianceReporting,
+    "Tenants": Tenants,
+    "TenantSettings": TenantSettings,
 }
 
 export const pagesConfig = {
