@@ -73,6 +73,7 @@ const navSections = [
       { name: "Export Center", icon: FileText, page: "ExportCenter" },
       { name: "Audit Logs", icon: ClipboardList, page: "AuditLogs" },
       { name: "RBAC / Roles", icon: UserCog, page: "RbacAdmin" },
+      { name: "Copy App Permissions", icon: GitMerge, page: "AppPermissionsCopy" },
     ]
   }
 ];
