@@ -74,6 +74,11 @@ import TenantAnalyzer from './pages/TenantAnalyzer';
 import TenantSettings from './pages/TenantSettings';
 import Tenants from './pages/Tenants';
 import AdminConsole from './pages/AdminConsole';
+import PortalExchange from './pages/PortalExchange';
+import PortalDefender from './pages/PortalDefender';
+import PortalServiceHealth from './pages/PortalServiceHealth';
+import PortalTeams from './pages/PortalTeams';
+import PortalSharePoint from './pages/PortalSharePoint';
 import __Layout from './Layout.jsx';
 
 
@@ -105,6 +110,11 @@ export const PAGES = {
     "TenantSettings": TenantSettings,
     "Tenants": Tenants,
     "AdminConsole": AdminConsole,
+    "PortalExchange": PortalExchange,
+    "PortalDefender": PortalDefender,
+    "PortalServiceHealth": PortalServiceHealth,
+    "PortalTeams": PortalTeams,
+    "PortalSharePoint": PortalSharePoint,
 }
 
 export const pagesConfig = {
