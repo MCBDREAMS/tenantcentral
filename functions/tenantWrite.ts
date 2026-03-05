@@ -173,6 +173,58 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, synced, failed, total: devices.length });
     }
 
+    // ── Create Entra User ────────────────────────────────────────────────────
+    if (action === "create_user") {
+      const { display_name, upn, password, job_title, department, account_enabled } = body;
+      const result = await graphPost(token, "/users", {
+        displayName: display_name,
+        userPrincipalName: upn,
+        mailNickname: upn.split("@")[0],
+        passwordProfile: { password: password || "TempPass123!", forceChangePasswordNextSignIn: true },
+        jobTitle: job_title || "",
+        department: department || "",
+        accountEnabled: account_enabled !== false,
+      });
+      return Response.json({ success: true, user: result });
+    }
+
+    // ── Update Entra User ────────────────────────────────────────────────────
+    if (action === "update_user") {
+      const { graph_user_id, display_name, job_title, department, account_enabled } = body;
+      await graphPatch(token, `/users/${graph_user_id}`, {
+        displayName: display_name,
+        jobTitle: job_title || "",
+        department: department || "",
+        accountEnabled: account_enabled !== false,
+      });
+      return Response.json({ success: true });
+    }
+
+    // ── Create Entra Group ───────────────────────────────────────────────────
+    if (action === "create_group") {
+      const { display_name, description, mail_enabled, security_enabled } = body;
+      const mailNickname = display_name.replace(/\s+/g, "").toLowerCase().slice(0, 30);
+      const result = await graphPost(token, "/groups", {
+        displayName: display_name,
+        description: description || "",
+        mailNickname,
+        mailEnabled: mail_enabled === true,
+        securityEnabled: security_enabled !== false,
+        groupTypes: mail_enabled === true ? ["Unified"] : [],
+      });
+      return Response.json({ success: true, group: result });
+    }
+
+    // ── Update Entra Group ───────────────────────────────────────────────────
+    if (action === "update_group") {
+      const { graph_group_id, display_name, description } = body;
+      await graphPatch(token, `/groups/${graph_group_id}`, {
+        displayName: display_name,
+        description: description || "",
+      });
+      return Response.json({ success: true });
+    }
+
     // ── Read enterprise app permissions from a tenant ───────────────────────
     if (action === "read_app_permissions") {
       const { azure_tenant_id: srcTenantId } = body;
