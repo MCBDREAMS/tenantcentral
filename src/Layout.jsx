@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
 import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
-  ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers,
+  ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
   BarChart2, ShieldAlert, Smartphone, Server
