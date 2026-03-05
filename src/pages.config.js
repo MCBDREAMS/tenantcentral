@@ -47,6 +47,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AppPermissionsCopy from './pages/AppPermissionsCopy';
 import AuditLogs from './pages/AuditLogs';
 import ComplianceReporting from './pages/ComplianceReporting';
 import Dashboard from './pages/Dashboard';
@@ -70,13 +71,14 @@ import OnPremSync from './pages/OnPremSync';
 import RbacAdmin from './pages/RbacAdmin';
 import SecurityBaselines from './pages/SecurityBaselines';
 import TenantAnalyzer from './pages/TenantAnalyzer';
-import Tenants from './pages/Tenants';
 import TenantSettings from './pages/TenantSettings';
-import AppPermissionsCopy from './pages/AppPermissionsCopy';
+import Tenants from './pages/Tenants';
+import AdminConsole from './pages/AdminConsole';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AppPermissionsCopy": AppPermissionsCopy,
     "AuditLogs": AuditLogs,
     "ComplianceReporting": ComplianceReporting,
     "Dashboard": Dashboard,
@@ -100,9 +102,9 @@ export const PAGES = {
     "RbacAdmin": RbacAdmin,
     "SecurityBaselines": SecurityBaselines,
     "TenantAnalyzer": TenantAnalyzer,
-    "Tenants": Tenants,
     "TenantSettings": TenantSettings,
-    "AppPermissionsCopy": AppPermissionsCopy,
+    "Tenants": Tenants,
+    "AdminConsole": AdminConsole,
 }
 
 export const pagesConfig = {
