@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     // ── Exchange: list mailboxes ─────────────────────────────────────────────
     if (action === "list_mailboxes") {
-      const data = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled,mailboxSettings,jobTitle,department,assignedLicenses&$top=${top}&$filter=assignedLicenses/any(x:x/skuId ne null)`);
+      const data = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled,jobTitle,department,assignedLicenses&$top=${top}`);
       return Response.json({ success: true, mailboxes: data.value || [] });
     }
 
@@ -78,7 +78,14 @@ Deno.serve(async (req) => {
       if (severity && severity !== "all") filter += `severity eq '${severity}'`;
       if (status && status !== "all") filter += (filter ? " and " : "") + `status eq '${status}'`;
       const qs = filter ? `&$filter=${encodeURIComponent(filter)}` : "";
-      const data = await graphGet(token, `/security/alerts_v2?$top=${top}&$orderby=createdDateTime desc${qs}`);
+      const res = await fetch(`https://graph.microsoft.com/v1.0/security/alerts_v2?$top=${top}&$orderby=createdDateTime desc${qs}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 403) {
+        return Response.json({ success: false, permission_error: true, alerts: [], message: "Missing permission: SecurityAlert.Read.All must be granted in your Azure App Registration." });
+      }
+      if (!res.ok) throw new Error(`Defender alerts failed: ${res.status}`);
+      const data = await res.json();
       return Response.json({ success: true, alerts: data.value || [] });
     }
 
@@ -112,8 +119,16 @@ Deno.serve(async (req) => {
 
     // ── SharePoint: list sites ───────────────────────────────────────────────
     if (action === "list_sites") {
-      const data = await graphGet(token, `/sites?search=*&$select=id,displayName,webUrl,description,createdDateTime,lastModifiedDateTime&$top=${top}`);
-      return Response.json({ success: true, sites: data.value || [] });
+      // Try search endpoint first, fall back to root subsites
+      let sites = [];
+      try {
+        const data = await graphGet(token, `/sites/root/sites?$select=id,displayName,webUrl,description,createdDateTime,lastModifiedDateTime&$top=${top}`);
+        sites = data.value || [];
+      } catch {
+        // If root/sites also fails, return empty with message
+        return Response.json({ success: true, sites: [], warning: "Sites.Read.All permission required in Azure App Registration to list SharePoint sites." });
+      }
+      return Response.json({ success: true, sites });
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });
