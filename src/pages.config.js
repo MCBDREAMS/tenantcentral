@@ -72,6 +72,7 @@ import SecurityBaselines from './pages/SecurityBaselines';
 import TenantAnalyzer from './pages/TenantAnalyzer';
 import Tenants from './pages/Tenants';
 import TenantSettings from './pages/TenantSettings';
+import AppPermissionsCopy from './pages/AppPermissionsCopy';
 import __Layout from './Layout.jsx';
 
 
@@ -101,6 +102,7 @@ export const PAGES = {
     "TenantAnalyzer": TenantAnalyzer,
     "Tenants": Tenants,
     "TenantSettings": TenantSettings,
+    "AppPermissionsCopy": AppPermissionsCopy,
 }
 
 export const pagesConfig = {
