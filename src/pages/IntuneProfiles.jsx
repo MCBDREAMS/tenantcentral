@@ -15,6 +15,7 @@ import QuickSyncButton from "@/components/shared/QuickSyncButton";
 export default function IntuneProfiles({ selectedTenant }) {
   const [editing, setEditing] = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
+  const queryClient = useQueryClient();
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['intune-profiles', selectedTenant?.id],

@@ -13,6 +13,7 @@ import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function EntraPolicies({ selectedTenant }) {
   const [editing, setEditing] = useState(null);
+  const queryClient = useQueryClient();
 
   const { data: policies = [] } = useQuery({
     queryKey: ['entra-policies', selectedTenant?.id],

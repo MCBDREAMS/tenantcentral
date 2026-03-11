@@ -14,6 +14,7 @@ import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function SecurityBaselines({ selectedTenant }) {
   const [editing, setEditing] = useState(null);
+  const queryClient = useQueryClient();
 
   const { data: baselines = [] } = useQuery({
     queryKey: ['baselines', selectedTenant?.id],
