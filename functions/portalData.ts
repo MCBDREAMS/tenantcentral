@@ -182,6 +182,91 @@ Deno.serve(async (req) => {
       return Response.json({ success: true });
     }
 
+    // ── Exchange: list mail-enabled groups ───────────────────────────────────
+    if (action === "list_mail_groups") {
+      const data = await graphGet(token, `/groups?$filter=mailEnabled eq true&$select=id,displayName,mail,groupTypes,mailNickname,description,createdDateTime&$top=${top}`);
+      return Response.json({ success: true, groups: data.value || [] });
+    }
+
+    // ── Exchange: get group members ───────────────────────────────────────────
+    if (action === "get_group_members") {
+      const { group_id } = body;
+      const data = await graphGet(token, `/groups/${group_id}/members?$select=id,displayName,mail,userPrincipalName&$top=100`);
+      return Response.json({ success: true, members: data.value || [] });
+    }
+
+    // ── Exchange: scan all users' inbox rules ─────────────────────────────────
+    if (action === "get_all_mailbox_rules") {
+      const users = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$top=50`);
+      const results = [];
+      await Promise.all((users.value || []).slice(0, 40).map(async u => {
+        try {
+          const rules = await graphGet(token, `/users/${u.id}/mailFolders/inbox/messageRules`);
+          if (rules.value?.length > 0) results.push({ user: u, rules: rules.value });
+        } catch {}
+      }));
+      return Response.json({ success: true, userRules: results });
+    }
+
+    // ── Exchange: import / create a single mailbox rule ───────────────────────
+    if (action === "import_mailbox_rule") {
+      const { user_id, rule } = body;
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(rule)
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      const created = await res.json();
+      return Response.json({ success: true, rule: created });
+    }
+
+    // ── Exchange: security posture report ─────────────────────────────────────
+    if (action === "exchange_security_report") {
+      const [secureScores, controlProfiles, domains, users] = await Promise.all([
+        graphGet(token, `/security/secureScores?$top=1`).catch(() => ({ value: [] })),
+        graphGet(token, `/security/secureScoreControlProfiles?$top=100`).catch(() => ({ value: [] })),
+        graphGet(token, `/domains?$select=id,isDefault,isVerified,authenticationType`).catch(() => ({ value: [] })),
+        graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled,assignedLicenses,userType&$top=100`).catch(() => ({ value: [] })),
+      ]);
+      const userList = users.value || [];
+      // Scan first 25 users for external forwarding rules
+      const forwardingRisks = [];
+      await Promise.all(userList.slice(0, 25).map(async u => {
+        try {
+          const rules = await graphGet(token, `/users/${u.id}/mailFolders/inbox/messageRules`);
+          const fwd = (rules.value || []).filter(r =>
+            r.actions?.forwardTo?.length > 0 ||
+            r.actions?.redirectTo?.length > 0 ||
+            r.actions?.forwardAsAttachmentTo?.length > 0
+          );
+          if (fwd.length > 0) forwardingRisks.push({ user: u, rules: fwd });
+        } catch {}
+      }));
+      const emailControls = (controlProfiles.value || []).filter(c =>
+        c.actionUrl?.toLowerCase().includes('exchange') ||
+        c.title?.toLowerCase().includes('mail') ||
+        c.title?.toLowerCase().includes('phish') ||
+        c.title?.toLowerCase().includes('spam') ||
+        c.title?.toLowerCase().includes('email') ||
+        c.controlCategory === 'Apps'
+      );
+      return Response.json({
+        success: true,
+        secureScore: secureScores.value?.[0] || null,
+        emailControls,
+        domains: domains.value || [],
+        userCount: userList.length,
+        enabledUsers: userList.filter(u => u.accountEnabled).length,
+        guestUsers: userList.filter(u => u.userType === 'Guest'),
+        disabledWithLicense: userList.filter(u => !u.accountEnabled && (u.assignedLicenses?.length || 0) > 0),
+        forwardingRisks,
+      });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[portalData]", err.message);
