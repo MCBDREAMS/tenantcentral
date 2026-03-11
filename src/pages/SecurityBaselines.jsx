@@ -83,7 +83,7 @@ export default function SecurityBaselines({ selectedTenant }) {
             selectedTenant={selectedTenant}
             syncAction="sync_intune_profiles"
             label="Sync Baselines"
-            onSynced={() => window.location.reload()}
+            onSynced={() => queryClient.invalidateQueries({ queryKey: ['baselines'] })}
           />
         }
       />

@@ -68,7 +68,7 @@ export default function IntuneProfiles({ selectedTenant }) {
             selectedTenant={selectedTenant}
             syncAction="sync_intune_profiles"
             label="Sync Profiles"
-            onSynced={() => window.location.reload()}
+            onSynced={() => queryClient.invalidateQueries({ queryKey: ['intune-profiles'] })}
           />
         }
       />

@@ -70,7 +70,7 @@ export default function EntraPolicies({ selectedTenant }) {
             selectedTenant={selectedTenant}
             syncAction="sync_policies"
             label="Sync Policies"
-            onSynced={() => window.location.reload()}
+            onSynced={() => queryClient.invalidateQueries({ queryKey: ['entra-policies'] })}
           />
         }
       />
