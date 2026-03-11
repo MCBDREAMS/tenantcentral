@@ -13,6 +13,7 @@ import ReadOnlyBanner from "@/components/shared/ReadOnlyBanner";
 import UserEditDialog from "@/components/entra/UserEditDialog";
 import MfaUserPanel from "@/components/entra/MfaUserPanel";
 import { logAction } from "@/components/shared/auditLogger";
+import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function EntraUsers({ selectedTenant, tenants = [] }) {
   const { canEdit } = useRbac();

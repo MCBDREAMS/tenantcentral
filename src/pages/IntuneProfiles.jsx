@@ -10,6 +10,7 @@ import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { exportToCSV } from "@/components/shared/exportUtils";
 import ProfileEditDialog from "@/components/editor/ProfileEditDialog";
+import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function IntuneProfiles({ selectedTenant }) {
   const [editing, setEditing] = useState(null);

@@ -9,6 +9,7 @@ import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { exportToCSV } from "@/components/shared/exportUtils";
 import PolicyEditDialog from "@/components/editor/PolicyEditDialog";
+import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function EntraPolicies({ selectedTenant }) {
   const [editing, setEditing] = useState(null);

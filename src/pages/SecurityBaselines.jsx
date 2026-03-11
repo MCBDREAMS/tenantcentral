@@ -10,6 +10,7 @@ import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { exportToCSV } from "@/components/shared/exportUtils";
 import BaselineEditDialog from "@/components/editor/BaselineEditDialog";
+import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function SecurityBaselines({ selectedTenant }) {
   const [editing, setEditing] = useState(null);

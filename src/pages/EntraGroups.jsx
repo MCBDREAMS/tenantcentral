@@ -11,6 +11,7 @@ import { useRbac } from "@/components/shared/useRbac";
 import ReadOnlyBanner from "@/components/shared/ReadOnlyBanner";
 import GroupEditDialog from "@/components/entra/GroupEditDialog";
 import { logAction } from "@/components/shared/auditLogger";
+import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function EntraGroups({ selectedTenant, tenants = [] }) {
   const { canEdit } = useRbac();
