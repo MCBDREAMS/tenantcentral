@@ -1,20 +1,19 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
-const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
-const TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
+const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
+const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
-async function getAccessToken() {
-  const url = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+async function getAccessToken(tenantId, clientId, clientSecret) {
+  const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
+    client_id: clientId,
+    client_secret: clientSecret,
     scope: "https://graph.microsoft.com/.default"
   });
   const res = await fetch(url, { method: "POST", body });
   const data = await res.json();
-  if (!data.access_token) throw new Error(`Token error: ${JSON.stringify(data)}`);
+  if (!data.access_token) throw new Error(`Token error for tenant ${tenantId}: ${data.error_description || JSON.stringify(data)}`);
   return data.access_token;
 }
 
@@ -49,8 +48,27 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { action, tenant_id } = await req.json();
-    const token = await getAccessToken();
+    const { action, tenant_id, azure_tenant_id } = await req.json();
+
+    if (!azure_tenant_id) {
+      return Response.json({ error: "azure_tenant_id is required" }, { status: 400 });
+    }
+
+    // ── Look up per-tenant credentials (fall back to global) ─────────────────
+    let clientId = GLOBAL_CLIENT_ID;
+    let clientSecret = GLOBAL_CLIENT_SECRET;
+    try {
+      const tenantRecords = await base44.asServiceRole.entities.Tenant.filter({ tenant_id: azure_tenant_id });
+      const tenantRecord = tenantRecords[0];
+      if (tenantRecord?.azure_client_id) clientId = tenantRecord.azure_client_id;
+      if (tenantRecord?.azure_client_secret) clientSecret = tenantRecord.azure_client_secret;
+    } catch (e) {
+      console.warn("[graphSync] Could not look up per-tenant credentials:", e.message);
+    }
+
+    console.log(`[graphSync] action=${action} azure_tenant_id=${azure_tenant_id} using_custom_creds=${clientId !== GLOBAL_CLIENT_ID}`);
+
+    const token = await getAccessToken(azure_tenant_id, clientId, clientSecret);
 
     if (action === "test") {
       const org = await graphGet(token, "/organization");
@@ -59,7 +77,7 @@ Deno.serve(async (req) => {
 
     if (action === "sync_users") {
       const users = await graphGetAll(token, "/users?$select=id,displayName,userPrincipalName,mail,accountEnabled,userType,jobTitle,department,assignedLicenses,createdDateTime&$top=999");
-      console.log(`[sync_users] fetched ${users.length} users from Graph`);
+      console.log(`[sync_users] fetched ${users.length} users from Azure tenant ${azure_tenant_id}`);
       const tid = tenant_id;
       let created = 0, updated = 0;
 
@@ -185,7 +203,6 @@ Deno.serve(async (req) => {
         graphGetAll(token, "/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
         graphGetAll(token, "/deviceManagement/deviceConfigurations?$select=id,displayName,description,lastModifiedDateTime&$top=999"),
       ]);
-      const endpointSecurity = [];
 
       const tid = tenant_id;
       let created = 0, updated = 0;
@@ -217,9 +234,8 @@ Deno.serve(async (req) => {
 
       await upsert(compliancePolicies, "compliance_policy");
       await upsert(configProfiles, "configuration_profile");
-      await upsert(endpointSecurity, "endpoint_security");
 
-      const total = compliancePolicies.length + configProfiles.length + endpointSecurity.length;
+      const total = compliancePolicies.length + configProfiles.length;
       return Response.json({ success: true, action, created, updated, total });
     }
 
@@ -242,9 +258,8 @@ Deno.serve(async (req) => {
           "#microsoft.graph.officeSuiteApp": "office365",
         };
         const app_type = typeMap[typeRaw] || "win32";
-
         const platformRaw = typeRaw.toLowerCase();
-        const platform = platformRaw.includes("ios") || platformRaw.includes("ios") ? "ios"
+        const platform = platformRaw.includes("ios") ? "ios"
           : platformRaw.includes("android") ? "android"
           : platformRaw.includes("macos") ? "macos"
           : platformRaw.includes("office") ? "all"
@@ -274,6 +289,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
+    console.error("[graphSync] error:", err.message);
     return Response.json({ error: err.message }, { status: 500 });
   }
 });

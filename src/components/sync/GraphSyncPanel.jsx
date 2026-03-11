@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { RefreshCw, CheckCircle2, XCircle, Loader2, CloudDownload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 const SYNC_ACTIONS = [
   { action: "sync_users", label: "Users", description: "Entra ID Users" },
@@ -16,10 +17,11 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
   const [results, setResults] = useState({});
   const [loading, setLoading] = useState({});
   const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
 
   const tenant = selectedTenant || tenants?.[0];
-  const tenant_id = tenant?.id; // DB record ID for entity storage
-  const azure_tenant_id = tenant?.tenant_id; // Azure GUID for Graph API
+  const tenant_id = tenant?.id;
+  const azure_tenant_id = tenant?.tenant_id;
 
   const runSync = async (action) => {
     if (!tenant_id || !azure_tenant_id) return;
@@ -37,10 +39,13 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
 
   const syncAll = async () => {
     setSyncing(true);
-    for (const { action } of SYNC_ACTIONS) {
-      await runSync(action);
+    setSyncProgress(0);
+    for (let i = 0; i < SYNC_ACTIONS.length; i++) {
+      await runSync(SYNC_ACTIONS[i].action);
+      setSyncProgress(Math.round(((i + 1) / SYNC_ACTIONS.length) * 100));
     }
     setSyncing(false);
+    setSyncProgress(100);
   };
 
   return (
@@ -49,7 +54,11 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
         <div className="flex items-center gap-2">
           <CloudDownload className="h-4 w-4 text-blue-600" />
           <h3 className="font-semibold text-slate-900 text-sm">Microsoft Graph Live Sync</h3>
-          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">MCBConsulting</span>
+          {tenant && (
+            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium border border-blue-100">
+              {tenant.name}
+            </span>
+          )}
         </div>
         <Button
           size="sm"
@@ -61,19 +70,39 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
           Sync All
         </Button>
       </div>
+
+      {/* Sync All Progress Bar */}
+      {syncing && (
+        <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Syncing all data from {tenant?.name}…
+            </span>
+            <span className="text-xs text-blue-600">{syncProgress}%</span>
+          </div>
+          <Progress value={syncProgress} className="h-1.5" />
+        </div>
+      )}
+
       <div className="divide-y divide-slate-100">
         {SYNC_ACTIONS.map(({ action, label, description }) => {
           const result = results[action];
           const isLoading = loading[action];
           return (
             <div key={action} className="flex items-center justify-between px-5 py-3">
-              <div className="flex items-center gap-3">
-                <div>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-slate-800">{label}</div>
                   <div className="text-xs text-slate-400">{description}</div>
                 </div>
-                {result && (
-                  <div className="flex items-center gap-1.5 text-xs">
+                {isLoading && (
+                  <span className="text-xs text-blue-600 flex items-center gap-1 shrink-0">
+                    <Loader2 className="h-3 w-3 animate-spin" />syncing…
+                  </span>
+                )}
+                {result && !isLoading && (
+                  <div className="flex items-center gap-1.5 text-xs shrink-0">
                     {result.success ? (
                       <>
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
@@ -91,9 +120,9 @@ export default function GraphSyncPanel({ selectedTenant, tenants }) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1.5 shrink-0"
+                className="h-7 text-xs gap-1.5 shrink-0 ml-3"
                 onClick={() => runSync(action)}
-                disabled={isLoading || !tenant_id}
+                disabled={isLoading || syncing || !tenant_id}
               >
                 {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 Sync

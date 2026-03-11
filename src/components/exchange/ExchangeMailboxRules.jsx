@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   AlertTriangle, ChevronDown, ChevronRight, RefreshCw,
-  Upload, CheckCircle2, XCircle, Loader2, FileText, Download
+  Upload, CheckCircle2, XCircle, Loader2, FileText, Download, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 function parseCSV(text) {
@@ -64,11 +65,15 @@ export default function ExchangeMailboxRules({ tenantId }) {
     queryKey: ["all_mailbox_rules", tenantId],
     queryFn: () =>
       base44.functions.invoke("portalData", { action: "get_all_mailbox_rules", azure_tenant_id: tenantId })
-        .then(r => r.data.userRules || []),
+        .then(r => r.data),
     enabled: false,
   });
 
-  const userRules = data || [];
+  const userRules = data?.userRules || [];
+  const scannedCount = data?.scannedCount || 0;
+  const errorCount = data?.errorCount || 0;
+  const permissionError = data?.permissionError || false;
+  const permissionNote = data?.permissionNote || null;
   const suspiciousCount = userRules.reduce((acc, ur) => acc + ur.rules.filter(isSuspicious).length, 0);
 
   const toggleExpand = (uid) => setExpanded(prev => ({ ...prev, [uid]: !prev[uid] }));
@@ -119,6 +124,8 @@ export default function ExchangeMailboxRules({ tenantId }) {
     URL.revokeObjectURL(url);
   };
 
+  const importProgress = csvRows.length > 0 ? Math.round((importResults.length / csvRows.length) * 100) : 0;
+
   return (
     <Tabs defaultValue="report">
       <TabsList className="mb-5">
@@ -131,16 +138,33 @@ export default function ExchangeMailboxRules({ tenantId }) {
         <div className="flex items-center gap-3 mb-5 flex-wrap">
           <Button onClick={() => refetch()} disabled={isLoading} className="bg-slate-900 hover:bg-slate-800">
             {isLoading
-              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Scanning…</>
+              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Scanning mailboxes…</>
               : <><RefreshCw className="h-4 w-4 mr-2" />Scan All Mailboxes</>}
           </Button>
           <p className="text-xs text-slate-400">Scans inbox rules across all users (up to 40 mailboxes)</p>
+          {isFetched && !isLoading && scannedCount > 0 && (
+            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+              {scannedCount} mailboxes scanned · {errorCount > 0 ? `${errorCount} access errors` : "all accessible"}
+            </span>
+          )}
           {!isLoading && suspiciousCount > 0 && (
             <Badge className="bg-red-100 text-red-700 ml-auto">
               <AlertTriangle className="h-3 w-3 mr-1" />{suspiciousCount} forwarding rule(s) detected
             </Badge>
           )}
         </div>
+
+        {/* Scanning progress indicator */}
+        {isLoading && (
+          <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex items-center gap-2 mb-2 text-sm text-blue-800 font-medium">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Scanning mailboxes for inbox rules…
+            </div>
+            <Progress value={undefined} className="h-1.5 animate-pulse" />
+            <p className="text-xs text-blue-600 mt-1.5">Checking up to 40 mailboxes via Microsoft Graph. This may take 15–30 seconds.</p>
+          </div>
+        )}
 
         {!isFetched && !isLoading && (
           <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
@@ -149,8 +173,22 @@ export default function ExchangeMailboxRules({ tenantId }) {
           </div>
         )}
 
-        {isFetched && !isLoading && userRules.length === 0 && (
-          <div className="text-center py-12 text-sm text-slate-400">No inbox rules found across scanned mailboxes.</div>
+        {/* Permission error */}
+        {isFetched && !isLoading && permissionError && (
+          <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3">
+            <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Permission Required</p>
+              <p className="text-xs text-amber-700 mt-0.5">{permissionNote}</p>
+              <p className="text-xs text-amber-600 mt-1">
+                Go to your Azure App Registration → API Permissions → Add <code className="bg-amber-100 px-1 rounded">MailboxSettings.Read</code> (Application permission) → Grant admin consent.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isFetched && !isLoading && !permissionError && userRules.length === 0 && scannedCount > 0 && (
+          <div className="text-center py-12 text-sm text-slate-400">No inbox rules found across {scannedCount} scanned mailboxes.</div>
         )}
 
         <div className="space-y-2">
@@ -235,6 +273,21 @@ export default function ExchangeMailboxRules({ tenantId }) {
           {csvRows.length > 0 && (
             <div>
               <p className="text-sm font-medium text-slate-700 mb-3">{csvRows.length} rule(s) to import:</p>
+
+              {/* Overall progress bar during import */}
+              {importing && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-blue-800 flex items-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Importing rules… {importResults.length} of {csvRows.length}
+                    </span>
+                    <span className="text-xs text-blue-600">{importProgress}%</span>
+                  </div>
+                  <Progress value={importProgress} className="h-2" />
+                </div>
+              )}
+
               <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -249,8 +302,9 @@ export default function ExchangeMailboxRules({ tenantId }) {
                   <tbody className="divide-y divide-slate-100">
                     {csvRows.map((row, i) => {
                       const result = importResults[i];
+                      const isCurrent = importing && i === importResults.length;
                       return (
-                        <tr key={i} className={result ? (result.success ? "bg-emerald-50" : "bg-red-50") : ""}>
+                        <tr key={i} className={result ? (result.success ? "bg-emerald-50" : "bg-red-50") : isCurrent ? "bg-blue-50" : ""}>
                           <td className="px-3 py-2 text-slate-600">{row.user_email}</td>
                           <td className="px-3 py-2 font-medium text-slate-700">{row.rule_name}</td>
                           <td className="px-3 py-2 text-slate-500">
@@ -262,7 +316,7 @@ export default function ExchangeMailboxRules({ tenantId }) {
                             {row.action}{row.action_value ? ` → ${row.action_value}` : ""}
                           </td>
                           <td className="px-3 py-2">
-                            {importing && i === importResults.length && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+                            {isCurrent && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />}
                             {result && (result.success
                               ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                               : <XCircle className="h-3.5 w-3.5 text-red-500" title={result.error} />)}
@@ -274,8 +328,11 @@ export default function ExchangeMailboxRules({ tenantId }) {
                 </table>
               </div>
 
-              {importResults.length > 0 && (
-                <div className={`p-3 rounded-lg text-sm mb-4 ${importResults.every(r => r.success) ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+              {importResults.length > 0 && importResults.length === csvRows.length && (
+                <div className={`p-3 rounded-lg text-sm mb-4 flex items-center gap-2 ${importResults.every(r => r.success) ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                  {importResults.every(r => r.success)
+                    ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    : <AlertTriangle className="h-4 w-4 shrink-0" />}
                   {importResults.filter(r => r.success).length} of {importResults.length} rules imported successfully.
                 </div>
               )}

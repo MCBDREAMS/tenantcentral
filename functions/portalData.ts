@@ -1,14 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
-const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
+const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
-async function getAccessToken(tenantId) {
+async function getAccessToken(tenantId, clientId, clientSecret) {
   const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
+    client_id: clientId,
+    client_secret: clientSecret,
     scope: "https://graph.microsoft.com/.default"
   });
   const res = await fetch(url, { method: "POST", body });
@@ -47,7 +47,20 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id, top = 50 } = body;
-    const token = await getAccessToken(azure_tenant_id);
+
+    // ── Look up per-tenant credentials ───────────────────────────────────────
+    let clientId = GLOBAL_CLIENT_ID;
+    let clientSecret = GLOBAL_CLIENT_SECRET;
+    try {
+      const tenantRecords = await base44.asServiceRole.entities.Tenant.filter({ tenant_id: azure_tenant_id });
+      const tenantRecord = tenantRecords[0];
+      if (tenantRecord?.azure_client_id) clientId = tenantRecord.azure_client_id;
+      if (tenantRecord?.azure_client_secret) clientSecret = tenantRecord.azure_client_secret;
+    } catch (e) {
+      console.warn("[portalData] Could not look up per-tenant creds:", e.message);
+    }
+
+    const token = await getAccessToken(azure_tenant_id, clientId, clientSecret);
 
     // ── Exchange: list mailboxes ─────────────────────────────────────────────
     if (action === "list_mailboxes") {
@@ -119,13 +132,11 @@ Deno.serve(async (req) => {
 
     // ── SharePoint: list sites ───────────────────────────────────────────────
     if (action === "list_sites") {
-      // Try search endpoint first, fall back to root subsites
       let sites = [];
       try {
         const data = await graphGet(token, `/sites/root/sites?$select=id,displayName,webUrl,description,createdDateTime,lastModifiedDateTime&$top=${top}`);
         sites = data.value || [];
       } catch {
-        // If root/sites also fails, return empty with message
         return Response.json({ success: true, sites: [], warning: "Sites.Read.All permission required in Azure App Registration to list SharePoint sites." });
       }
       return Response.json({ success: true, sites });
@@ -159,7 +170,6 @@ Deno.serve(async (req) => {
     if (action === "get_device_scripts") {
       const { device_id } = body;
       const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceRunStates?$expand=deviceHealthScriptRunSummary&$top=50`).catch(() => ({ value: [] }));
-      // Also try deviceManagementScripts run states
       const scripts = await graphGetBeta(token, `/deviceManagement/deviceManagementScripts?$top=50`).catch(() => ({ value: [] }));
       return Response.json({ success: true, scriptRunStates: data.value || [], scripts: scripts.value || [] });
     }
@@ -197,15 +207,38 @@ Deno.serve(async (req) => {
 
     // ── Exchange: scan all users' inbox rules ─────────────────────────────────
     if (action === "get_all_mailbox_rules") {
-      const users = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$top=50`);
+      const usersData = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$top=50`);
+      const allUsers = (usersData.value || []).slice(0, 40);
       const results = [];
-      await Promise.all((users.value || []).slice(0, 40).map(async u => {
+      let errorCount = 0;
+      const errors = [];
+
+      await Promise.all(allUsers.map(async u => {
         try {
           const rules = await graphGet(token, `/users/${u.id}/mailFolders/inbox/messageRules`);
-          if (rules.value?.length > 0) results.push({ user: u, rules: rules.value });
-        } catch {}
+          results.push({ user: u, rules: rules.value || [] });
+        } catch (e) {
+          errorCount++;
+          errors.push({ user: u.userPrincipalName, error: e.message });
+          console.error(`[mailbox rules] ${u.userPrincipalName}: ${e.message}`);
+        }
       }));
-      return Response.json({ success: true, userRules: results });
+
+      const usersWithRules = results.filter(r => r.rules.length > 0);
+      const permissionError = errorCount > 0 && usersWithRules.length === 0;
+
+      return Response.json({
+        success: true,
+        userRules: usersWithRules,
+        scannedCount: allUsers.length,
+        successCount: results.length,
+        errorCount,
+        permissionError,
+        permissionNote: permissionError
+          ? "Could not read inbox rules. Ensure MailboxSettings.Read or Mail.ReadBasic app permission is granted in your Azure App Registration."
+          : null,
+        sampleError: errors[0]?.error || null,
+      });
     }
 
     // ── Exchange: import / create a single mailbox rule ───────────────────────
@@ -226,14 +259,13 @@ Deno.serve(async (req) => {
 
     // ── Exchange: security posture report ─────────────────────────────────────
     if (action === "exchange_security_report") {
-      const [secureScores, controlProfiles, domains, users] = await Promise.all([
+      const [secureScores, controlProfiles, domains, usersData] = await Promise.all([
         graphGet(token, `/security/secureScores?$top=1`).catch(() => ({ value: [] })),
         graphGet(token, `/security/secureScoreControlProfiles?$top=100`).catch(() => ({ value: [] })),
         graphGet(token, `/domains?$select=id,isDefault,isVerified,authenticationType`).catch(() => ({ value: [] })),
         graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled,assignedLicenses,userType&$top=100`).catch(() => ({ value: [] })),
       ]);
-      const userList = users.value || [];
-      // Scan first 25 users for external forwarding rules
+      const userList = usersData.value || [];
       const forwardingRisks = [];
       await Promise.all(userList.slice(0, 25).map(async u => {
         try {
