@@ -64,6 +64,14 @@ export default function EntraPolicies({ selectedTenant }) {
         title="Conditional Access & Policies"
         subtitle={selectedTenant ? `Policies in ${selectedTenant.name}` : "All tenant policies"}
         icon={Shield}
+        actions={
+          <QuickSyncButton
+            selectedTenant={selectedTenant}
+            syncAction="sync_policies"
+            label="Sync Policies"
+            onSynced={() => window.location.reload()}
+          />
+        }
       />
       <DataTable
         columns={columns}

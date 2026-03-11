@@ -65,11 +65,21 @@ export default function EntraGroups({ selectedTenant, tenants = [] }) {
         title="Entra ID Groups"
         subtitle={selectedTenant ? `Groups in ${selectedTenant.name}` : "All tenant groups"}
         icon={UserCheck}
-        actions={canEdit() && (
-          <Button onClick={openAdd} className="gap-2 bg-slate-900 hover:bg-slate-800">
-            <Plus className="h-4 w-4" /> Add Group
-          </Button>
-        )}
+        actions={
+          <div className="flex items-center gap-2">
+            <QuickSyncButton
+              selectedTenant={selectedTenant}
+              syncAction="sync_groups"
+              label="Sync Groups"
+              onSynced={() => queryClient.invalidateQueries({ queryKey: ['entra-groups'] })}
+            />
+            {canEdit() && (
+              <Button onClick={openAdd} className="gap-2 bg-slate-900 hover:bg-slate-800">
+                <Plus className="h-4 w-4" /> Add Group
+              </Button>
+            )}
+          </div>
+        }
       />
       {!canEdit() && <ReadOnlyBanner />}
       <DataTable

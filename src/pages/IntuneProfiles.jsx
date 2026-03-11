@@ -62,6 +62,14 @@ export default function IntuneProfiles({ selectedTenant }) {
         title="Intune Profiles"
         subtitle={selectedTenant ? `Profiles in ${selectedTenant.name}` : "All Intune configurations"}
         icon={FolderCog}
+        actions={
+          <QuickSyncButton
+            selectedTenant={selectedTenant}
+            syncAction="sync_intune_profiles"
+            label="Sync Profiles"
+            onSynced={() => window.location.reload()}
+          />
+        }
       />
 
       <Tabs value={typeFilter} onValueChange={setTypeFilter} className="mb-4">

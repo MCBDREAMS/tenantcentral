@@ -77,6 +77,14 @@ export default function SecurityBaselines({ selectedTenant }) {
         title="Security Baselines"
         subtitle={selectedTenant ? `Baselines in ${selectedTenant.name}` : "All security baselines"}
         icon={ShieldCheck}
+        actions={
+          <QuickSyncButton
+            selectedTenant={selectedTenant}
+            syncAction="sync_intune_profiles"
+            label="Sync Baselines"
+            onSynced={() => window.location.reload()}
+          />
+        }
       />
       <DataTable
         columns={columns}

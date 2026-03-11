@@ -97,11 +97,21 @@ export default function EntraUsers({ selectedTenant, tenants = [] }) {
         title="Entra ID Users"
         subtitle={selectedTenant ? `Users in ${selectedTenant.name}` : "All tenant users"}
         icon={Users}
-        actions={canEdit() && (
-          <Button onClick={openAdd} className="gap-2 bg-slate-900 hover:bg-slate-800">
-            <Plus className="h-4 w-4" /> Add User
-          </Button>
-        )}
+        actions={
+          <div className="flex items-center gap-2">
+            <QuickSyncButton
+              selectedTenant={selectedTenant}
+              syncAction="sync_users"
+              label="Sync Users"
+              onSynced={() => queryClient.invalidateQueries({ queryKey: ['entra-users'] })}
+            />
+            {canEdit() && (
+              <Button onClick={openAdd} className="gap-2 bg-slate-900 hover:bg-slate-800">
+                <Plus className="h-4 w-4" /> Add User
+              </Button>
+            )}
+          </div>
+        }
       />
       {!canEdit() && <ReadOnlyBanner />}
       <DataTable
