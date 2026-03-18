@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
+import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
