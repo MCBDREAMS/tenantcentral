@@ -80,6 +80,7 @@ import SecurityBaselines from './pages/SecurityBaselines';
 import TenantAnalyzer from './pages/TenantAnalyzer';
 import TenantSettings from './pages/TenantSettings';
 import Tenants from './pages/Tenants';
+import ThreatInsights from './pages/ThreatInsights';
 import WindowsUpdates from './pages/WindowsUpdates';
 import __Layout from './Layout.jsx';
 
@@ -119,6 +120,7 @@ export const PAGES = {
     "TenantSettings": TenantSettings,
     "Tenants": Tenants,
     "WindowsUpdates": WindowsUpdates,
+    "ThreatInsights": ThreatInsights,
 }
 
 export const pagesConfig = {

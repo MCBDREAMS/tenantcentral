@@ -433,6 +433,65 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Defender: aggregate threat insights across all Windows devices ────────
+    if (action === "get_threat_insights") {
+      // Fetch all Windows devices with protection state
+      const devicesData = await graphGetBeta(token, `/deviceManagement/managedDevices?$filter=operatingSystem eq 'Windows'&$select=id,deviceName,userPrincipalName,complianceState,lastSyncDateTime&$top=100`).catch(() => ({ value: [] }));
+      const allDevices = devicesData.value || [];
+
+      // Fetch protection states in parallel (batch of 40 max)
+      const batch = allDevices.slice(0, 40);
+      const protectionResults = await Promise.all(
+        batch.map(d =>
+          graphGetBeta(token, `/deviceManagement/managedDevices/${d.id}/windowsProtectionState`)
+            .then(ps => ({ ...d, ...ps }))
+            .catch(() => ({ ...d }))
+        )
+      );
+
+      // Extract threat detections from detected malware state
+      const detectedThreats = [];
+      const alertsByDayMap = {};
+
+      for (const dev of protectionResults) {
+        if (!dev.id) continue;
+        try {
+          const malware = await graphGetBeta(token, `/deviceManagement/managedDevices/${dev.id}/windowsProtectionState/detectedMalwareState?$top=50`).catch(() => ({ value: [] }));
+          (malware.value || []).forEach(m => {
+            const dateKey = m.detectedDateTime
+              ? format(startOfDay(new Date(m.detectedDateTime)), "MMM d")
+              : null;
+            if (dateKey) alertsByDayMap[dateKey] = (alertsByDayMap[dateKey] || 0) + 1;
+            detectedThreats.push({
+              ...m,
+              deviceName: dev.deviceName,
+              userPrincipalName: dev.userPrincipalName,
+            });
+          });
+        } catch {}
+      }
+
+      const alertsByDay = Object.entries(alertsByDayMap)
+        .map(([date, detections]) => ({ date, detections }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Build simplified device list with AV freshness info
+      const devices = protectionResults.map(d => ({
+        id: d.id,
+        deviceName: d.deviceName,
+        userPrincipalName: d.userPrincipalName,
+        complianceState: d.complianceState,
+        lastSyncDateTime: d.lastSyncDateTime,
+        realTimeProtectionEnabled: d.realTimeProtectionEnabled,
+        antivirusSignatureVersion: d.antivirusSignatureVersion,
+        signatureLastUpdateDateTime: d.signatureUpdateOverdue ? null : d.lastReportedDateTime,
+        signatureUpdateOverdue: d.signatureUpdateOverdue,
+        malwareProtectionEnabled: d.malwareProtectionEnabled,
+      }));
+
+      return Response.json({ success: true, detectedThreats, devices, alertsByDay });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[portalData]", err.message);
