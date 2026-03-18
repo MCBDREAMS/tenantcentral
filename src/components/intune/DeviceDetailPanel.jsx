@@ -150,9 +150,10 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
         )}
 
         <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="mx-5 mt-4 justify-start shrink-0">
+          <TabsList className="mx-5 mt-4 justify-start shrink-0 flex-wrap">
             <TabsTrigger value="overview"><Monitor className="h-3.5 w-3.5 mr-1" />Overview</TabsTrigger>
             <TabsTrigger value="compliance"><Shield className="h-3.5 w-3.5 mr-1" />Compliance</TabsTrigger>
+            <TabsTrigger value="updates"><ShieldCheck className="h-3.5 w-3.5 mr-1" />Updates</TabsTrigger>
             <TabsTrigger value="apps"><Package className="h-3.5 w-3.5 mr-1" />Apps</TabsTrigger>
             <TabsTrigger value="scripts"><Terminal className="h-3.5 w-3.5 mr-1" />Scripts</TabsTrigger>
           </TabsList>
