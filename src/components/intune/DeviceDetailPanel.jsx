@@ -250,6 +250,93 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
               )}
             </TabsContent>
 
+            {/* WINDOWS UPDATES */}
+            <TabsContent value="updates" className="mt-0 space-y-4">
+              {loadingUpdates ? <Spinner /> : (
+                <>
+                  {/* Remediation Actions */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Remediation Actions</p>
+                    <div className="flex flex-wrap gap-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                      {[
+                        { type: "sync", label: "Sync Policies", color: "bg-blue-600 hover:bg-blue-700" },
+                        { type: "restart", label: "Reboot Device", color: "bg-amber-600 hover:bg-amber-700" },
+                        { type: "defender_scan_quick", label: "Quick Scan", color: "bg-emerald-700 hover:bg-emerald-800" },
+                        { type: "defender_scan_full", label: "Full Scan", color: "bg-slate-700 hover:bg-slate-800" },
+                      ].map(action => (
+                        <Button
+                          key={action.type}
+                          size="sm"
+                          className={`text-white text-xs ${action.color}`}
+                          disabled={remediateMutation.isPending}
+                          onClick={() => remediateMutation.mutate(action.type)}
+                        >
+                          {remediateMutation.isPending && remediateMutation.variables === action.type
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                          {action.label}
+                        </Button>
+                      ))}
+                      {remediateMutation.isSuccess && (
+                        <span className="flex items-center gap-1 text-xs text-emerald-600 ml-2">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Action sent
+                        </span>
+                      )}
+                      {remediateMutation.isError && (
+                        <span className="flex items-center gap-1 text-xs text-red-600 ml-2">
+                          <XCircle className="h-3.5 w-3.5" /> Failed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Windows Protection State */}
+                  {protectionState && Object.keys(protectionState).length > 1 && (
+                    <Section title="Windows Defender / Protection State">
+                      <Row label="Malware Protection Enabled" value={<BoolBadge value={protectionState.malwareProtectionEnabled} trueLabel="Enabled" falseLabel="Disabled" />} />
+                      <Row label="Real-Time Protection" value={<BoolBadge value={protectionState.realTimeProtectionEnabled} trueLabel="Enabled" falseLabel="Disabled" />} />
+                      <Row label="Network Inspection" value={<BoolBadge value={protectionState.networkInspectionSystemEnabled} trueLabel="Enabled" falseLabel="Disabled" />} />
+                      <Row label="Signature Out of Date" value={<BoolBadge value={protectionState.signatureUpdateOverdue} trueLabel="⚠ Overdue" falseLabel="Up to Date" />} />
+                      <Row label="Signature Version" value={protectionState.antivirusSignatureVersion} />
+                      <Row label="Engine Version" value={protectionState.antiMalwareVersion} />
+                      <Row label="Quick Scan Overdue" value={<BoolBadge value={protectionState.quickScanOverdue} trueLabel="⚠ Overdue" falseLabel="No" />} />
+                      <Row label="Full Scan Overdue" value={<BoolBadge value={protectionState.fullScanOverdue} trueLabel="⚠ Overdue" falseLabel="No" />} />
+                      <Row label="Last Quick Scan" value={fmt(protectionState.lastQuickScanDateTime)} />
+                      <Row label="Last Full Scan" value={fmt(protectionState.lastFullScanDateTime)} />
+                    </Section>
+                  )}
+
+                  {/* Update Compliance Policies */}
+                  {allCompliancePolicies.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Update Compliance Policies</p>
+                      <div className="space-y-2">
+                        {allCompliancePolicies.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <StateIcon state={p.state} />
+                              <div>
+                                <p className="text-sm font-medium text-slate-800">{p.displayName}</p>
+                                <p className="text-xs text-slate-400">{p.platformType}</p>
+                              </div>
+                            </div>
+                            <Badge className={
+                              p.state === "compliant" ? "bg-emerald-100 text-emerald-700" :
+                              p.state === "noncompliant" ? "bg-red-100 text-red-700" :
+                              "bg-slate-100 text-slate-500"
+                            }>{p.state || "Unknown"}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!protectionState?.malwareProtectionEnabled && !allCompliancePolicies.length && (
+                    <Empty text="No Windows Update or protection data available. Ensure DeviceManagementManagedDevices.Read.All permission is granted." />
+                  )}
+                </>
+              )}
+            </TabsContent>
+
             {/* APPS */}
             <TabsContent value="apps" className="mt-0 space-y-2">
               {loadingApps ? <Spinner /> : appInstallStates.length === 0 ? (
