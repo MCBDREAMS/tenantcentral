@@ -80,6 +80,7 @@ import SecurityBaselines from './pages/SecurityBaselines';
 import TenantAnalyzer from './pages/TenantAnalyzer';
 import TenantSettings from './pages/TenantSettings';
 import Tenants from './pages/Tenants';
+import WindowsUpdates from './pages/WindowsUpdates';
 import __Layout from './Layout.jsx';
 
 
