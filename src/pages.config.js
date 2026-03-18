@@ -48,6 +48,7 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import AdminConsole from './pages/AdminConsole';
+import DeviceAppMonitor from './pages/DeviceAppMonitor';
 import AppPermissionsCopy from './pages/AppPermissionsCopy';
 import AuditLogs from './pages/AuditLogs';
 import ComplianceReporting from './pages/ComplianceReporting';

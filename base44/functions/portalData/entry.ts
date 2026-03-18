@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true });
     }
 
-    // ── Exchange: update (disable/patch) a mailbox rule ───────────────────────
+    // ── Exchange: update/disable a mailbox rule ───────────────────────────────
     if (action === "update_mailbox_rule") {
       const { user_id, rule_id, patch } = body;
       const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules/${rule_id}`, {
@@ -269,6 +269,22 @@ Deno.serve(async (req) => {
       }
       const updated = await res.json();
       return Response.json({ success: true, rule: updated });
+    }
+
+    // ── Device: performance & compliance state timeline ───────────────────────
+    if (action === "get_device_performance") {
+      const { device_id } = body;
+      const [detail, complianceStates, configStates] = await Promise.all([
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}?$select=id,deviceName,operatingSystem,osVersion,complianceState,isEncrypted,totalStorageSpaceInBytes,freeStorageSpaceInBytes,processorArchitecture,lastSyncDateTime,deviceHealthAttestationState,model,manufacturer`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+      ]);
+      return Response.json({
+        success: true,
+        device: detail,
+        complianceStates: complianceStates.value || [],
+        configStates: configStates.value || [],
+      });
     }
 
     // ── Exchange: import / create a single mailbox rule ───────────────────────
