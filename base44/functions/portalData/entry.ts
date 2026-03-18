@@ -241,6 +241,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Exchange: delete a mailbox rule ──────────────────────────────────────
+    if (action === "delete_mailbox_rule") {
+      const { user_id, rule_id } = body;
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules/${rule_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Exchange: update (disable/patch) a mailbox rule ───────────────────────
+    if (action === "update_mailbox_rule") {
+      const { user_id, rule_id, patch } = body;
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules/${rule_id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      const updated = await res.json();
+      return Response.json({ success: true, rule: updated });
+    }
+
     // ── Exchange: import / create a single mailbox rule ───────────────────────
     if (action === "import_mailbox_rule") {
       const { user_id, rule } = body;
