@@ -1,54 +1,63 @@
 import React, { useEffect } from "react";
-import { CheckCircle2, XCircle, Loader2, X } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, X, Info } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 /**
- * ActionProgressBar — sticky top bar showing action status.
- * Props:
- *   status: "loading" | "success" | "error" | null
- *   message: string
- *   detail: string (optional subtitle)
- *   progress: number 0-100 (optional, shows indeterminate if null)
- *   onDismiss: () => void
- *   autoDismissMs: number (default 4000ms for success/error)
+ * ActionProgressBar — fixed sticky bar at bottom of screen showing task progress
+ * Props: task, status ("loading"|"success"|"error"|"info"), message, progress (0-100), onDismiss
  */
-export default function ActionProgressBar({ status, message, detail, progress, onDismiss, autoDismissMs = 4000 }) {
+export default function ActionProgressBar({ task, status, message, progress = 0, onDismiss }) {
   useEffect(() => {
-    if ((status === "success" || status === "error") && onDismiss) {
-      const t = setTimeout(onDismiss, autoDismissMs);
+    if (status === "success" || status === "info") {
+      const t = setTimeout(() => onDismiss && onDismiss(), 4000);
       return () => clearTimeout(t);
     }
-  }, [status, onDismiss, autoDismissMs]);
+  }, [status]);
 
-  if (!status) return null;
+  if (!task) return null;
 
   const configs = {
-    loading: { bg: "bg-blue-600", text: "text-white", border: "border-blue-700", icon: <Loader2 className="h-4 w-4 animate-spin" /> },
-    success: { bg: "bg-emerald-600", text: "text-white", border: "border-emerald-700", icon: <CheckCircle2 className="h-4 w-4" /> },
-    error:   { bg: "bg-red-600",     text: "text-white", border: "border-red-700",     icon: <XCircle className="h-4 w-4" /> },
+    loading: {
+      bar: "bg-blue-700 border-blue-600",
+      icon: <Loader2 className="h-4 w-4 animate-spin text-white shrink-0" />,
+      sub: "text-blue-200",
+    },
+    success: {
+      bar: "bg-emerald-700 border-emerald-600",
+      icon: <CheckCircle2 className="h-4 w-4 text-white shrink-0" />,
+      sub: "text-emerald-200",
+    },
+    error: {
+      bar: "bg-red-700 border-red-600",
+      icon: <XCircle className="h-4 w-4 text-white shrink-0" />,
+      sub: "text-red-200",
+    },
+    info: {
+      bar: "bg-slate-800 border-slate-700",
+      icon: <Info className="h-4 w-4 text-white shrink-0" />,
+      sub: "text-slate-300",
+    },
   };
-  const cfg = configs[status] || configs.loading;
+
+  const cfg = configs[status] || configs.info;
 
   return (
-    <div className={`${cfg.bg} ${cfg.text} ${cfg.border} border-b px-4 py-2.5 flex items-center gap-3 shadow-lg`}>
-      {cfg.icon}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-tight">{message}</p>
-        {detail && <p className="text-xs opacity-80 mt-0.5 truncate">{detail}</p>}
-        {status === "loading" && (
-          <div className="mt-1.5">
-            {progress != null
-              ? <Progress value={progress} className="h-1 bg-white/30 [&>div]:bg-white" />
-              : <div className="h-1 w-full bg-white/30 rounded-full overflow-hidden"><div className="h-full w-1/3 bg-white rounded-full animate-pulse" /></div>
-            }
-          </div>
+    <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] ${cfg.bar} border text-white rounded-xl shadow-2xl px-5 py-3 min-w-[340px] max-w-xl backdrop-blur`}>
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5">{cfg.icon}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold leading-tight truncate">{task}</p>
+          {message && <p className={`text-xs mt-0.5 ${cfg.sub}`}>{message}</p>}
+          {status === "loading" && (
+            <Progress value={progress} className="h-1 mt-2 bg-white/20 [&>div]:bg-white" />
+          )}
+        </div>
+        {(status === "success" || status === "error" || status === "info") && onDismiss && (
+          <button onClick={onDismiss} className="shrink-0 mt-0.5 opacity-60 hover:opacity-100 transition-opacity">
+            <X className="h-4 w-4" />
+          </button>
         )}
       </div>
-      {onDismiss && status !== "loading" && (
-        <button onClick={onDismiss} className="p-1 rounded hover:bg-white/20 transition-colors shrink-0">
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
     </div>
   );
 }
