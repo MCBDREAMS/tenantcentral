@@ -148,6 +148,22 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, devices: data.value || [] });
     }
 
+    // ── Intune: get Windows Update compliance across all devices ─────────────
+    if (action === "get_windows_update_compliance") {
+      const { age_days = 90 } = body;
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$filter=operatingSystem eq 'Windows'&$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,manufacturer,model&$top=100`);
+      const devices = data.value || [];
+      const cutoff = new Date(Date.now() - age_days * 86400000);
+      const staleCount = devices.filter(d => !d.lastSyncDateTime || new Date(d.lastSyncDateTime) < cutoff).length;
+      const compliant = devices.filter(d => d.complianceState === "compliant").length;
+      const nonCompliant = devices.filter(d => d.complianceState === "noncompliant").length;
+      return Response.json({
+        success: true,
+        devices,
+        summary: { total: devices.length, compliant, nonCompliant, stale: staleCount },
+      });
+    }
+
     // ── Intune: get Windows Update states for a device ──────────────────────
     if (action === "get_device_updates") {
       const { device_id } = body;
