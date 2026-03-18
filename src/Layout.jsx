@@ -41,6 +41,7 @@ const navSections = [
     items: [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
       { name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
+      { name: "Windows Updates", icon: ShieldCheck, page: "WindowsUpdates" },
       { name: "Mobile Devices", icon: Smartphone, page: "MobileDevices" },
       { name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
       { name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },

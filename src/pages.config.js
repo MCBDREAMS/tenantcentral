@@ -117,6 +117,7 @@ export const PAGES = {
     "TenantAnalyzer": TenantAnalyzer,
     "TenantSettings": TenantSettings,
     "Tenants": Tenants,
+    "WindowsUpdates": WindowsUpdates,
 }
 
 export const pagesConfig = {
