@@ -6,7 +6,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import AppMonitoring from './pages/AppMonitoring';
 import SystemPerformance from './pages/SystemPerformance';
-import Layout from './layout';
+
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
