@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   AlertTriangle, ChevronDown, ChevronRight, RefreshCw,
-  Upload, CheckCircle2, XCircle, Loader2, FileText, Download, ShieldAlert,
-  Trash2, EyeOff, Copy
+  Upload, CheckCircle2, XCircle, Loader2, FileText, Download,
+  ShieldAlert, Trash2, BellOff, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,24 +55,20 @@ function isSuspicious(rule) {
   );
 }
 
-/** Find duplicate rules within a user's rule list (same displayName or same conditions+actions signature) */
-function findDuplicates(rules) {
-  const seen = new Map();
-  const dupeIds = new Set();
-  rules.forEach((r, i) => {
-    const sig = [
-      r.displayName?.toLowerCase().trim(),
-      JSON.stringify(r.conditions),
-      JSON.stringify(r.actions),
-    ].join("|");
-    if (seen.has(sig)) {
-      dupeIds.add(i);
-      dupeIds.add(seen.get(sig));
-    } else {
-      seen.set(sig, i);
-    }
+// Find duplicates: same displayName or same conditions hash
+function findDuplicateGroups(userRules) {
+  const groups = {};
+  userRules.forEach(ur => {
+    ur.rules.forEach(rule => {
+      const key = rule.displayName?.toLowerCase().trim();
+      if (!key) return;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ user: ur.user, rule });
+    });
   });
-  return dupeIds;
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 1)
+    .map(([name, items]) => ({ name, items }));
 }
 
 export default function ExchangeMailboxRules({ tenantId }) {
@@ -81,8 +77,7 @@ export default function ExchangeMailboxRules({ tenantId }) {
   const [csvError, setCsvError] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState([]);
-  const [actionStatus, setActionStatus] = useState(null);
-  const [showDupesOnly, setShowDupesOnly] = useState(false);
+  const [taskBar, setTaskBar] = useState(null); // { task, status, message, progress }
   const fileRef = useRef();
 
   const { data, isLoading, refetch, isFetched } = useQuery({
@@ -99,11 +94,47 @@ export default function ExchangeMailboxRules({ tenantId }) {
   const permissionError = data?.permissionError || false;
   const permissionNote = data?.permissionNote || null;
   const suspiciousCount = userRules.reduce((acc, ur) => acc + ur.rules.filter(isSuspicious).length, 0);
-
-  // Total duplicate count across all users
-  const totalDuplicates = userRules.reduce((acc, ur) => acc + findDuplicates(ur.rules).size, 0);
+  const duplicateGroups = findDuplicateGroups(userRules);
 
   const toggleExpand = (uid) => setExpanded(prev => ({ ...prev, [uid]: !prev[uid] }));
+
+  const setTask = (task, status, message, progress = 0) =>
+    setTaskBar({ task, status, message, progress });
+
+  // Delete a rule via Graph
+  const handleDeleteRule = async (userId, ruleId, ruleName) => {
+    setTask(`Deleting rule "${ruleName}"`, "loading", `Removing from user ${userId}…`);
+    try {
+      await base44.functions.invoke("portalData", {
+        action: "delete_mailbox_rule",
+        azure_tenant_id: tenantId,
+        user_id: userId,
+        rule_id: ruleId,
+      });
+      setTask(`Rule deleted`, "success", `"${ruleName}" has been removed`);
+      refetch();
+    } catch (err) {
+      setTask(`Delete failed`, "error", err.message);
+    }
+  };
+
+  // Disable a rule via Graph
+  const handleDisableRule = async (userId, ruleId, ruleName) => {
+    setTask(`Disabling rule "${ruleName}"`, "loading", `Updating rule for ${userId}…`);
+    try {
+      await base44.functions.invoke("portalData", {
+        action: "update_mailbox_rule",
+        azure_tenant_id: tenantId,
+        user_id: userId,
+        rule_id: ruleId,
+        patch: { isEnabled: false },
+      });
+      setTask(`Rule disabled`, "success", `"${ruleName}" has been disabled`);
+      refetch();
+    } catch (err) {
+      setTask(`Disable failed`, "error", err.message);
+    }
+  };
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -126,7 +157,10 @@ export default function ExchangeMailboxRules({ tenantId }) {
     setImporting(true);
     setImportResults([]);
     const results = [];
-    for (const row of csvRows) {
+    for (let i = 0; i < csvRows.length; i++) {
+      const row = csvRows[i];
+      const progress = Math.round((i / csvRows.length) * 100);
+      setTask(`Importing rules`, "loading", `${i + 1} of ${csvRows.length}: ${row.rule_name}`, progress);
       try {
         await base44.functions.invoke("portalData", {
           action: "import_mailbox_rule",
@@ -141,38 +175,11 @@ export default function ExchangeMailboxRules({ tenantId }) {
       setImportResults([...results]);
     }
     setImporting(false);
-  };
-
-  const handleDeleteRule = async (userId, ruleId, ruleName) => {
-    setActionStatus({ status: "loading", message: `Deleting rule "${ruleName}"…` });
-    try {
-      await base44.functions.invoke("portalData", {
-        action: "delete_mailbox_rule",
-        azure_tenant_id: tenantId,
-        user_id: userId,
-        rule_id: ruleId,
-      });
-      setActionStatus({ status: "success", message: `Rule "${ruleName}" deleted successfully.` });
-      await refetch();
-    } catch (e) {
-      setActionStatus({ status: "error", message: `Delete failed: ${e.message}` });
-    }
-  };
-
-  const handleDisableRule = async (userId, ruleId, ruleName) => {
-    setActionStatus({ status: "loading", message: `Disabling rule "${ruleName}"…` });
-    try {
-      await base44.functions.invoke("portalData", {
-        action: "update_mailbox_rule",
-        azure_tenant_id: tenantId,
-        user_id: userId,
-        rule_id: ruleId,
-        patch: { isEnabled: false },
-      });
-      setActionStatus({ status: "success", message: `Rule "${ruleName}" disabled.` });
-      await refetch();
-    } catch (e) {
-      setActionStatus({ status: "error", message: `Disable failed: ${e.message}` });
+    const failCount = results.filter(r => !r.success).length;
+    if (failCount === 0) {
+      setTask("Import complete", "success", `${results.length} rules imported successfully`);
+    } else {
+      setTask("Import done with errors", "error", `${results.filter(r => r.success).length} succeeded, ${failCount} failed`);
     }
   };
 
@@ -186,26 +193,63 @@ export default function ExchangeMailboxRules({ tenantId }) {
 
   const importProgress = csvRows.length > 0 ? Math.round((importResults.length / csvRows.length) * 100) : 0;
 
-  // Filtered user rules for dupe view
-  const displayedUserRules = showDupesOnly
-    ? userRules.filter(ur => findDuplicates(ur.rules).size > 0)
-    : userRules;
+  function RuleRow({ rule, user, showActions = true }) {
+    const suspicious = isSuspicious(rule);
+    return (
+      <div className={`px-4 py-3 ${suspicious ? "bg-red-50/40" : "bg-white"}`}>
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <p className="text-sm font-medium text-slate-700">{rule.displayName}</p>
+              {suspicious && <Badge className="bg-red-100 text-red-600 text-[10px]">External Forward Risk</Badge>}
+              {!rule.isEnabled && <Badge className="bg-slate-100 text-slate-400 text-[10px]">Disabled</Badge>}
+            </div>
+            {user && <p className="text-[10px] text-slate-400 mb-1">{user.mail || user.userPrincipalName}</p>}
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+              {rule.conditions?.subjectContains?.length > 0 && <span>Subject: <b>{rule.conditions.subjectContains.join(", ")}</b></span>}
+              {rule.conditions?.senderContains?.length > 0 && <span>Sender: <b>{rule.conditions.senderContains.join(", ")}</b></span>}
+              {rule.conditions?.fromAddresses?.length > 0 && <span>From: <b>{rule.conditions.fromAddresses.map(a => a.emailAddress?.address).join(", ")}</b></span>}
+              {rule.actions?.markAsRead && <span className="text-blue-600">→ Mark as read</span>}
+              {rule.actions?.delete && <span className="text-red-600">→ Delete</span>}
+              {rule.actions?.moveToFolder && <span className="text-slate-600">→ Move to folder</span>}
+              {rule.actions?.stopProcessingRules && <span className="text-amber-600">→ Stop processing rules</span>}
+              {rule.actions?.forwardTo?.length > 0 && <span className="text-red-600 font-medium">→ Forward to: {rule.actions.forwardTo.map(a => a.emailAddress?.address).join(", ")}</span>}
+              {rule.actions?.redirectTo?.length > 0 && <span className="text-red-600 font-medium">→ Redirect to: {rule.actions.redirectTo.map(a => a.emailAddress?.address).join(", ")}</span>}
+            </div>
+          </div>
+          {showActions && rule.id && (
+            <div className="flex items-center gap-1 shrink-0">
+              {rule.isEnabled && (
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-7 px-2 text-xs text-amber-600 hover:bg-amber-50"
+                  onClick={() => handleDisableRule(user?.id || user?.mail, rule.id, rule.displayName)}
+                >
+                  <BellOff className="h-3.5 w-3.5 mr-1" />Disable
+                </Button>
+              )}
+              <Button
+                variant="ghost" size="sm"
+                className="h-7 px-2 text-xs text-red-500 hover:bg-red-50"
+                onClick={() => handleDeleteRule(user?.id || user?.mail, rule.id, rule.displayName)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <ActionProgressBar
-        status={actionStatus?.status}
-        message={actionStatus?.message}
-        onDismiss={() => setActionStatus(null)}
-      />
-
+    <>
       <Tabs defaultValue="report">
         <TabsList className="mb-5">
           <TabsTrigger value="report">Rules Report</TabsTrigger>
           <TabsTrigger value="duplicates">
-            Duplicates
-            {totalDuplicates > 0 && (
-              <Badge className="ml-1.5 bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0 border-0">{totalDuplicates}</Badge>
+            Duplicates {duplicateGroups.length > 0 && (
+              <Badge className="ml-1.5 bg-amber-100 text-amber-700 text-[10px] py-0">{duplicateGroups.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="import">Import from CSV</TabsTrigger>
@@ -263,9 +307,37 @@ export default function ExchangeMailboxRules({ tenantId }) {
             <div className="text-center py-12 text-sm text-slate-400">No inbox rules found across {scannedCount} scanned mailboxes.</div>
           )}
 
-          <RulesList userRules={userRules} expanded={expanded} toggleExpand={toggleExpand}
-            onDelete={handleDeleteRule} onDisable={handleDisableRule}
-            actionStatus={actionStatus} showDupeHighlight />
+          <div className="space-y-2">
+            {userRules.map(ur => {
+              const hasSuspicious = ur.rules.some(isSuspicious);
+              const isOpen = expanded[ur.user.id];
+              return (
+                <div key={ur.user.id} className={`border rounded-xl overflow-hidden ${hasSuspicious ? "border-red-200" : "border-slate-200"}`}>
+                  <button onClick={() => toggleExpand(ur.user.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-slate-50 ${hasSuspicious ? "bg-red-50/60" : "bg-white"}`}>
+                    <div className="flex items-center gap-3">
+                      {hasSuspicious && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{ur.user.displayName}</p>
+                        <p className="text-xs text-slate-500">{ur.user.mail || ur.user.userPrincipalName}</p>
+                      </div>
+                      <Badge className="bg-slate-100 text-slate-600 text-[10px]">{ur.rules.length} rule(s)</Badge>
+                      {hasSuspicious && <Badge className="bg-red-100 text-red-700 text-[10px]">⚠ Forwarding</Badge>}
+                    </div>
+                    {isOpen ? <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />}
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-slate-100 divide-y divide-slate-100">
+                      {ur.rules.map((rule, i) => (
+                        <RuleRow key={i} rule={rule} user={ur.user} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </TabsContent>
 
         {/* ── DUPLICATES TAB ── */}
@@ -273,31 +345,33 @@ export default function ExchangeMailboxRules({ tenantId }) {
           {!isFetched ? (
             <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
               <Copy className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-              <p className="text-sm text-slate-400 mb-3">Scan mailboxes first to detect duplicate rules</p>
-              <Button onClick={() => refetch()} disabled={isLoading} className="bg-slate-900 hover:bg-slate-800">
-                <RefreshCw className="h-4 w-4 mr-2" />Scan Mailboxes
-              </Button>
+              <p className="text-sm text-slate-400">Scan mailboxes first to detect duplicate rules</p>
             </div>
-          ) : totalDuplicates === 0 ? (
+          ) : duplicateGroups.length === 0 ? (
             <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
-              <CheckCircle2 className="h-10 w-10 text-emerald-300 mx-auto mb-3" />
-              <p className="text-sm text-slate-400">No duplicate rules found across {scannedCount} mailboxes.</p>
+              <CheckCircle2 className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">No duplicate rules found across scanned mailboxes</p>
             </div>
           ) : (
-            <div>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 mb-4">
-                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">{totalDuplicates} duplicate rule(s) detected</p>
-                  <p className="text-xs text-amber-700">Duplicate rules have the same name and conditions. Use Delete or Disable to clean them up.</p>
-                </div>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-amber-100 text-amber-700">{duplicateGroups.length} duplicate group(s)</Badge>
+                <p className="text-xs text-slate-400">Rules with the same name appearing in multiple mailboxes</p>
               </div>
-              <RulesList
-                userRules={userRules.filter(ur => findDuplicates(ur.rules).size > 0)}
-                expanded={expanded} toggleExpand={toggleExpand}
-                onDelete={handleDeleteRule} onDisable={handleDisableRule}
-                actionStatus={actionStatus} showDupeHighlight dupesOnly
-              />
+              {duplicateGroups.map(group => (
+                <div key={group.name} className="border border-amber-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-800">"{group.name}"</p>
+                    <Badge className="bg-amber-100 text-amber-700 text-[10px] ml-1">{group.items.length} copies</Badge>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {group.items.map((item, i) => (
+                      <RuleRow key={i} rule={item.rule} user={item.user} />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </TabsContent>
@@ -308,10 +382,9 @@ export default function ExchangeMailboxRules({ tenantId }) {
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
               <p className="font-medium text-blue-800 mb-1">CSV Import Format</p>
               <p className="text-xs text-blue-700 mb-1">Required columns: <code className="bg-blue-100 px-1 rounded">user_email</code>, <code className="bg-blue-100 px-1 rounded">rule_name</code></p>
-              <p className="text-xs text-blue-700 mb-1">Optional: <code className="bg-blue-100 px-1 rounded">from_contains</code>, <code className="bg-blue-100 px-1 rounded">subject_contains</code>, <code className="bg-blue-100 px-1 rounded">body_contains</code>, <code className="bg-blue-100 px-1 rounded">from_address</code>, <code className="bg-blue-100 px-1 rounded">action</code>, <code className="bg-blue-100 px-1 rounded">action_value</code>, <code className="bg-blue-100 px-1 rounded">enabled</code>, <code className="bg-blue-100 px-1 rounded">sequence</code></p>
-              <p className="text-xs text-blue-600 mt-1">Supported actions: <code className="bg-blue-100 px-1 rounded">markAsRead</code> · <code className="bg-blue-100 px-1 rounded">delete</code> · <code className="bg-blue-100 px-1 rounded">forwardTo</code> · <code className="bg-blue-100 px-1 rounded">stopProcessing</code></p>
+              <p className="text-xs text-blue-700 mb-1">Optional: from_contains, subject_contains, body_contains, from_address, action, action_value, enabled, sequence</p>
+              <p className="text-xs text-blue-600 mt-1">Supported actions: markAsRead · delete · forwardTo · stopProcessing</p>
             </div>
-
             <div className="flex gap-3">
               <Button variant="outline" size="sm" onClick={downloadSample}>
                 <Download className="h-4 w-4 mr-1.5" />Download Template
@@ -327,25 +400,12 @@ export default function ExchangeMailboxRules({ tenantId }) {
             {csvRows.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-3">{csvRows.length} rule(s) to import:</p>
-                {importing && (
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-blue-800 flex items-center gap-1.5">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Importing rules… {importResults.length} of {csvRows.length}
-                      </span>
-                      <span className="text-xs text-blue-600">{importProgress}%</span>
-                    </div>
-                    <Progress value={importProgress} className="h-2" />
-                  </div>
-                )}
                 <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-3 py-2 text-left text-slate-500 font-semibold">User</th>
                         <th className="px-3 py-2 text-left text-slate-500 font-semibold">Rule Name</th>
-                        <th className="px-3 py-2 text-left text-slate-500 font-semibold">Condition</th>
                         <th className="px-3 py-2 text-left text-slate-500 font-semibold">Action</th>
                         <th className="px-3 py-2 w-8"></th>
                       </tr>
@@ -358,11 +418,6 @@ export default function ExchangeMailboxRules({ tenantId }) {
                           <tr key={i} className={result ? (result.success ? "bg-emerald-50" : "bg-red-50") : isCurrent ? "bg-blue-50" : ""}>
                             <td className="px-3 py-2 text-slate-600">{row.user_email}</td>
                             <td className="px-3 py-2 font-medium text-slate-700">{row.rule_name}</td>
-                            <td className="px-3 py-2 text-slate-500">
-                              {row.subject_contains ? `Subject: ${row.subject_contains}` :
-                                row.from_contains ? `Sender: ${row.from_contains}` :
-                                row.from_address ? `From: ${row.from_address}` : "All messages"}
-                            </td>
                             <td className="px-3 py-2 text-slate-600">{row.action}{row.action_value ? ` → ${row.action_value}` : ""}</td>
                             <td className="px-3 py-2">
                               {isCurrent && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />}
@@ -376,12 +431,6 @@ export default function ExchangeMailboxRules({ tenantId }) {
                     </tbody>
                   </table>
                 </div>
-                {importResults.length > 0 && importResults.length === csvRows.length && (
-                  <div className={`p-3 rounded-lg text-sm mb-4 flex items-center gap-2 ${importResults.every(r => r.success) ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
-                    {importResults.every(r => r.success) ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
-                    {importResults.filter(r => r.success).length} of {importResults.length} rules imported successfully.
-                  </div>
-                )}
                 {importResults.length < csvRows.length && (
                   <Button onClick={handleImport} disabled={importing} className="bg-slate-900 hover:bg-slate-800">
                     {importing
@@ -394,101 +443,17 @@ export default function ExchangeMailboxRules({ tenantId }) {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
 
-/** Reusable rules list used in both Report and Duplicates tabs */
-function RulesList({ userRules, expanded, toggleExpand, onDelete, onDisable, actionStatus, showDupeHighlight, dupesOnly }) {
-  return (
-    <div className="space-y-2">
-      {userRules.map(ur => {
-        const hasSuspicious = ur.rules.some(isSuspicious);
-        const dupeIndexes = findDuplicates(ur.rules);
-        const isOpen = expanded[ur.user.id];
-        const displayRules = dupesOnly ? ur.rules.filter((_, i) => dupeIndexes.has(i)) : ur.rules;
-
-        return (
-          <div key={ur.user.id} className={`border rounded-xl overflow-hidden ${hasSuspicious ? "border-red-200" : dupeIndexes.size > 0 ? "border-amber-200" : "border-slate-200"}`}>
-            <button onClick={() => toggleExpand(ur.user.id)}
-              className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-slate-50 ${hasSuspicious ? "bg-red-50/60" : dupeIndexes.size > 0 ? "bg-amber-50/40" : "bg-white"}`}>
-              <div className="flex items-center gap-3">
-                {hasSuspicious && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{ur.user.displayName}</p>
-                  <p className="text-xs text-slate-500">{ur.user.mail || ur.user.userPrincipalName}</p>
-                </div>
-                <Badge className="bg-slate-100 text-slate-600 text-[10px]">{ur.rules.length} rule(s)</Badge>
-                {hasSuspicious && <Badge className="bg-red-100 text-red-700 text-[10px]">⚠ Forwarding</Badge>}
-                {dupeIndexes.size > 0 && <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Copy className="h-2.5 w-2.5 mr-1" />{dupeIndexes.size} duplicate(s)</Badge>}
-              </div>
-              {isOpen ? <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />}
-            </button>
-
-            {isOpen && (
-              <div className="border-t border-slate-100 divide-y divide-slate-100">
-                {displayRules.map((rule, i) => {
-                  const realIndex = dupesOnly ? ur.rules.indexOf(rule) : i;
-                  const suspicious = isSuspicious(rule);
-                  const isDupe = dupeIndexes.has(realIndex);
-                  const busy = actionStatus?.status === "loading";
-
-                  return (
-                    <div key={i} className={`px-6 py-3 ${suspicious ? "bg-red-50/40" : isDupe && showDupeHighlight ? "bg-amber-50/40" : "bg-white"}`}>
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <p className="text-sm font-medium text-slate-700">{rule.displayName}</p>
-                            {suspicious && <Badge className="bg-red-100 text-red-600 text-[10px]">External Forward Risk</Badge>}
-                            {!rule.isEnabled && <Badge className="bg-slate-100 text-slate-400 text-[10px]">Disabled</Badge>}
-                            {isDupe && showDupeHighlight && <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Copy className="h-2.5 w-2.5 mr-1" />Duplicate</Badge>}
-                          </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
-                            {rule.conditions?.subjectContains?.length > 0 && <span>Subject: <b>{rule.conditions.subjectContains.join(", ")}</b></span>}
-                            {rule.conditions?.senderContains?.length > 0 && <span>Sender: <b>{rule.conditions.senderContains.join(", ")}</b></span>}
-                            {rule.conditions?.fromAddresses?.length > 0 && <span>From: <b>{rule.conditions.fromAddresses.map(a => a.emailAddress?.address).join(", ")}</b></span>}
-                            {rule.actions?.markAsRead && <span className="text-blue-600">→ Mark as read</span>}
-                            {rule.actions?.delete && <span className="text-red-600">→ Delete</span>}
-                            {rule.actions?.moveToFolder && <span className="text-slate-600">→ Move to folder</span>}
-                            {rule.actions?.stopProcessingRules && <span className="text-amber-600">→ Stop processing rules</span>}
-                            {rule.actions?.forwardTo?.length > 0 && <span className="text-red-600 font-medium">→ Forward to: {rule.actions.forwardTo.map(a => a.emailAddress?.address).join(", ")}</span>}
-                            {rule.actions?.redirectTo?.length > 0 && <span className="text-red-600 font-medium">→ Redirect to: {rule.actions.redirectTo.map(a => a.emailAddress?.address).join(", ")}</span>}
-                          </div>
-                        </div>
-                        {/* Action buttons */}
-                        {rule.id && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {rule.isEnabled && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs gap-1 text-slate-600 hover:text-amber-700 hover:border-amber-300"
-                                disabled={busy}
-                                onClick={() => onDisable(ur.user.id, rule.id, rule.displayName)}
-                              >
-                                <EyeOff className="h-3 w-3" />Disable
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 hover:border-red-300"
-                              disabled={busy}
-                              onClick={() => onDelete(ur.user.id, rule.id, rule.displayName)}
-                            >
-                              <Trash2 className="h-3 w-3" />Delete
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {/* Global action progress bar */}
+      {taskBar && (
+        <ActionProgressBar
+          task={taskBar.task}
+          status={taskBar.status}
+          message={taskBar.message}
+          progress={taskBar.progress}
+          onDismiss={() => setTaskBar(null)}
+        />
+      )}
+    </>
   );
 }
