@@ -148,6 +148,18 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, devices: data.value || [] });
     }
 
+    // ── Entra: get MFA auth methods for a user ───────────────────────────────
+    if (action === "get_user_mfa_methods") {
+      const { user_upn } = body;
+      if (!user_upn) return Response.json({ error: "user_upn required" }, { status: 400 });
+      // Lookup user ID first
+      const userRes = await graphGet(token, `/users/${encodeURIComponent(user_upn)}?$select=id`);
+      const userId = userRes.id;
+      if (!userId) return Response.json({ methods: [] });
+      const methodsRes = await graphGet(token, `/users/${userId}/authentication/methods`);
+      return Response.json({ success: true, methods: methodsRes.value || [] });
+    }
+
     // ── Intune: get Windows Update compliance across all devices ─────────────
     if (action === "get_windows_update_compliance") {
       const { age_days = 90 } = body;

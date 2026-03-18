@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi } from "lucide-react";
+import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi, ShieldAlert } from "lucide-react";
+import CaRisksTab from "./CaRisksTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -156,6 +157,7 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
             <TabsTrigger value="updates"><ShieldCheck className="h-3.5 w-3.5 mr-1" />Updates</TabsTrigger>
             <TabsTrigger value="apps"><Package className="h-3.5 w-3.5 mr-1" />Apps</TabsTrigger>
             <TabsTrigger value="scripts"><Terminal className="h-3.5 w-3.5 mr-1" />Scripts</TabsTrigger>
+            <TabsTrigger value="ca_risks"><ShieldAlert className="h-3.5 w-3.5 mr-1" />CA Risks</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto p-5">
@@ -380,6 +382,17 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                   }>{s.runState || "Unknown"}</Badge>
                 </div>
               ))}
+            </TabsContent>
+            {/* CA RISKS */}
+            <TabsContent value="ca_risks" className="mt-0">
+              <CaRisksTab
+                device={device}
+                azureTenantId={azureTenantId}
+                detail={detail}
+                health={health}
+                compliancePolicies={compliancePolicies}
+                protectionState={protectionState}
+              />
             </TabsContent>
           </div>
         </Tabs>
