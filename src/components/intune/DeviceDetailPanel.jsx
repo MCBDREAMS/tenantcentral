@@ -110,6 +110,9 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
   const compliancePolicies = detail?.compliancePolicies || [];
   const appInstallStates = appsData?.appInstallStates || [];
   const scriptRunStates = scriptsData?.scriptRunStates || [];
+  const protectionState = updatesData?.protectionState || {};
+  const updatePolicies = updatesData?.updatePolicies || [];
+  const allCompliancePolicies = updatesData?.allCompliancePolicies || [];
 
   const hasGraphId = !!(device.graph_id || device.azureDeviceId);
 
