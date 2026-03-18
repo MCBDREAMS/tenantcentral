@@ -62,6 +62,27 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
       }).then(r => r.data),
   });
 
+  const { data: updatesData, isLoading: loadingUpdates } = useQuery({
+    queryKey: ["device_updates", device.graph_id || device.id],
+    enabled: !!(device.graph_id || device.azureDeviceId),
+    queryFn: () =>
+      base44.functions.invoke("portalData", {
+        action: "get_device_updates",
+        azure_tenant_id: azureTenantId,
+        device_id: device.graph_id || device.azureDeviceId,
+      }).then(r => r.data),
+  });
+
+  const remediateMutation = useMutation({
+    mutationFn: (remediation_type) =>
+      base44.functions.invoke("portalData", {
+        action: "remediate_device",
+        azure_tenant_id: azureTenantId,
+        device_id: device.graph_id || device.azureDeviceId,
+        remediation_type,
+      }),
+  });
+
   const { data: scriptsData, isLoading: loadingScripts } = useQuery({
     queryKey: ["device_scripts", device.graph_id || device.id],
     enabled: !!(device.graph_id || device.azureDeviceId),
