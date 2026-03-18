@@ -85,6 +85,7 @@ import __Layout from './Layout.jsx';
 
 export const PAGES = {
     "AdminConsole": AdminConsole,
+    "DeviceAppMonitor": DeviceAppMonitor,
     "AppPermissionsCopy": AppPermissionsCopy,
     "AuditLogs": AuditLogs,
     "ComplianceReporting": ComplianceReporting,

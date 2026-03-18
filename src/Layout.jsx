@@ -8,8 +8,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database,
-  Activity, Cpu
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +40,7 @@ const navSections = [
     section: "intune",
     items: [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
+      { name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
       { name: "Mobile Devices", icon: Smartphone, page: "MobileDevices" },
       { name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
       { name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },
@@ -65,8 +65,6 @@ const navSections = [
     items: [
       { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
       { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
-      { name: "App Monitoring", icon: Activity, page: "AppMonitoring" },
-      { name: "System Performance", icon: Cpu, page: "SystemPerformance" },
     ]
   },
   {
