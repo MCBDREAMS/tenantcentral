@@ -187,9 +187,20 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                     <Row label="Lost Mode" value={<BoolBadge value={d.lostModeState === "enabled"} trueLabel="Enabled" falseLabel="Disabled" />} />
                     <Row label="Jailbroken" value={<BoolBadge value={d.jailBroken === "True"} trueLabel="Yes ⚠️" falseLabel="No" />} />
                   </Section>
-                  <Section title="Sync">
-                    <Row label="Enrolled" value={fmt(d.enrolledDateTime)} />
+                  <Section title="Activity">
+                    <Row label="Last Login" value={fmt(d.lastLogOnDateTime || device.lastLogOnDateTime)} />
                     <Row label="Last Sync" value={fmt(d.lastSyncDateTime)} />
+                    <Row label="Enrolled" value={fmt(d.enrolledDateTime)} />
+                    <Row label="Active (last 30d)" value={
+                      (() => {
+                        const last = d.lastLogOnDateTime || d.lastSyncDateTime;
+                        if (!last) return <Badge className="bg-slate-100 text-slate-500">Unknown</Badge>;
+                        const days = (Date.now() - new Date(last).getTime()) / 86400000;
+                        return days <= 30
+                          ? <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
+                          : <Badge className="bg-red-100 text-red-700">Inactive ({Math.round(days)}d ago)</Badge>;
+                      })()
+                    } />
                     <Row label="Compliance Grace Period" value={fmt(d.complianceGracePeriodExpirationDateTime)} />
                   </Section>
                   {health && Object.keys(health).length > 1 && (
