@@ -144,8 +144,68 @@ Deno.serve(async (req) => {
 
     // ── Intune: list devices from Graph ─────────────────────────────────────
     if (action === "list_intune_devices") {
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=${top}`);
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState,lastLogOnDateTime&$top=${top}`);
       return Response.json({ success: true, devices: data.value || [] });
+    }
+
+    // ── Intune: get Windows Update states for a device ──────────────────────
+    if (action === "get_device_updates") {
+      const { device_id } = body;
+      const [protectionState, compliancePolicies, configStates, deviceDetail] = await Promise.all([
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/windowsProtectionState`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}?$select=id,deviceName,osVersion,complianceState,lastSyncDateTime,lastLogOnDateTime`).catch(() => ({})),
+      ]);
+      // Filter update-related config/compliance states
+      const updatePolicies = (compliancePolicies.value || []).filter(p =>
+        p.displayName?.toLowerCase().includes("update") ||
+        p.displayName?.toLowerCase().includes("windows") ||
+        p.platformType?.toLowerCase().includes("windows")
+      );
+      const updateConfigs = (configStates.value || []).filter(c =>
+        c.displayName?.toLowerCase().includes("update") ||
+        c.displayName?.toLowerCase().includes("windows update") ||
+        c.displayName?.toLowerCase().includes("wu ")
+      );
+      return Response.json({
+        success: true,
+        protectionState,
+        updatePolicies,
+        updateConfigs,
+        allCompliancePolicies: compliancePolicies.value || [],
+        allConfigStates: configStates.value || [],
+        deviceDetail,
+      });
+    }
+
+    // ── Intune: remediate device (sync/scan) ─────────────────────────────────
+    if (action === "remediate_device") {
+      const { device_id, remediation_type } = body;
+      let url = `https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/`;
+      if (remediation_type === "sync") url += "syncDevice";
+      else if (remediation_type === "defender_scan_quick") url += "windowsDefenderScan";
+      else if (remediation_type === "defender_scan_full") url += "windowsDefenderScan";
+      else if (remediation_type === "restart") url += "rebootNow";
+      else if (remediation_type === "update_policies") url += "syncDevice";
+      else throw new Error("Unknown remediation type");
+
+      const body2 = remediation_type === "defender_scan_full"
+        ? JSON.stringify({ quickScan: false })
+        : remediation_type === "defender_scan_quick"
+        ? JSON.stringify({ quickScan: true })
+        : null;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, ...(body2 ? { "Content-Type": "application/json" } : {}) },
+        ...(body2 ? { body: body2 } : {}),
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
     }
 
     // ── Intune: get single device full detail ────────────────────────────────
