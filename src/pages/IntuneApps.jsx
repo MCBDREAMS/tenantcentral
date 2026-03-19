@@ -33,12 +33,27 @@ const emptyForm = {
   package_url: "", state: "published",
 };
 
+const GRAPH_TYPE_MAP = {
+  win32LobApp: "win32",
+  windowsMobileMSI: "msi",
+  windowsUniversalAppX: "msix",
+  windowsStoreApp: "store",
+  webApp: "web_link",
+  iosStoreApp: "ios_store",
+  androidStoreApp: "android_store",
+  macOSPkgApp: "macos_pkg",
+  officeSuiteApp: "office365",
+};
+
 export default function IntuneApps({ selectedTenant, tenants }) {
   const [showCreate, setShowCreate] = useState(false);
   const [viewApp, setViewApp] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [mainTab, setMainTab] = useState("local");
+  const [liveSearch, setLiveSearch] = useState("");
+  const [importingId, setImportingId] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: apps = [], isLoading } = useQuery({
