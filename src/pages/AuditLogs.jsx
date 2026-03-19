@@ -49,6 +49,9 @@ export default function AuditLogs({ selectedTenant }) {
   const { data: logs = [], isLoading, refetch } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: () => base44.entities.AuditLog.list("-created_date", 500),
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const activeFilterCount = [
