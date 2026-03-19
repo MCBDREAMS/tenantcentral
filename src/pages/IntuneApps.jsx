@@ -85,6 +85,37 @@ export default function IntuneApps({ selectedTenant, tenants }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["intune-apps"] }),
   });
 
+  const { data: liveAppsData, isLoading: loadingLive, refetch: refetchLive, isFetched: liveFetched } = useQuery({
+    queryKey: ["intune-apps-live", selectedTenant?.tenant_id],
+    enabled: false,
+    queryFn: () =>
+      base44.functions.invoke("portalData", {
+        action: "list_intune_apps_graph",
+        azure_tenant_id: selectedTenant?.tenant_id,
+      }).then(r => r.data),
+  });
+
+  const liveApps = liveAppsData?.apps || [];
+
+  const importLiveApp = async (app) => {
+    if (!selectedTenant?.id) return;
+    setImportingId(app.id);
+    const appType = GRAPH_TYPE_MAP[app.type] || "win32";
+    await base44.entities.IntuneApp.create({
+      tenant_id: selectedTenant.id,
+      app_name: app.displayName,
+      publisher: app.publisher || "",
+      version: app.appVersion || "",
+      description: app.description || "",
+      app_type: appType,
+      platform: appType.includes("ios") ? "ios" : appType.includes("android") ? "android" : appType.includes("macos") ? "macos" : "windows",
+      assignment_type: app.isAssigned ? "required" : "available",
+      state: app.publishingState === "published" ? "published" : "draft",
+    });
+    queryClient.invalidateQueries({ queryKey: ["intune-apps"] });
+    setImportingId(null);
+  };
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const getTenantName = (tid) => allTenants.find(t => t.id === tid)?.name || "Unknown";
