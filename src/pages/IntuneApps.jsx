@@ -139,83 +139,182 @@ export default function IntuneApps({ selectedTenant, tenants }) {
         }
       />
 
-      {/* Filters */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <Input placeholder="Search apps..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 w-56 text-sm" />
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="App Type" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {["win32","msi","msix","store","web_link","ios_store","android_store","macos_pkg","office365"].map(t => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+      <Tabs value={mainTab} onValueChange={setMainTab} className="mt-0">
+        <TabsList className="mb-4">
+          <TabsTrigger value="local"><Package className="h-3.5 w-3.5 mr-1.5" />Tenant Central Apps</TabsTrigger>
+          <TabsTrigger value="live"><Cloud className="h-3.5 w-3.5 mr-1.5" />Live from Intune</TabsTrigger>
+        </TabsList>
+
+        {/* ── LOCAL APPS TAB ── */}
+        <TabsContent value="local" className="mt-0">
+          <div className="flex gap-3 mb-5 flex-wrap">
+            <Input placeholder="Search apps..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 w-56 text-sm" />
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="App Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {["win32","msi","msix","store","web_link","ios_store","android_store","macos_pkg","office365"].map(t => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-slate-400 self-center ml-auto">{filtered.length} apps</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {isLoading ? (
+              <div className="col-span-3 text-center py-16 text-slate-400 text-sm">Loading apps...</div>
+            ) : filtered.length === 0 ? (
+              <div className="col-span-3 text-center py-16 text-slate-400">
+                <AppWindow className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No apps yet. Add one or import from Intune.</p>
+              </div>
+            ) : filtered.map(app => (
+              <div key={app.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow flex flex-col gap-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                      <Package className="h-5 w-5 text-slate-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{app.app_name}</p>
+                      <p className="text-xs text-slate-400">{app.publisher} {app.version ? `· v${app.version}` : ""}</p>
+                    </div>
+                  </div>
+                  <StatusBadge status={app.state} />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Badge className={`${appTypeColors[app.app_type] || "bg-slate-100 text-slate-600"} text-xs border-0`}>{app.app_type}</Badge>
+                  <Badge variant="outline" className="text-xs">{app.platform}</Badge>
+                  <Badge variant="outline" className="text-xs">{app.assignment_type?.replace(/_/g, " ")}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-emerald-50 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    <div><p className="font-semibold text-emerald-700">{app.install_count || 0}</p><p className="text-emerald-600">Installed</p></div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <XCircle className="h-3.5 w-3.5 text-red-400" />
+                    <div><p className="font-semibold text-red-700">{app.failed_count || 0}</p><p className="text-red-600">Failed</p></div>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400 bg-slate-50 rounded px-2 py-1">
+                  Tenant: <span className="font-medium text-slate-600">{getTenantName(app.tenant_id)}</span>
+                </div>
+                <div className="flex gap-2 mt-auto">
+                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" onClick={() => setViewApp(app)}>
+                    <Eye className="h-3.5 w-3.5" /> View Details
+                  </Button>
+                  <Button variant="ghost" size="sm" className="px-2" onClick={() => deleteMut.mutate(app.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                  </Button>
+                </div>
+              </div>
             ))}
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-slate-400 self-center ml-auto">{filtered.length} apps</span>
-      </div>
-
-      {/* App Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {isLoading ? (
-          <div className="col-span-3 text-center py-16 text-slate-400 text-sm">Loading apps...</div>
-        ) : filtered.length === 0 ? (
-          <div className="col-span-3 text-center py-16 text-slate-400">
-            <AppWindow className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No apps yet. Add one to get started.</p>
           </div>
-        ) : filtered.map(app => (
-          <div key={app.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow flex flex-col gap-3">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                  <Package className="h-5 w-5 text-slate-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{app.app_name}</p>
-                  <p className="text-xs text-slate-400">{app.publisher} {app.version ? `· v${app.version}` : ""}</p>
-                </div>
+        </TabsContent>
+
+        {/* ── LIVE FROM INTUNE TAB ── */}
+        <TabsContent value="live" className="mt-0">
+          {!selectedTenant?.tenant_id ? (
+            <div className="text-center py-20 text-slate-400 text-sm">Select a tenant to view live Intune apps.</div>
+          ) : (
+            <>
+              <div className="flex gap-3 mb-5 flex-wrap items-center">
+                <Input placeholder="Search Intune apps..." value={liveSearch} onChange={e => setLiveSearch(e.target.value)} className="h-9 w-56 text-sm" />
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetchLive()} disabled={loadingLive}>
+                  {loadingLive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {liveFetched ? "Refresh" : "Load from Intune"}
+                </Button>
+                {liveFetched && <span className="text-sm text-slate-400 ml-auto">{liveApps.length} apps in Intune</span>}
               </div>
-              <StatusBadge status={app.state} />
-            </div>
 
-            <div className="flex gap-2 flex-wrap">
-              <Badge className={`${appTypeColors[app.app_type] || "bg-slate-100 text-slate-600"} text-xs border-0`}>{app.app_type}</Badge>
-              <Badge variant="outline" className="text-xs">{app.platform}</Badge>
-              <Badge variant="outline" className="text-xs">{app.assignment_type?.replace(/_/g, " ")}</Badge>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-emerald-50 rounded-lg px-3 py-2 flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                <div>
-                  <p className="font-semibold text-emerald-700">{app.install_count || 0}</p>
-                  <p className="text-emerald-600">Installed</p>
+              {!liveFetched && !loadingLive && (
+                <div className="text-center py-20 border border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
+                  <Cloud className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  Click "Load from Intune" to fetch all apps from the selected tenant's Intune.
                 </div>
-              </div>
-              <div className="bg-red-50 rounded-lg px-3 py-2 flex items-center gap-2">
-                <XCircle className="h-3.5 w-3.5 text-red-400" />
-                <div>
-                  <p className="font-semibold text-red-700">{app.failed_count || 0}</p>
-                  <p className="text-red-600">Failed</p>
+              )}
+
+              {loadingLive && (
+                <div className="text-center py-16"><Loader2 className="h-8 w-8 animate-spin text-slate-400 mx-auto" /></div>
+              )}
+
+              {liveFetched && !loadingLive && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">App Name</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Publisher</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">State</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Assigned</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {liveApps
+                        .filter(a => !liveSearch || a.displayName?.toLowerCase().includes(liveSearch.toLowerCase()) || a.publisher?.toLowerCase().includes(liveSearch.toLowerCase()))
+                        .map(app => {
+                          const mappedType = GRAPH_TYPE_MAP[app.type] || app.type;
+                          const alreadyImported = apps.some(a => a.app_name === app.displayName && a.tenant_id === selectedTenant?.id);
+                          return (
+                            <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center shrink-0">
+                                    <Package className="h-4 w-4 text-slate-400" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-slate-800">{app.displayName}</p>
+                                    {app.appVersion && <p className="text-xs text-slate-400">v{app.appVersion}</p>}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{app.publisher || "—"}</td>
+                              <td className="px-4 py-3">
+                                <Badge className={`${appTypeColors[mappedType] || "bg-slate-100 text-slate-600"} text-xs border-0`}>{mappedType}</Badge>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge className={app.publishingState === "published" ? "bg-emerald-100 text-emerald-700 border-0" : "bg-slate-100 text-slate-600 border-0"}>
+                                  {app.publishingState || "unknown"}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3">
+                                {app.isAssigned
+                                  ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                  : <XCircle className="h-4 w-4 text-slate-300" />}
+                              </td>
+                              <td className="px-4 py-3">
+                                {alreadyImported ? (
+                                  <Badge className="bg-blue-50 text-blue-700 border-0 text-xs">Imported</Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1.5 text-xs h-7"
+                                    disabled={importingId === app.id}
+                                    onClick={() => importLiveApp(app)}
+                                  >
+                                    {importingId === app.id
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <Download className="h-3 w-3" />}
+                                    Import
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-400 bg-slate-50 rounded px-2 py-1">
-              Tenant: <span className="font-medium text-slate-600">{getTenantName(app.tenant_id)}</span>
-            </div>
-
-            <div className="flex gap-2 mt-auto">
-              <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" onClick={() => setViewApp(app)}>
-                <Eye className="h-3.5 w-3.5" /> View Details
-              </Button>
-              <Button variant="ghost" size="sm" className="px-2" onClick={() => deleteMut.mutate(app.id)}>
-                <Trash2 className="h-3.5 w-3.5 text-red-400" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
