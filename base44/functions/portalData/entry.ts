@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
 
     // ── Intune: list devices from Graph ─────────────────────────────────────
     if (action === "list_intune_devices") {
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState,lastLogOnDateTime&$top=${top}`);
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=${top}`);
       return Response.json({ success: true, devices: data.value || [] });
     }
 
