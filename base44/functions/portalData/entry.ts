@@ -435,6 +435,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Intune: list all apps from Graph ─────────────────────────────────────
+    if (action === "list_intune_apps_graph") {
+      const data = await graphGetBeta(token, `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,appVersion,description,createdDateTime,lastModifiedDateTime,installSummary,publishingState,largeIcon,assignments,isAssigned,roleScopeTagIds,notes&$top=100`).catch(() => ({ value: [] }));
+      const apps = (data.value || []).map(a => ({
+        id: a.id,
+        displayName: a.displayName,
+        publisher: a.publisher,
+        appVersion: a.appVersion,
+        description: a.description,
+        publishingState: a.publishingState,
+        type: (a["@odata.type"] || "").replace("#microsoft.graph.", ""),
+        isAssigned: a.isAssigned,
+        createdDateTime: a.createdDateTime,
+        lastModifiedDateTime: a.lastModifiedDateTime,
+      }));
+      return Response.json({ success: true, apps });
+    }
+
     // ── Defender: aggregate threat insights across all Windows devices ────────
     if (action === "get_threat_insights") {
       // Fetch all Windows devices with protection state
