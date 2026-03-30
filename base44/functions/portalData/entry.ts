@@ -271,6 +271,19 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, appInstallStates: data.value || [] });
     }
 
+    // ── Intune: get all installed apps on a device (discovered apps) ──────────
+    if (action === "get_device_installed_apps") {
+      const { device_id } = body;
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/detectedApps?$top=200`).catch(() => ({ value: [] }));
+      const apps = data.value || [];
+      // Check for Automate agent presence
+      const automateKeywords = ["automate", "connectwise automate", "labtech", "labtech agent", "automate agent"];
+      const automateAgent = apps.find(a =>
+        automateKeywords.some(kw => (a.displayName || "").toLowerCase().includes(kw))
+      );
+      return Response.json({ success: true, installedApps: apps, automateAgentFound: !!automateAgent, automateAgentDetails: automateAgent || null });
+    }
+
     // ── Intune: sync device ──────────────────────────────────────────────────
     if (action === "sync_device") {
       const { device_id } = body;

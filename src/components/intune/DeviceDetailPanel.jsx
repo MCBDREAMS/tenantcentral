@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi, ShieldAlert } from "lucide-react";
+import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi, ShieldAlert, AppWindow, Bot } from "lucide-react";
 import CaRisksTab from "./CaRisksTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +84,17 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
       }),
   });
 
+  const { data: installedAppsData, isLoading: loadingInstalledApps } = useQuery({
+    queryKey: ["device_installed_apps", device.graph_id || device.id],
+    enabled: !!(device.graph_id || device.azureDeviceId),
+    queryFn: () =>
+      base44.functions.invoke("portalData", {
+        action: "get_device_installed_apps",
+        azure_tenant_id: azureTenantId,
+        device_id: device.graph_id || device.azureDeviceId,
+      }).then(r => r.data),
+  });
+
   const { data: scriptsData, isLoading: loadingScripts } = useQuery({
     queryKey: ["device_scripts", device.graph_id || device.id],
     enabled: !!(device.graph_id || device.azureDeviceId),
@@ -110,6 +121,9 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
   const configStatuses = detail?.configStatuses || [];
   const compliancePolicies = detail?.compliancePolicies || [];
   const appInstallStates = appsData?.appInstallStates || [];
+  const installedApps = installedAppsData?.installedApps || [];
+  const automateAgentFound = installedAppsData?.automateAgentFound;
+  const automateAgentDetails = installedAppsData?.automateAgentDetails;
   const scriptRunStates = scriptsData?.scriptRunStates || [];
   const protectionState = updatesData?.protectionState || {};
   const updatePolicies = updatesData?.updatePolicies || [];
@@ -155,7 +169,8 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
             <TabsTrigger value="overview"><Monitor className="h-3.5 w-3.5 mr-1" />Overview</TabsTrigger>
             <TabsTrigger value="compliance"><Shield className="h-3.5 w-3.5 mr-1" />Compliance</TabsTrigger>
             <TabsTrigger value="updates"><ShieldCheck className="h-3.5 w-3.5 mr-1" />Updates</TabsTrigger>
-            <TabsTrigger value="apps"><Package className="h-3.5 w-3.5 mr-1" />Apps</TabsTrigger>
+            <TabsTrigger value="apps"><Package className="h-3.5 w-3.5 mr-1" />Intune Apps</TabsTrigger>
+            <TabsTrigger value="installed_apps"><AppWindow className="h-3.5 w-3.5 mr-1" />Installed Apps</TabsTrigger>
             <TabsTrigger value="scripts"><Terminal className="h-3.5 w-3.5 mr-1" />Scripts</TabsTrigger>
             <TabsTrigger value="ca_risks"><ShieldAlert className="h-3.5 w-3.5 mr-1" />CA Risks</TabsTrigger>
           </TabsList>
@@ -188,6 +203,23 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                     <Row label="AAD Registered" value={<BoolBadge value={d.aadRegistered} />} />
                     <Row label="Lost Mode" value={<BoolBadge value={d.lostModeState === "enabled"} trueLabel="Enabled" falseLabel="Disabled" />} />
                     <Row label="Jailbroken" value={<BoolBadge value={d.jailBroken === "True"} trueLabel="Yes ⚠️" falseLabel="No" />} />
+                  </Section>
+                  <Section title="Automate Agent">
+                    <Row label="Agent Status" value={
+                      loadingInstalledApps
+                        ? <Badge className="bg-slate-100 text-slate-500 gap-1"><Loader2 className="h-3 w-3 animate-spin" />Checking...</Badge>
+                        : automateAgentFound === undefined
+                        ? <Badge className="bg-slate-100 text-slate-500">Not checked</Badge>
+                        : automateAgentFound
+                        ? <Badge className="bg-emerald-100 text-emerald-700 gap-1"><CheckCircle2 className="h-3 w-3" />Installed</Badge>
+                        : <Badge className="bg-red-100 text-red-700 gap-1"><XCircle className="h-3 w-3" />Not Detected</Badge>
+                    } />
+                    {automateAgentDetails && (
+                      <>
+                        <Row label="Agent Name" value={automateAgentDetails.displayName} />
+                        <Row label="Version" value={automateAgentDetails.version} />
+                      </>
+                    )}
                   </Section>
                   <Section title="Activity">
                     <Row label="Last Login" value={fmt(d.lastLogOnDateTime || device.lastLogOnDateTime)} />
@@ -359,6 +391,36 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                   }>{app.installState || "Unknown"}</Badge>
                 </div>
               ))}
+            </TabsContent>
+
+            {/* INSTALLED APPS */}
+            <TabsContent value="installed_apps" className="mt-0 space-y-3">
+              {loadingInstalledApps ? <Spinner /> : installedApps.length === 0 ? (
+                <Empty text="No installed app data available. Ensure DeviceManagementManagedDevices.Read.All permission is granted." />
+              ) : (
+                <>
+                  {automateAgentFound !== undefined && (
+                    <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium ${automateAgentFound ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                      <Bot className="h-4 w-4 shrink-0" />
+                      {automateAgentFound
+                        ? `Automate Agent detected: ${automateAgentDetails?.displayName} v${automateAgentDetails?.version || "?"}`
+                        : "Automate Agent NOT detected on this device"}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400">{installedApps.length} applications installed</p>
+                  <div className="space-y-1.5">
+                    {installedApps.map((app, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{app.displayName || "Unknown"}</p>
+                          <p className="text-xs text-slate-400">{app.publisher || ""}{app.version ? ` · v${app.version}` : ""}</p>
+                        </div>
+                        {app.version && <Badge className="bg-slate-100 text-slate-600 text-xs shrink-0">{app.version}</Badge>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </TabsContent>
 
             {/* SCRIPTS */}
