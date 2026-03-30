@@ -124,6 +124,8 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
   const installedApps = installedAppsData?.installedApps || [];
   const automateAgentFound = installedAppsData?.automateAgentFound;
   const automateAgentDetails = installedAppsData?.automateAgentDetails;
+  const sophosAgentFound = installedAppsData?.sophosAgentFound;
+  const sophosAgentDetails = installedAppsData?.sophosAgentDetails;
   const scriptRunStates = scriptsData?.scriptRunStates || [];
   const protectionState = updatesData?.protectionState || {};
   const updatePolicies = updatesData?.updatePolicies || [];
@@ -204,20 +206,29 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                     <Row label="Lost Mode" value={<BoolBadge value={d.lostModeState === "enabled"} trueLabel="Enabled" falseLabel="Disabled" />} />
                     <Row label="Jailbroken" value={<BoolBadge value={d.jailBroken === "True"} trueLabel="Yes ⚠️" falseLabel="No" />} />
                   </Section>
-                  <Section title="Automate Agent">
-                    <Row label="Agent Status" value={
+                  <Section title="Security & Management Agents">
+                    <Row label="Automate Agent" value={
                       loadingInstalledApps
                         ? <Badge className="bg-slate-100 text-slate-500 gap-1"><Loader2 className="h-3 w-3 animate-spin" />Checking...</Badge>
                         : automateAgentFound === undefined
                         ? <Badge className="bg-slate-100 text-slate-500">Not checked</Badge>
                         : automateAgentFound
-                        ? <Badge className="bg-emerald-100 text-emerald-700 gap-1"><CheckCircle2 className="h-3 w-3" />Installed</Badge>
+                        ? <Badge className="bg-emerald-100 text-emerald-700 gap-1"><CheckCircle2 className="h-3 w-3" />Installed {automateAgentDetails?.version ? `v${automateAgentDetails.version}` : ""}</Badge>
                         : <Badge className="bg-red-100 text-red-700 gap-1"><XCircle className="h-3 w-3" />Not Detected</Badge>
                     } />
-                    {automateAgentDetails && (
+                    <Row label="Sophos Agent" value={
+                      loadingInstalledApps
+                        ? <Badge className="bg-slate-100 text-slate-500 gap-1"><Loader2 className="h-3 w-3 animate-spin" />Checking...</Badge>
+                        : sophosAgentFound === undefined
+                        ? <Badge className="bg-slate-100 text-slate-500">Not checked</Badge>
+                        : sophosAgentFound
+                        ? <Badge className="bg-emerald-100 text-emerald-700 gap-1"><CheckCircle2 className="h-3 w-3" />Installed {sophosAgentDetails?.version ? `v${sophosAgentDetails.version}` : ""}</Badge>
+                        : <Badge className="bg-red-100 text-red-700 gap-1"><XCircle className="h-3 w-3" />Not Detected</Badge>
+                    } />
+                    {sophosAgentDetails && (
                       <>
-                        <Row label="Agent Name" value={automateAgentDetails.displayName} />
-                        <Row label="Version" value={automateAgentDetails.version} />
+                        <Row label="Sophos Product" value={sophosAgentDetails.displayName} />
+                        <Row label="Sophos Version" value={sophosAgentDetails.version} />
                       </>
                     )}
                   </Section>
@@ -399,12 +410,20 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                 <Empty text="No installed app data available. Ensure DeviceManagementManagedDevices.Read.All permission is granted." />
               ) : (
                 <>
-                  {automateAgentFound !== undefined && (
-                    <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium ${automateAgentFound ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-                      <Bot className="h-4 w-4 shrink-0" />
-                      {automateAgentFound
-                        ? `Automate Agent detected: ${automateAgentDetails?.displayName} v${automateAgentDetails?.version || "?"}`
-                        : "Automate Agent NOT detected on this device"}
+                  {(automateAgentFound !== undefined || sophosAgentFound !== undefined) && (
+                    <div className="space-y-2">
+                      <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium ${automateAgentFound ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                        <Bot className="h-4 w-4 shrink-0" />
+                        {automateAgentFound
+                          ? `Automate Agent: ${automateAgentDetails?.displayName} v${automateAgentDetails?.version || "?"}`
+                          : "Automate Agent NOT detected on this device"}
+                      </div>
+                      <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium ${sophosAgentFound ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                        <Shield className="h-4 w-4 shrink-0" />
+                        {sophosAgentFound
+                          ? `Sophos: ${sophosAgentDetails?.displayName} v${sophosAgentDetails?.version || "?"}`
+                          : "Sophos Agent NOT detected on this device"}
+                      </div>
                     </div>
                   )}
                   <p className="text-xs text-slate-400">{installedApps.length} applications installed</p>

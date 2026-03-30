@@ -82,6 +82,7 @@ import TenantSettings from './pages/TenantSettings';
 import Tenants from './pages/Tenants';
 import ThreatInsights from './pages/ThreatInsights';
 import WindowsUpdates from './pages/WindowsUpdates';
+import SophosReport from './pages/SophosReport';
 import __Layout from './Layout.jsx';
 
 
@@ -121,6 +122,7 @@ export const PAGES = {
     "Tenants": Tenants,
     "WindowsUpdates": WindowsUpdates,
     "ThreatInsights": ThreatInsights,
+    "SophosReport": SophosReport,
 }
 
 export const pagesConfig = {

@@ -281,7 +281,18 @@ Deno.serve(async (req) => {
       const automateAgent = apps.find(a =>
         automateKeywords.some(kw => (a.displayName || "").toLowerCase().includes(kw))
       );
-      return Response.json({ success: true, installedApps: apps, automateAgentFound: !!automateAgent, automateAgentDetails: automateAgent || null });
+      const sophosKeywords = ["sophos", "sophos endpoint", "sophos agent", "sophos anti-virus", "sophos intercept"];
+      const sophosAgent = apps.find(a =>
+        sophosKeywords.some(kw => (a.displayName || "").toLowerCase().includes(kw))
+      );
+      return Response.json({
+        success: true,
+        installedApps: apps,
+        automateAgentFound: !!automateAgent,
+        automateAgentDetails: automateAgent || null,
+        sophosAgentFound: !!sophosAgent,
+        sophosAgentDetails: sophosAgent || null,
+      });
     }
 
     // ── Intune: sync device ──────────────────────────────────────────────────
