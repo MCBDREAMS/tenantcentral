@@ -83,6 +83,7 @@ import Tenants from './pages/Tenants';
 import ThreatInsights from './pages/ThreatInsights';
 import WindowsUpdates from './pages/WindowsUpdates';
 import SophosReport from './pages/SophosReport';
+import AzureAppRegistrations from './pages/AzureAppRegistrations';
 import __Layout from './Layout.jsx';
 
 
@@ -123,6 +124,7 @@ export const PAGES = {
     "WindowsUpdates": WindowsUpdates,
     "ThreatInsights": ThreatInsights,
     "SophosReport": SophosReport,
+    "AzureAppRegistrations": AzureAppRegistrations,
 }
 
 export const pagesConfig = {

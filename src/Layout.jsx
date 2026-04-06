@@ -27,6 +27,7 @@ const navSections = [
     label: "Entra ID",
     section: "entra",
     items: [
+      { name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
       { name: "Users", icon: Users, page: "EntraUsers" },
       { name: "Groups", icon: UserCheck, page: "EntraGroups" },
       { name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
