@@ -58,8 +58,14 @@ export function useRbac() {
   const canEdit = () => rbac ? !rbac.isReadOnly : true;
 
   const filterTenants = (tenants) => {
-    if (!rbac?.assignedTenants) return tenants;
-    return tenants.filter(t => rbac.assignedTenants.includes(t.id));
+    if (!rbac) return tenants;
+    // Platform admins see everything
+    if (rbac.role === "global_admin") return tenants;
+    // If explicit tenant IDs are assigned via AdminRole, use those
+    if (rbac.assignedTenants) return tenants.filter(t => rbac.assignedTenants.includes(t.id));
+    // Otherwise, filter by linked_user_email — clients only see their own tenants
+    if (rbac.email) return tenants.filter(t => !t.linked_user_email || t.linked_user_email === rbac.email);
+    return tenants;
   };
 
   return { rbac, canAccess, canEdit, filterTenants };
