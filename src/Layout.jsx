@@ -34,6 +34,7 @@ const navSections = [
       { name: "Directory Roles", icon: ShieldAlert, page: "EntraRoles" },
       { name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
       { name: "Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
+      { name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
     ]
   },
   {
@@ -90,6 +91,7 @@ const navSections = [
       { name: "Audit Logs", icon: ClipboardList, page: "AuditLogs" },
       { name: "RBAC / Roles", icon: UserCog, page: "RbacAdmin" },
       { name: "Copy App Permissions", icon: GitMerge, page: "AppPermissionsCopy" },
+      { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
     ]
   }
 ];

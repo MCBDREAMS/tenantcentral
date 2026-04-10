@@ -83,6 +83,7 @@ import Tenants from './pages/Tenants';
 import ThreatInsights from './pages/ThreatInsights';
 import WindowsUpdates from './pages/WindowsUpdates';
 import SophosReport from './pages/SophosReport';
+import LicenseAdmin from './pages/LicenseAdmin';
 import AzureAppRegistrations from './pages/AzureAppRegistrations';
 import __Layout from './Layout.jsx';
 
@@ -124,6 +125,8 @@ export const PAGES = {
     "WindowsUpdates": WindowsUpdates,
     "ThreatInsights": ThreatInsights,
     "SophosReport": SophosReport,
+    "LicenseAdmin": LicenseAdmin,
+    "AzureAppRegistrations": AzureAppRegistrations,
     "AzureAppRegistrations": AzureAppRegistrations,
 }
 

@@ -1,0 +1,43 @@
+{
+  "name": "License",
+  "type": "object",
+  "properties": {
+    "client_name": {
+      "type": "string",
+      "description": "Name of the client / company"
+    },
+    "tenant_ids": {
+      "type": "string",
+      "description": "Comma-separated Azure Tenant IDs this license covers"
+    },
+    "license_key": {
+      "type": "string",
+      "description": "The generated license key"
+    },
+    "issued_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "expired",
+        "revoked"
+      ],
+      "default": "active"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "client_name",
+    "tenant_ids",
+    "expiry_date"
+  ]
+}
