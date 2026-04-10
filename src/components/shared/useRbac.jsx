@@ -22,25 +22,32 @@ export function useRbac() {
     (async () => {
       try {
         const user = await base44.auth.me();
-        // Platform admins always have global_admin
+        // Platform admins always have global_admin — see all tenants
         if (user?.role === "admin") {
           const result = { role: "global_admin", isReadOnly: false, allowedSections: ROLE_SECTIONS.global_admin, assignedTenants: null, email: user.email };
           cachedRbac = result;
           setRbac(result);
           return;
         }
-        // Check AdminRole entity
+        // Check AdminRole entity for explicit role assignment
         const roles = await base44.entities.AdminRole.filter({ user_email: user.email, is_active: true });
         if (roles.length > 0) {
           const r = roles[0];
           const sections = r.allowed_sections ? r.allowed_sections.split(",").map(s => s.trim()) : (ROLE_SECTIONS[r.role] || []);
-          const assignedTenants = r.assigned_tenants ? r.assigned_tenants.split(",").map(s => s.trim()).filter(Boolean) : null;
+          let assignedTenants = r.assigned_tenants ? r.assigned_tenants.split(",").map(s => s.trim()).filter(Boolean) : null;
+          // If no explicit tenants, fall back to email-linked tenants
+          if (!assignedTenants || assignedTenants.length === 0) {
+            const linkedTenants = await base44.entities.Tenant.filter({ linked_user_email: user.email });
+            assignedTenants = linkedTenants.length > 0 ? linkedTenants.map(t => t.id) : null;
+          }
           const result = { role: r.role, isReadOnly: READONLY_ROLES.includes(r.role), allowedSections: sections, assignedTenants, email: user.email };
           cachedRbac = result;
           setRbac(result);
         } else {
-          // Default: readonly with all sections visible
-          const result = { role: "readonly", isReadOnly: true, allowedSections: ROLE_SECTIONS.readonly, assignedTenants: null, email: user.email };
+          // Regular user — scope to tenants linked to their email only
+          const linkedTenants = await base44.entities.Tenant.filter({ linked_user_email: user.email });
+          const assignedTenants = linkedTenants.length > 0 ? linkedTenants.map(t => t.id) : [];
+          const result = { role: "readonly", isReadOnly: true, allowedSections: ROLE_SECTIONS.readonly, assignedTenants, email: user.email };
           cachedRbac = result;
           setRbac(result);
         }

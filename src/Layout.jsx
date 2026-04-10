@@ -107,6 +107,7 @@ export default function Layout({ children, currentPageName }) {
   const { rbac, canAccess, filterTenants } = useRbac();
 
   useEffect(() => {
+    if (!rbac) return;
     base44.entities.Tenant.list().then(t => {
       const scoped = filterTenants(t);
       setTenants(scoped);
@@ -143,7 +144,7 @@ export default function Layout({ children, currentPageName }) {
             }}
             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">All Tenants</option>
+            {rbac?.role === "global_admin" && <option value="">All Tenants</option>}
             {tenants.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
