@@ -84,6 +84,13 @@ const navSections = [
     ]
   },
   {
+    label: "About",
+    section: null,
+    items: [
+      { name: "About & License", icon: Layers, page: "About" },
+    ]
+  },
+  {
     label: "Admin",
     section: "admin",
     items: [

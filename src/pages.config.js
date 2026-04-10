@@ -85,6 +85,7 @@ import WindowsUpdates from './pages/WindowsUpdates';
 import SophosReport from './pages/SophosReport';
 import LicenseAdmin from './pages/LicenseAdmin';
 import AzureAppRegistrations from './pages/AzureAppRegistrations';
+import About from './pages/About';
 import __Layout from './Layout.jsx';
 
 
@@ -127,7 +128,7 @@ export const PAGES = {
     "SophosReport": SophosReport,
     "LicenseAdmin": LicenseAdmin,
     "AzureAppRegistrations": AzureAppRegistrations,
-    "AzureAppRegistrations": AzureAppRegistrations,
+    "About": About,
 }
 
 export const pagesConfig = {
