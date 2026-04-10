@@ -6,6 +6,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import ClientRegister from './pages/ClientRegister';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 const { Pages, Layout: PageLayout, mainPage } = pagesConfig;
@@ -58,6 +59,7 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
+      <Route path="/register" element={<ClientRegister />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
