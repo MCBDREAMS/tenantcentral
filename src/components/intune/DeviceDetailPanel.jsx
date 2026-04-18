@@ -464,6 +464,11 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
                 </div>
               ))}
             </TabsContent>
+            {/* REMOTE ASSIST */}
+            <TabsContent value="remote" className="mt-0">
+              <RemoteAssistTab device={device} automateAgentFound={automateAgentFound} />
+            </TabsContent>
+
             {/* CA RISKS */}
             <TabsContent value="ca_risks" className="mt-0">
               <CaRisksTab

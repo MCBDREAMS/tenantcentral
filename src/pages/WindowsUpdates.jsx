@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   ShieldCheck, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle,
-  Monitor, RotateCcw, Scan, Power
+  Monitor, RotateCcw, Scan, Power, Download, Users, BarChart2, Search, Package
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import PageHeader from "@/components/shared/PageHeader";
 import { format, subDays, isAfter } from "date-fns";
+import KbDeployments from "@/components/updates/KbDeployments";
+import AutopatchGroups from "@/components/updates/AutopatchGroups";
+import FeatureQualityUpdates from "@/components/updates/FeatureQualityUpdates";
+import UpdateCompliance from "@/components/updates/UpdateCompliance";
 
 const AGE_OPTIONS = [
   { label: "30 days", value: 30 },
@@ -35,11 +39,35 @@ function CompBadge({ state }) {
   return <Badge className={map[state] || "bg-slate-100 text-slate-500"}>{state || "Unknown"}</Badge>;
 }
 
-export default function WindowsUpdates({ selectedTenant }) {
+function SummaryCard({ label, value, color }) {
+  const colors = {
+    slate: "bg-slate-50 border-slate-200 text-slate-800",
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    red: "bg-red-50 border-red-200 text-red-700",
+    amber: "bg-amber-50 border-amber-200 text-amber-700",
+  };
+  return (
+    <div className={`border rounded-xl p-4 ${colors[color]}`}>
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs font-medium mt-1 opacity-70">{label}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2.5">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-sm text-slate-800 text-right">{value}</span>
+    </div>
+  );
+}
+
+// ─── Device Compliance Tab (existing functionality) ──────────────────────────
+function DeviceComplianceTab({ selectedTenant }) {
   const [ageFilter, setAgeFilter] = useState(90);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [remediateStatus, setRemediateStatus] = useState({});
-
   const azureTenantId = selectedTenant?.tenant_id;
 
   const { data, isLoading, refetch, isFetched } = useQuery({
@@ -81,75 +109,49 @@ export default function WindowsUpdates({ selectedTenant }) {
   };
 
   const devices = data?.devices || [];
-  const summary = data?.summary || {};
-
   const cutoff = subDays(new Date(), ageFilter);
-  const staleDevices = devices.filter(d => {
-    const last = d.lastSyncDateTime;
-    return !last || !isAfter(new Date(last), cutoff);
-  });
+  const staleDevices = devices.filter(d => !d.lastSyncDateTime || !isAfter(new Date(d.lastSyncDateTime), cutoff));
   const compliantCount = devices.filter(d => d.complianceState === "compliant").length;
   const nonCompliantCount = devices.filter(d => d.complianceState === "noncompliant").length;
   const compliancePct = devices.length ? Math.round((compliantCount / devices.length) * 100) : 0;
-
   const protectionState = deviceUpdates?.protectionState || {};
   const allPolicies = deviceUpdates?.allCompliancePolicies || [];
 
-  if (!azureTenantId) {
-    return (
-      <div className="p-6">
-        <PageHeader title="Windows Updates" subtitle="Select a tenant to view update compliance" icon={ShieldCheck} />
-        <div className="text-center py-20 text-slate-400 text-sm">Please select a tenant from the sidebar.</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Windows Updates"
-        subtitle={`Update compliance & remediation${selectedTenant ? ` — ${selectedTenant.name}` : ""}`}
-        icon={ShieldCheck}
-        actions={
-          <div className="flex items-center gap-2">
-            <select
-              value={ageFilter}
-              onChange={e => setAgeFilter(Number(e.target.value))}
-              className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 bg-white"
-            >
-              {AGE_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>Updates older than {o.label}</option>
-              ))}
-            </select>
-            <Button onClick={() => refetch()} disabled={isLoading} className="bg-slate-900 hover:bg-slate-800 gap-2">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Scan Devices
-            </Button>
-          </div>
-        }
-      />
-
-      {/* Summary Cards */}
-      {isFetched && !isLoading && devices.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard label="Total Devices" value={devices.length} color="slate" />
-          <SummaryCard label="Compliant" value={compliantCount} color="emerald" />
-          <SummaryCard label="Non-Compliant" value={nonCompliantCount} color="red" />
-          <SummaryCard label={`Stale (>${ageFilter}d)`} value={staleDevices.length} color="amber" />
-        </div>
-      )}
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <select
+          value={ageFilter}
+          onChange={e => setAgeFilter(Number(e.target.value))}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 bg-white"
+        >
+          {AGE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>Updates older than {o.label}</option>
+          ))}
+        </select>
+        <Button onClick={() => refetch()} disabled={isLoading} className="bg-slate-900 hover:bg-slate-800 gap-2">
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Scan Devices
+        </Button>
+      </div>
 
       {isFetched && !isLoading && devices.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-slate-700">Overall Update Compliance</p>
-            <span className="text-lg font-bold text-slate-800">{compliancePct}%</span>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <SummaryCard label="Total Devices" value={devices.length} color="slate" />
+            <SummaryCard label="Compliant" value={compliantCount} color="emerald" />
+            <SummaryCard label="Non-Compliant" value={nonCompliantCount} color="red" />
+            <SummaryCard label={`Stale (>${ageFilter}d)`} value={staleDevices.length} color="amber" />
           </div>
-          <Progress value={compliancePct} className="h-3" />
-          <p className="text-xs text-slate-400 mt-2">
-            {compliantCount} of {devices.length} Windows devices are compliant with update policies
-          </p>
-        </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-slate-700">Overall Update Compliance</p>
+              <span className="text-lg font-bold text-slate-800">{compliancePct}%</span>
+            </div>
+            <Progress value={compliancePct} className="h-3" />
+            <p className="text-xs text-slate-400 mt-2">{compliantCount} of {devices.length} Windows devices are compliant</p>
+          </div>
+        </>
       )}
 
       {!isFetched && !isLoading && (
@@ -178,11 +180,8 @@ export default function WindowsUpdates({ selectedTenant }) {
                 const isStale = !d.lastSyncDateTime || !isAfter(new Date(d.lastSyncDateTime), cutoff);
                 const isSelected = selectedDevice?.id === d.id;
                 return (
-                  <button
-                    key={d.id}
-                    onClick={() => setSelectedDevice(isSelected ? null : d)}
-                    className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${isSelected ? "bg-blue-50 border-l-2 border-blue-500" : ""}`}
-                  >
+                  <button key={d.id} onClick={() => setSelectedDevice(isSelected ? null : d)}
+                    className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${isSelected ? "bg-blue-50 border-l-2 border-blue-500" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Monitor className="h-4 w-4 text-slate-400 shrink-0" />
@@ -216,12 +215,10 @@ export default function WindowsUpdates({ selectedTenant }) {
                   <p className="text-sm font-semibold text-slate-700">{selectedDevice.deviceName}</p>
                   <p className="text-xs text-slate-400">{selectedDevice.osVersion}</p>
                 </div>
-
                 {loadingDeviceUpdates ? (
                   <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
                 ) : (
                   <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
-                    {/* Remediation */}
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Remediation</p>
                       <div className="flex flex-wrap gap-2">
@@ -234,14 +231,8 @@ export default function WindowsUpdates({ selectedTenant }) {
                           const key = selectedDevice.id + action.type;
                           const st = remediateStatus[key];
                           return (
-                            <Button
-                              key={action.type}
-                              size="sm"
-                              variant="outline"
-                              className="gap-1.5 text-xs h-8"
-                              disabled={st === "loading"}
-                              onClick={() => handleRemediate(selectedDevice.id, action.type)}
-                            >
+                            <Button key={action.type} size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+                              disabled={st === "loading"} onClick={() => handleRemediate(selectedDevice.id, action.type)}>
                               {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <action.icon className="h-3 w-3" />}
                               {action.label}
                               {st === "success" && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
@@ -251,52 +242,30 @@ export default function WindowsUpdates({ selectedTenant }) {
                         })}
                       </div>
                     </div>
-
-                    {/* Defender / Protection */}
                     {protectionState && Object.keys(protectionState).length > 1 && (
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Defender / Protection State</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Defender / Protection</p>
                         <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
                           <DetailRow label="Real-Time Protection" value={protectionState.realTimeProtectionEnabled ? "✅ Enabled" : "❌ Disabled"} />
                           <DetailRow label="Signature Status" value={protectionState.signatureUpdateOverdue ? "⚠ Overdue" : "✅ Up to Date"} />
                           <DetailRow label="Signature Version" value={protectionState.antivirusSignatureVersion || "—"} />
                           <DetailRow label="Quick Scan Overdue" value={protectionState.quickScanOverdue ? "⚠ Yes" : "✅ No"} />
                           <DetailRow label="Full Scan Overdue" value={protectionState.fullScanOverdue ? "⚠ Yes" : "✅ No"} />
-                          <DetailRow label="Last Quick Scan" value={fmt(protectionState.lastQuickScanDateTime)} />
-                          <DetailRow label="Last Full Scan" value={fmt(protectionState.lastFullScanDateTime)} />
                         </div>
                       </div>
                     )}
-
-                    {/* Compliance Policies */}
                     {allPolicies.length > 0 && (
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                          Installed / Missing Update Policies
-                        </p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Update Policies</p>
                         <div className="space-y-2">
                           {allPolicies.map((p, i) => (
                             <div key={i} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                {p.state === "compliant"
-                                  ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                                  : p.state === "noncompliant"
-                                  ? <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                                  : <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />}
-                                <div>
-                                  <p className="text-sm font-medium text-slate-800">{p.displayName}</p>
-                                  <p className="text-xs text-slate-400">{p.platformType}</p>
-                                </div>
-                              </div>
+                              <p className="text-sm font-medium text-slate-800">{p.displayName}</p>
                               <CompBadge state={p.state} />
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {!protectionState?.antivirusSignatureVersion && !allPolicies.length && (
-                      <p className="text-sm text-slate-400 text-center py-8">No update detail data found for this device.</p>
                     )}
                   </div>
                 )}
@@ -309,26 +278,66 @@ export default function WindowsUpdates({ selectedTenant }) {
   );
 }
 
-function SummaryCard({ label, value, color }) {
-  const colors = {
-    slate: "bg-slate-50 border-slate-200 text-slate-800",
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    red: "bg-red-50 border-red-200 text-red-700",
-    amber: "bg-amber-50 border-amber-200 text-amber-700",
-  };
-  return (
-    <div className={`border rounded-xl p-4 ${colors[color]}`}>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs font-medium mt-1 opacity-70">{label}</p>
-    </div>
-  );
-}
+// ─── Main Page ───────────────────────────────────────────────────────────────
+export default function WindowsUpdates({ selectedTenant }) {
+  const [tab, setTab] = useState("compliance");
 
-function DetailRow({ label, value }) {
+  if (!selectedTenant?.tenant_id) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Windows Updates" subtitle="Select a tenant to manage updates" icon={ShieldCheck} />
+        <div className="text-center py-20 text-slate-400 text-sm">Please select a tenant from the sidebar.</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between px-4 py-2.5">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-sm text-slate-800 text-right">{value}</span>
+    <div className="p-6 space-y-5">
+      <PageHeader
+        title="Windows Updates"
+        subtitle={`Update management & compliance — ${selectedTenant.name}`}
+        icon={ShieldCheck}
+      />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="bg-slate-100 flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="compliance" className="gap-1.5">
+            <Monitor className="h-3.5 w-3.5" /> Device Compliance
+          </TabsTrigger>
+          <TabsTrigger value="kb" className="gap-1.5">
+            <Search className="h-3.5 w-3.5" /> KB Deployments
+          </TabsTrigger>
+          <TabsTrigger value="autopatch" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" /> Autopatch Groups
+          </TabsTrigger>
+          <TabsTrigger value="updates" className="gap-1.5">
+            <Package className="h-3.5 w-3.5" /> Feature &amp; Quality
+          </TabsTrigger>
+          <TabsTrigger value="report" className="gap-1.5">
+            <BarChart2 className="h-3.5 w-3.5" /> Compliance Report
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="compliance" className="mt-5">
+          <DeviceComplianceTab selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="kb" className="mt-5">
+          <KbDeployments selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="autopatch" className="mt-5">
+          <AutopatchGroups selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="updates" className="mt-5">
+          <FeatureQualityUpdates selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-5">
+          <UpdateCompliance selectedTenant={selectedTenant} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
