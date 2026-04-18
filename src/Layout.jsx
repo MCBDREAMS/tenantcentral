@@ -91,6 +91,13 @@ const navSections = [
     ]
   },
   {
+    label: "Network",
+    section: null,
+    items: [
+      { name: "Network Map", icon: Globe, page: "NetworkMap" },
+    ]
+  },
+  {
     label: "Admin",
     section: "admin",
     items: [
@@ -99,6 +106,7 @@ const navSections = [
       { name: "RBAC / Roles", icon: UserCog, page: "RbacAdmin" },
       { name: "Copy App Permissions", icon: GitMerge, page: "AppPermissionsCopy" },
       { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
+      { name: "SOP Generator", icon: FileText, page: "SopGenerator" },
     ]
   }
 ];
