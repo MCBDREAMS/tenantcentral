@@ -157,7 +157,7 @@ export default function DeviceScripts({ selectedTenant, tenants }) {
     createMut.mutate({ ...form, tenant_id: tenantId });
   };
 
-  const useTemplate = (tpl) => {
+  const applyTemplate = (tpl) => {
     const tenantId = selectedTenant?.id || resolvedTenants[0]?.id || "";
     setForm({ ...tpl, is_template: false, tenant_id: tenantId });
     setShowTemplates(false);
@@ -302,7 +302,7 @@ export default function DeviceScripts({ selectedTenant, tenants }) {
                     </div>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => useTemplate(tpl)}>
+                <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => applyTemplate(tpl)}>
                   <Copy className="h-3.5 w-3.5" /> Use
                 </Button>
               </div>
