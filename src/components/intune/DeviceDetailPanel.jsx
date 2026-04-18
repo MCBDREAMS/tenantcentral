@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { X, RefreshCw, Monitor, Shield, Package, Terminal, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, ShieldCheck, Wifi, ShieldAlert, AppWindow, Bot } from "lucide-react";
 import CaRisksTab from "./CaRisksTab";
+import RemoteAssistTab from "./RemoteAssistTab.jsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -175,6 +176,7 @@ export default function DeviceDetailPanel({ device, azureTenantId, onClose }) {
             <TabsTrigger value="installed_apps"><AppWindow className="h-3.5 w-3.5 mr-1" />Installed Apps</TabsTrigger>
             <TabsTrigger value="scripts"><Terminal className="h-3.5 w-3.5 mr-1" />Scripts</TabsTrigger>
             <TabsTrigger value="ca_risks"><ShieldAlert className="h-3.5 w-3.5 mr-1" />CA Risks</TabsTrigger>
+            <TabsTrigger value="remote"><Wifi className="h-3.5 w-3.5 mr-1" />Remote Assist</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto p-5">

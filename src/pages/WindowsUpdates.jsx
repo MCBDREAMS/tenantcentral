@@ -11,10 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import PageHeader from "@/components/shared/PageHeader";
 import { format, subDays, isAfter } from "date-fns";
-import KbDeployments from "@/components/updates/KbDeployments";
-import AutopatchGroups from "@/components/updates/AutopatchGroups";
-import FeatureQualityUpdates from "@/components/updates/FeatureQualityUpdates";
-import UpdateCompliance from "@/components/updates/UpdateCompliance";
+import KbDeployments from "@/components/updates/KbDeployments.jsx";
+import AutopatchGroups from "@/components/updates/AutopatchGroups.jsx";
+import FeatureQualityUpdates from "@/components/updates/FeatureQualityUpdates.jsx";
+import UpdateCompliance from "@/components/updates/UpdateCompliance.jsx";
 
 const AGE_OPTIONS = [
   { label: "30 days", value: 30 },
