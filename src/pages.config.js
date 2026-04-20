@@ -88,6 +88,8 @@ import AzureAppRegistrations from './pages/AzureAppRegistrations';
 import About from './pages/About';
 import NetworkMap from './pages/NetworkMap';
 import SopGenerator from './pages/SopGenerator';
+import EntraDevices from './pages/EntraDevices';
+import EntraCompliance from './pages/EntraCompliance';
 import __Layout from './Layout.jsx';
 
 
@@ -133,6 +135,8 @@ export const PAGES = {
     "About": About,
     "NetworkMap": NetworkMap,
     "SopGenerator": SopGenerator,
+    "EntraDevices": EntraDevices,
+    "EntraCompliance": EntraCompliance,
 }
 
 export const pagesConfig = {

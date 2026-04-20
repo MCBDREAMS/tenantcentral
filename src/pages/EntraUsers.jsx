@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Pencil, Trash2, Shield } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Shield, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import PageHeader from "@/components/shared/PageHeader";
@@ -12,6 +12,7 @@ import { useRbac } from "@/components/shared/useRbac";
 import ReadOnlyBanner from "@/components/shared/ReadOnlyBanner";
 import UserEditDialog from "@/components/entra/UserEditDialog";
 import MfaUserPanel from "@/components/entra/MfaUserPanel";
+import UserDetailPanel from "@/components/entra/UserDetailPanel";
 import { logAction } from "@/components/shared/auditLogger";
 import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
@@ -20,6 +21,7 @@ export default function EntraUsers({ selectedTenant, tenants = [] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [mfaExpanded, setMfaExpanded] = useState(null);
+  const [detailUser, setDetailUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: users = [] } = useQuery({
@@ -83,6 +85,11 @@ export default function EntraUsers({ selectedTenant, tenants = [] }) {
         {r.account_enabled !== false ? 'Yes' : 'No'}
       </span>
     )},
+    { header: "", accessor: "_view", render: (r) => (
+      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setDetailUser(r)}>
+        <Eye className="h-3.5 w-3.5" />
+      </Button>
+    )},
     canEdit() && { header: "", accessor: "_actions", render: (r) => (
       <div className="flex gap-1">
         <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
@@ -120,6 +127,13 @@ export default function EntraUsers({ selectedTenant, tenants = [] }) {
         onExport={(d) => exportToCSV(d, "entra_users")}
         emptyMessage="No users found"
       />
+      {detailUser && (
+        <UserDetailPanel
+          user={detailUser}
+          azureTenantId={selectedTenant?.tenant_id}
+          onClose={() => setDetailUser(null)}
+        />
+      )}
       <UserEditDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}

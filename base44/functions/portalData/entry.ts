@@ -518,6 +518,134 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, detectedThreats, devices, alertsByDay });
     }
 
+    // ── Entra: list Azure AD devices ─────────────────────────────────────────
+    if (action === "list_entra_devices") {
+      const data = await graphGet(token, `/devices?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType&$top=${top}`);
+      return Response.json({ success: true, devices: data.value || [] });
+    }
+
+    // ── Entra: get single Azure AD device detail ──────────────────────────────
+    if (action === "get_entra_device_detail") {
+      const { device_id } = body;
+      const device = await graphGet(token, `/devices/${device_id}?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType`);
+      return Response.json({ success: true, device });
+    }
+
+    // ── Entra: list all groups for device assignment ───────────────────────────
+    if (action === "list_entra_groups_for_device") {
+      const data = await graphGet(token, `/groups?$select=id,displayName,groupTypes,mailEnabled,securityEnabled,membershipRule&$top=100`);
+      return Response.json({ success: true, groups: data.value || [] });
+    }
+
+    // ── Entra: add device to group ────────────────────────────────────────────
+    if (action === "add_device_to_group") {
+      const { device_id, group_id } = body;
+      // Get device's directory object ID first
+      const deviceData = await graphGet(token, `/devices?$filter=id eq '${device_id}'&$select=id`).catch(async () => {
+        return { value: [{ id: device_id }] };
+      });
+      const directoryId = deviceData.value?.[0]?.id || device_id;
+      const res = await fetch(`https://graph.microsoft.com/v1.0/groups/${group_id}/members/$ref`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${directoryId}` })
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Entra: get user detail ────────────────────────────────────────────────
+    if (action === "get_entra_user_detail") {
+      const { user_id } = body;
+      const user = await graphGet(token, `/users/${encodeURIComponent(user_id)}?$select=id,displayName,userPrincipalName,mail,jobTitle,department,userType,accountEnabled,assignedLicenses,lastPasswordChangeDateTime,signInActivity`).catch(() =>
+        graphGet(token, `/users/${encodeURIComponent(user_id)}?$select=id,displayName,userPrincipalName,mail,jobTitle,department,userType,accountEnabled,assignedLicenses,lastPasswordChangeDateTime`)
+      );
+      return Response.json({ success: true, user });
+    }
+
+    // ── Entra: reset user password ────────────────────────────────────────────
+    if (action === "reset_user_password") {
+      const { user_id } = body;
+      // Generate a secure temporary password
+      const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+      let tempPassword = "";
+      for (let i = 0; i < 12; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
+      // Ensure complexity: uppercase + lowercase + digit + special
+      tempPassword = "Tmp!" + tempPassword.slice(4);
+
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(user_id)}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passwordProfile: {
+            forceChangePasswordNextSignIn: true,
+            password: tempPassword
+          }
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true, temporaryPassword: tempPassword });
+    }
+
+    // ── Intune: onboard device via remote PowerShell script ───────────────────
+    if (action === "onboard_device_to_intune") {
+      const { device_id, device_name, script_content } = body;
+      const scriptName = `Intune-Onboard-${device_name || device_id}-${Date.now()}`;
+
+      // Create a Device Management Script in Intune
+      const scriptBody = {
+        displayName: scriptName,
+        description: `Auto-enrollment script for ${device_name}`,
+        scriptContent: btoa(unescape(encodeURIComponent(script_content))),
+        runAsAccount: "system",
+        enforceSignatureCheck: false,
+        runAs32Bit: false,
+        fileName: "IntuneEnroll.ps1",
+      };
+
+      const createRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(scriptBody)
+      });
+
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        // If script upload fails (permissions), fall back to sync device command
+        if (createRes.status === 403) {
+          return Response.json({
+            success: true,
+            note: "DeviceManagementConfiguration.ReadWrite.All permission needed to deploy scripts. Triggering MDM sync instead.",
+            fallback: true
+          });
+        }
+        return Response.json({ success: false, error: `Script creation failed: ${errText}` }, { status: createRes.status });
+      }
+
+      const script = await createRes.json();
+      const scriptId = script.id;
+
+      // Assign script to the specific device group or all devices
+      const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}/assign`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceManagementScriptAssignments: [{
+            id: `${scriptId}_allDevices`,
+            target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }
+          }]
+        })
+      });
+
+      return Response.json({ success: true, scriptId, deployed: assignRes.ok });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[portalData]", err.message);

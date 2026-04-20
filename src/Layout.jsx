@@ -24,16 +24,17 @@ const navSections = [
     ]
   },
   {
-    label: "Entra ID",
+    label: "Entra AD",
     section: "entra",
     items: [
-      { name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
       { name: "Users", icon: Users, page: "EntraUsers" },
       { name: "Groups", icon: UserCheck, page: "EntraGroups" },
+      { name: "Devices", icon: MonitorSmartphone, page: "EntraDevices" },
+      { name: "Compliance", icon: ShieldCheck, page: "EntraCompliance" },
+      { name: "MFA & Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
       { name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
       { name: "Directory Roles", icon: ShieldAlert, page: "EntraRoles" },
       { name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
-      { name: "Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
       { name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
     ]
   },
