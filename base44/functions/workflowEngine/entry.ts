@@ -3,6 +3,102 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
+const CRITICAL_ACTIONS = ["wipe_device", "retire_device", "disable_device"];
+
+async function sendCriticalAlert(base44, { ruleName, tenantName, actor, notifyEmail, criticalEvents }) {
+  if (!notifyEmail || criticalEvents.length === 0) return;
+
+  const rows = criticalEvents.map(e => `
+    <tr style="border-bottom:1px solid #e2e8f0;">
+      <td style="padding:10px 12px;font-weight:600;color:#1e293b;">${e.deviceName}</td>
+      <td style="padding:10px 12px;color:#64748b;">${e.user || "—"}</td>
+      <td style="padding:10px 12px;color:#64748b;">${e.os || "—"}</td>
+      <td style="padding:10px 12px;color:#64748b;">${e.serial || "—"}</td>
+      <td style="padding:10px 12px;">
+        <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;">
+          ${e.action.replace(/_/g, " ").toUpperCase()}
+        </span>
+      </td>
+      <td style="padding:10px 12px;font-size:12px;color:${e.status === "success" ? "#15803d" : "#b91c1c"};">${e.status}</td>
+    </tr>`).join("");
+
+  const body = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;padding:24px;">
+  <div style="max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background:#0f172a;padding:24px 32px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="background:#ef4444;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">⚠️</div>
+        <div>
+          <h1 style="color:#fff;margin:0;font-size:18px;">Critical Workflow Action Alert</h1>
+          <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Automated remediation notification</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:28px 32px;">
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin-bottom:24px;">
+        <p style="margin:0;font-size:14px;color:#991b1b;">
+          <strong>${criticalEvents.length} critical action${criticalEvents.length > 1 ? "s were" : " was"} executed</strong>
+          by the Workflow Engine on <strong>${tenantName}</strong>. Please review the details below.
+        </p>
+      </div>
+
+      <table style="width:100%;font-size:13px;border-collapse:collapse;">
+        <tr>
+          <td style="padding:6px 12px;color:#64748b;width:140px;">Rule</td>
+          <td style="padding:6px 12px;color:#1e293b;font-weight:600;">${ruleName}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;color:#64748b;">Tenant</td>
+          <td style="padding:6px 12px;color:#1e293b;">${tenantName}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;color:#64748b;">Triggered by</td>
+          <td style="padding:6px 12px;color:#1e293b;">${actor}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;color:#64748b;">Timestamp</td>
+          <td style="padding:6px 12px;color:#1e293b;">${new Date().toUTCString()}</td>
+        </tr>
+      </table>
+
+      <h3 style="font-size:14px;font-weight:600;color:#1e293b;margin:24px 0 10px;">Affected Devices</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">Device</th>
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">User</th>
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">OS</th>
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">Serial</th>
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">Action</th>
+            <th style="padding:10px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">Status</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <p style="font-size:12px;color:#94a3b8;margin-top:24px;border-top:1px solid #f1f5f9;padding-top:16px;">
+        This is an automated alert from the Azure Multi-Tenant Admin Workflow Engine.
+        If these actions were not expected, review the workflow rule configuration immediately.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  await base44.asServiceRole.integrations.Core.SendEmail({
+    to: notifyEmail,
+    subject: `⚠️ [CRITICAL] Workflow Alert: ${criticalEvents.length} device(s) affected on ${tenantName}`,
+    body,
+  });
+}
+
 async function getAccessToken(tenantId, clientId, clientSecret) {
   const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
   const body = new URLSearchParams({
@@ -207,6 +303,7 @@ Deno.serve(async (req) => {
       let matched = 0;
       let actionsExecuted = 0;
       let actionsFailed = 0;
+      const criticalEvents = [];
 
       for (const device of allDevices) {
         // Evaluate conditions
@@ -226,15 +323,48 @@ Deno.serve(async (req) => {
             const result = await executeAction(token, device, act, tenant.tenant_id, base44);
             deviceLog.actions.push(result);
             actionsExecuted++;
+            // Track critical actions for email alert
+            if (CRITICAL_ACTIONS.includes(act.type)) {
+              criticalEvents.push({
+                deviceName: device.deviceName,
+                user: device.userPrincipalName || "—",
+                os: `${device.operatingSystem || ""} ${device.osVersion || ""}`.trim(),
+                serial: device.serialNumber || "—",
+                action: act.type,
+                status: result.status,
+              });
+            }
           } catch (e) {
             deviceLog.actions.push({ action: act.type, device: device.deviceName, status: "failed", error: e.message });
             actionsFailed++;
+            // Still send alert even if the critical action failed
+            if (CRITICAL_ACTIONS.includes(act.type)) {
+              criticalEvents.push({
+                deviceName: device.deviceName,
+                user: device.userPrincipalName || "—",
+                os: `${device.operatingSystem || ""} ${device.osVersion || ""}`.trim(),
+                serial: device.serialNumber || "—",
+                action: act.type,
+                status: "failed",
+              });
+            }
           }
         }
         log.push(deviceLog);
       }
 
       const finalStatus = actionsFailed === 0 ? "success" : actionsExecuted > 0 ? "partial" : "failed";
+
+      // Send critical action email alert
+      if (criticalEvents.length > 0) {
+        await sendCriticalAlert(base44, {
+          ruleName: rule.name,
+          tenantName: tenant.name,
+          actor: user.email,
+          notifyEmail: rule.notify_email || user.email,
+          criticalEvents,
+        }).catch(e => console.warn("[workflowEngine] email alert failed:", e.message));
+      }
 
       // Update execution record
       await base44.asServiceRole.entities.WorkflowExecution.update(execution.id, {

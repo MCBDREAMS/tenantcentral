@@ -18,6 +18,7 @@ export default function RuleEditor({ rule, tenants, onSave, onClose }) {
     condition_logic: rule?.condition_logic || "all",
     conditions: rule?.conditions ? JSON.parse(rule.conditions) : [{ field: "complianceState", operator: "equals", value: "noncompliant" }],
     actions: rule?.actions ? JSON.parse(rule.actions) : [{ type: "sync_device", params: {} }],
+    notify_email: rule?.notify_email || "",
   });
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -146,6 +147,23 @@ export default function RuleEditor({ rule, tenants, onSave, onClose }) {
             <ActionBuilder
               actions={form.actions}
               onChange={a => set({ actions: a })}
+            />
+          </div>
+
+          {/* Notification email */}
+          <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+              📧 Critical Action Email Alert
+            </p>
+            <p className="text-xs text-amber-700">
+              An email will be sent to this address whenever a <strong>Wipe</strong>, <strong>Retire</strong>, or <strong>Disable</strong> action executes. Defaults to the logged-in user's email if left blank.
+            </p>
+            <input
+              type="email"
+              value={form.notify_email}
+              onChange={e => set({ notify_email: e.target.value })}
+              placeholder="admin@company.com"
+              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white"
             />
           </div>
 

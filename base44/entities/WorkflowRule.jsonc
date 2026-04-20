@@ -46,6 +46,10 @@
       "type": "string",
       "description": "JSON array of action objects: [{type, params}]"
     },
+    "notify_email": {
+      "type": "string",
+      "description": "Email address to notify when critical actions (Wipe, Retire, Disable) are executed"
+    },
     "last_run": {
       "type": "string",
       "format": "date-time"
