@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,7 @@ const navSections = [
     items: [
       { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
       { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
+      { name: "Workflow Engine", icon: Zap, page: "WorkflowEngine" },
     ]
   },
   {

@@ -1,0 +1,77 @@
+{
+  "name": "WorkflowRule",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Rule name"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Target tenant ID (record ID)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "trigger_type": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "scheduled"
+      ],
+      "default": "manual"
+    },
+    "schedule_cron": {
+      "type": "string",
+      "description": "Cron for scheduled trigger"
+    },
+    "conditions": {
+      "type": "string",
+      "description": "JSON array of condition objects: [{field, operator, value}]"
+    },
+    "condition_logic": {
+      "type": "string",
+      "enum": [
+        "all",
+        "any"
+      ],
+      "default": "all",
+      "description": "all = AND, any = OR"
+    },
+    "actions": {
+      "type": "string",
+      "description": "JSON array of action objects: [{type, params}]"
+    },
+    "last_run": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_run_status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "partial",
+        "failed",
+        "never"
+      ],
+      "default": "never"
+    },
+    "last_run_summary": {
+      "type": "string"
+    },
+    "run_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "tenant_id",
+    "conditions",
+    "actions"
+  ]
+}

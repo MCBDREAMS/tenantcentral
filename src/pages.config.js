@@ -90,6 +90,7 @@ import NetworkMap from './pages/NetworkMap';
 import SopGenerator from './pages/SopGenerator';
 import EntraDevices from './pages/EntraDevices';
 import EntraCompliance from './pages/EntraCompliance';
+import WorkflowEngine from './pages/WorkflowEngine';
 import __Layout from './Layout.jsx';
 
 
@@ -137,6 +138,7 @@ export const PAGES = {
     "SopGenerator": SopGenerator,
     "EntraDevices": EntraDevices,
     "EntraCompliance": EntraCompliance,
+    "WorkflowEngine": WorkflowEngine,
 }
 
 export const pagesConfig = {

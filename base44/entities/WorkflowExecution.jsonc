@@ -1,0 +1,57 @@
+{
+  "name": "WorkflowExecution",
+  "type": "object",
+  "properties": {
+    "rule_id": {
+      "type": "string"
+    },
+    "rule_name": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "triggered_by": {
+      "type": "string",
+      "description": "manual | scheduled | system"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "success",
+        "partial",
+        "failed"
+      ],
+      "default": "running"
+    },
+    "devices_evaluated": {
+      "type": "number",
+      "default": 0
+    },
+    "devices_matched": {
+      "type": "number",
+      "default": 0
+    },
+    "actions_executed": {
+      "type": "number",
+      "default": 0
+    },
+    "actions_failed": {
+      "type": "number",
+      "default": 0
+    },
+    "execution_log": {
+      "type": "string",
+      "description": "JSON array of per-device log entries"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rule_id",
+    "rule_name",
+    "tenant_id"
+  ]
+}
