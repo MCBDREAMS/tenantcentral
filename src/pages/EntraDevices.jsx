@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Monitor, RefreshCw, Loader2, UserPlus, CheckCircle2, XCircle, AlertTriangle, Info, Upload } from "lucide-react";
+import { Monitor, RefreshCw, Loader2, UserPlus, CheckCircle2, XCircle, AlertTriangle, Info, Upload, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -27,6 +27,7 @@ export default function EntraDevices({ selectedTenant }) {
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [addingToGroup, setAddingToGroup] = useState(false);
   const [addGroupResult, setAddGroupResult] = useState(null);
+  const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
 
   const azureTenantId = selectedTenant?.tenant_id;
@@ -62,6 +63,14 @@ export default function EntraDevices({ selectedTenant }) {
 
   const devices = data?.devices || [];
   const groups = groupsData?.groups || [];
+
+  const filteredDevices = search.trim()
+    ? devices.filter(d =>
+        (d.displayName || "").toLowerCase().includes(search.toLowerCase()) ||
+        (d.operatingSystem || "").toLowerCase().includes(search.toLowerCase()) ||
+        (d.deviceId || "").toLowerCase().includes(search.toLowerCase())
+      )
+    : devices;
 
   // Check if a device is already managed in Intune
   const isInIntune = (device) => {
@@ -134,11 +143,21 @@ export default function EntraDevices({ selectedTenant }) {
 
       {!isLoading && devices.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">{devices.length} Devices</p>
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-700 shrink-0">{filteredDevices.length} / {devices.length} Devices</p>
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search devices…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+            </div>
           </div>
           <div className="divide-y divide-slate-100">
-            {devices.map((device, i) => {
+            {filteredDevices.map((device, i) => {
               const managed = isInIntune(device);
               return (
                 <div key={device.id || i} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50">
