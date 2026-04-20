@@ -41,6 +41,23 @@ async function graphGetBeta(token, path) {
   return res.json();
 }
 
+// Fetches ALL pages from a Graph endpoint by following @odata.nextLink
+async function graphGetAll(token, initialUrl) {
+  let url = initialUrl;
+  const allValues = [];
+  while (url) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Graph paginated fetch failed ${res.status}: ${err}`);
+    }
+    const data = await res.json();
+    allValues.push(...(data.value || []));
+    url = data["@odata.nextLink"] || null;
+  }
+  return allValues;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -144,10 +161,10 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, sites });
     }
 
-    // ── Intune: list devices from Graph ─────────────────────────────────────
+    // ── Intune: list devices from Graph (all pages) ──────────────────────────
     if (action === "list_intune_devices") {
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=${top}`);
-      return Response.json({ success: true, devices: data.value || [] });
+      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=999`);
+      return Response.json({ success: true, devices });
     }
 
     // ── Entra: get MFA auth methods for a user ───────────────────────────────
@@ -518,10 +535,10 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, detectedThreats, devices, alertsByDay });
     }
 
-    // ── Entra: list Azure AD devices ─────────────────────────────────────────
+    // ── Entra: list Azure AD devices (all pages) ─────────────────────────────
     if (action === "list_entra_devices") {
-      const data = await graphGet(token, `/devices?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType&$top=${top}`);
-      return Response.json({ success: true, devices: data.value || [] });
+      const devices = await graphGetAll(token, `https://graph.microsoft.com/v1.0/devices?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType&$top=999`);
+      return Response.json({ success: true, devices });
     }
 
     // ── Entra: get single Azure AD device detail ──────────────────────────────
