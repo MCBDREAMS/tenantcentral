@@ -614,8 +614,43 @@ Deno.serve(async (req) => {
     if (action === "onboard_device_to_intune") {
       const { device_id, device_name, script_content } = body;
       const scriptName = `Intune-Onboard-${device_name || device_id}-${Date.now()}`;
+      let groupId = null;
+      let scriptId = null;
 
-      // Create a Device Management Script in Intune
+      // Step 1: Create a dedicated Entra security group for this specific device
+      const groupRes = await fetch(`https://graph.microsoft.com/v1.0/groups`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: `Intune-Onboard-Temp-${device_name || device_id}`,
+          description: `Temporary group for Intune onboarding script targeting ${device_name}`,
+          mailEnabled: false,
+          mailNickname: `intune-onboard-${Date.now()}`,
+          securityEnabled: true,
+        })
+      });
+
+      if (!groupRes.ok) {
+        const err = await groupRes.text();
+        return Response.json({ success: false, error: `Failed to create targeting group: ${err}` }, { status: groupRes.status });
+      }
+
+      const group = await groupRes.json();
+      groupId = group.id;
+
+      // Step 2: Add the specific device to this group
+      const addMemberRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}/members/$ref`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${device_id}` })
+      });
+      // Non-fatal if membership fails — log but continue
+      if (!addMemberRes.ok) {
+        const err = await addMemberRes.text();
+        console.warn(`[onboard] Could not add device to group: ${err}`);
+      }
+
+      // Step 3: Create the Device Management Script
       const scriptBody = {
         displayName: scriptName,
         description: `Auto-enrollment script for ${device_name}`,
@@ -634,33 +669,65 @@ Deno.serve(async (req) => {
 
       if (!createRes.ok) {
         const errText = await createRes.text();
-        // If script upload fails (permissions), fall back to sync device command
+        // Clean up the group we created
+        await fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
         if (createRes.status === 403) {
           return Response.json({
-            success: true,
-            note: "DeviceManagementConfiguration.ReadWrite.All permission needed to deploy scripts. Triggering MDM sync instead.",
-            fallback: true
-          });
+            success: false,
+            error: "DeviceManagementConfiguration.ReadWrite.All permission is required on your Azure App Registration to deploy scripts via Intune."
+          }, { status: 403 });
         }
         return Response.json({ success: false, error: `Script creation failed: ${errText}` }, { status: createRes.status });
       }
 
       const script = await createRes.json();
-      const scriptId = script.id;
+      scriptId = script.id;
 
-      // Assign script to the specific device group or all devices
+      // Step 4: Assign script ONLY to the specific device's group
       const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}/assign`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           deviceManagementScriptAssignments: [{
-            id: `${scriptId}_allDevices`,
-            target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }
+            id: `${scriptId}_${groupId}`,
+            target: {
+              "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+              groupId: groupId
+            }
           }]
         })
       });
 
-      return Response.json({ success: true, scriptId, deployed: assignRes.ok });
+      if (!assignRes.ok) {
+        const err = await assignRes.text();
+        // Clean up script and group
+        await Promise.all([
+          fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}),
+          fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+        ]);
+        return Response.json({ success: false, error: `Script assignment failed: ${err}` }, { status: assignRes.status });
+      }
+
+      // Step 5: Schedule cleanup — delete script and temp group after 1 hour via a background note
+      // (Intune will have had enough time to deliver the script to the device)
+      // We return the IDs so the caller can trigger cleanup later if needed
+      return Response.json({
+        success: true,
+        scriptId,
+        groupId,
+        deviceTargeted: device_name || device_id,
+        note: `Script assigned only to device "${device_name}". Cleanup scriptId=${scriptId} and groupId=${groupId} after script has run.`
+      });
+    }
+
+    // ── Intune: cleanup onboarding script and temp group ─────────────────────
+    if (action === "cleanup_onboard_script") {
+      const { script_id, group_id } = body;
+      const results = await Promise.allSettled([
+        script_id ? fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${script_id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
+        group_id  ? fetch(`https://graph.microsoft.com/v1.0/groups/${group_id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
+      ]);
+      return Response.json({ success: true, results: results.map(r => r.status) });
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });

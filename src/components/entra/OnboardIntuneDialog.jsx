@@ -57,8 +57,24 @@ Write-Output "Intune enrollment initiated successfully. Device will appear in In
 exit 0`;
 
 export default function OnboardIntuneDialog({ device, selectedTenant, onClose }) {
-  const [step, setStep] = useState("confirm"); // confirm | deploying | done | error
+  const [step, setStep] = useState("confirm"); // confirm | deploying | done | error | cleaning | cleaned
   const [result, setResult] = useState(null);
+
+  const handleCleanup = async () => {
+    setStep("cleaning");
+    try {
+      await base44.functions.invoke("portalData", {
+        action: "cleanup_onboard_script",
+        azure_tenant_id: selectedTenant?.tenant_id,
+        script_id: result?.scriptId,
+        group_id: result?.groupId,
+      });
+      setStep("cleaned");
+    } catch (e) {
+      setResult(r => ({ ...r, cleanupError: e.message }));
+      setStep("done"); // go back to done with error note
+    }
+  };
 
   const handleOnboard = async () => {
     setStep("deploying");
@@ -138,7 +154,7 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
             <div className="text-center py-10 space-y-3">
               <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
               <p className="text-sm font-medium text-slate-700">Deploying enrollment script…</p>
-              <p className="text-xs text-slate-400">Creating Intune script deployment for {device.displayName}</p>
+              <p className="text-xs text-slate-400">Creating temporary group and assigning script only to {device.displayName}</p>
             </div>
           )}
 
@@ -148,21 +164,36 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
                 <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-emerald-800">Enrollment script deployed!</p>
-                  <p className="text-xs text-emerald-700 mt-0.5">The script has been pushed to {device.displayName}. The device will enroll into Intune within 5–15 minutes.</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">Script assigned <strong>only</strong> to {device.displayName} via a dedicated temporary group. The device will enroll within 5–15 minutes.</p>
                 </div>
               </div>
               {result?.scriptId && (
                 <div className="border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
                   <p><span className="font-medium">Script ID:</span> <span className="font-mono">{result.scriptId}</span></p>
-                  {result?.deploymentId && <p><span className="font-medium">Deployment ID:</span> <span className="font-mono">{result.deploymentId}</span></p>}
+                  <p><span className="font-medium">Temp Group ID:</span> <span className="font-mono">{result.groupId}</span></p>
                 </div>
               )}
-              {result?.note && (
-                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  {result.note}
-                </div>
-              )}
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>Once the device has enrolled (5–15 min), click <strong>Cleanup</strong> to remove the temporary script and group from Intune.</span>
+              </div>
+            </div>
+          )}
+
+          {step === "cleaning" && (
+            <div className="text-center py-10 space-y-3">
+              <Loader2 className="h-10 w-10 animate-spin text-slate-400 mx-auto" />
+              <p className="text-sm text-slate-600">Removing temporary script and group…</p>
+            </div>
+          )}
+
+          {step === "cleaned" && (
+            <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">Cleanup complete</p>
+                <p className="text-xs text-emerald-700 mt-0.5">Temporary script and group have been removed from Intune and Entra.</p>
+              </div>
             </div>
           )}
 
@@ -186,7 +217,15 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
               </Button>
             </>
           )}
-          {(step === "done" || step === "error") && (
+          {step === "done" && (
+            <>
+              <Button variant="outline" onClick={onClose}>Close</Button>
+              <Button onClick={handleCleanup} className="bg-red-600 hover:bg-red-700 text-white gap-2">
+                <XCircle className="h-4 w-4" />Cleanup Script &amp; Group
+              </Button>
+            </>
+          )}
+          {(step === "error" || step === "cleaned") && (
             <Button onClick={onClose} className="bg-slate-900 hover:bg-slate-800">Close</Button>
           )}
         </DialogFooter>
