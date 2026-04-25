@@ -720,6 +720,123 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Intune: list apps from Graph ─────────────────────────────────────────
+    if (action === "list_intune_apps_graph") {
+      const apps = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/mobileApps?$select=id,displayName,publisher,description,appVersion,publishingState,isAssigned,lastModifiedDateTime,largeIcon,@odata.type&$top=999`);
+      const mapped = apps.map(a => ({
+        id: a.id,
+        displayName: a.displayName,
+        publisher: a.publisher || "",
+        description: a.description || "",
+        appVersion: a.appVersion || "",
+        publishingState: a.publishingState || "notPublished",
+        isAssigned: a.isAssigned || false,
+        lastModifiedDateTime: a.lastModifiedDateTime,
+        type: (a["@odata.type"] || "").replace("#microsoft.graph.", ""),
+      }));
+      return Response.json({ success: true, apps: mapped, total: mapped.length });
+    }
+
+    // ── Intune: deploy / create app in Intune via Graph ───────────────────────
+    if (action === "deploy_app_to_intune") {
+      const { app } = body;
+      // Map our app_type to Graph odata.type
+      const typeMap = {
+        win32: "#microsoft.graph.win32LobApp",
+        msi: "#microsoft.graph.windowsMobileMSI",
+        msix: "#microsoft.graph.windowsUniversalAppX",
+        store: "#microsoft.graph.windowsStoreApp",
+        web_link: "#microsoft.graph.webApp",
+        ios_store: "#microsoft.graph.iosStoreApp",
+        android_store: "#microsoft.graph.androidStoreApp",
+        macos_pkg: "#microsoft.graph.macOSPkgApp",
+        office365: "#microsoft.graph.officeSuiteApp",
+      };
+      const odataType = typeMap[app.app_type] || "#microsoft.graph.webApp";
+
+      // Build the minimal Graph body depending on type
+      let appBody = {
+        "@odata.type": odataType,
+        displayName: app.app_name,
+        description: app.description || "",
+        publisher: app.publisher || "Unknown",
+        isFeatured: false,
+      };
+
+      // Type-specific required fields
+      if (app.app_type === "web_link") {
+        appBody.appUrl = app.package_url || "https://example.com";
+        appBody.useManagedBrowser = false;
+      } else if (app.app_type === "store") {
+        appBody.appStoreUrl = app.package_url || "";
+      } else if (app.app_type === "ios_store") {
+        appBody.appStoreUrl = app.package_url || "";
+        appBody.bundleId = app.detection_rule || "";
+        appBody.applicableDeviceType = { iPad: true, iPhoneAndIPod: true };
+        appBody.minimumSupportedOperatingSystem = { v9_0: true };
+      } else if (app.app_type === "android_store") {
+        appBody.appStoreUrl = app.package_url || "";
+        appBody.minimumSupportedOperatingSystem = { v5_0: true };
+      } else if (app.app_type === "msi") {
+        appBody.productCode = app.detection_rule || "";
+        appBody.productVersion = app.version || "";
+        appBody.commandLine = app.install_command || "";
+      } else if (app.app_type === "win32") {
+        // Win32 requires content upload via Azure Blob — simplified: create the app entry first
+        appBody.installCommandLine = app.install_command || `msiexec /i "${app.app_name}.msi" /quiet`;
+        appBody.uninstallCommandLine = app.uninstall_command || `msiexec /x "{00000000-0000-0000-0000-000000000000}" /quiet`;
+        appBody.setupFilePath = `${app.app_name}.intunewin`;
+        appBody.fileName = `${app.app_name}.intunewin`;
+        appBody.minimumSupportedWindowsRelease = "1607";
+        appBody.installExperience = { runAsAccount: "system", deviceRestartBehavior: "suppress" };
+        appBody.returnCodes = [{ returnCode: 0, type: "success" }, { returnCode: 1707, type: "success" }, { returnCode: 3010, type: "softReboot" }, { returnCode: 1641, type: "hardReboot" }, { returnCode: 1618, type: "retry" }];
+        appBody.detectionRules = [{
+          "@odata.type": "#microsoft.graph.win32LobAppFileSystemDetectionRule",
+          path: "%ProgramFiles%",
+          fileOrFolderName: app.app_name,
+          check32BitOn64System: false,
+          detectionType: "exists",
+          operator: "notConfigured",
+        }];
+      }
+
+      const createRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/mobileApps`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(appBody),
+      });
+
+      if (!createRes.ok) {
+        const err = await createRes.text();
+        return Response.json({ success: false, error: err }, { status: createRes.status });
+      }
+
+      const created = await createRes.json();
+
+      // If groups are assigned, create assignments
+      if (app.assigned_groups && app.assignment_type && app.assignment_type !== "not_assigned") {
+        const intentMap = { required: "required", available: "available", uninstall: "uninstall" };
+        const intent = intentMap[app.assignment_type] || "available";
+        // Assign to All Devices or All Users group
+        const allDevicesGroupId = "adadadad-808e-44e2-905a-0b7873a8a531"; // well-known All Devices
+        const allUsersGroupId = "acacacac-9df4-4c7d-9d50-4ef0226f57a9"; // well-known All Users
+        const targetGroupId = (app.assignment_type === "required") ? allDevicesGroupId : allUsersGroupId;
+        await fetch(`https://graph.microsoft.com/beta/deviceManagement/mobileApps/${created.id}/assign`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mobileAppAssignments: [{
+              "@odata.type": "#microsoft.graph.mobileAppAssignment",
+              intent,
+              target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }
+            }]
+          }),
+        }).catch(() => {}); // non-fatal
+      }
+
+      return Response.json({ success: true, intuneAppId: created.id, displayName: created.displayName });
+    }
+
     // ── MDM: scan and detect active MDM solutions for tenant ─────────────────
     if (action === "scan_mdm_solutions") {
       // Query Intune device management to detect MDM authority and enrolled device count

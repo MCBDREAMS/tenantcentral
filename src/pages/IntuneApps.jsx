@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AppWindow, Plus, Trash2, Eye, Package, CheckCircle2, XCircle, RefreshCw, Loader2, Download, Cloud } from "lucide-react";
+import { AppWindow, Plus, Trash2, Eye, Package, CheckCircle2, XCircle, RefreshCw, Loader2, Download, Cloud, Upload, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +54,8 @@ export default function IntuneApps({ selectedTenant, tenants }) {
   const [mainTab, setMainTab] = useState("local");
   const [liveSearch, setLiveSearch] = useState("");
   const [importingId, setImportingId] = useState(null);
+  const [deployingId, setDeployingId] = useState(null);
+  const [deployResult, setDeployResult] = useState(null); // { app, result }
   const queryClient = useQueryClient();
 
   const { data: apps = [], isLoading } = useQuery({
@@ -87,7 +89,7 @@ export default function IntuneApps({ selectedTenant, tenants }) {
 
   const { data: liveAppsData, isLoading: loadingLive, refetch: refetchLive, isFetched: liveFetched } = useQuery({
     queryKey: ["intune-apps-live", selectedTenant?.tenant_id],
-    enabled: false,
+    enabled: mainTab === "live" && !!selectedTenant?.tenant_id,
     queryFn: () =>
       base44.functions.invoke("portalData", {
         action: "list_intune_apps_graph",
@@ -114,6 +116,24 @@ export default function IntuneApps({ selectedTenant, tenants }) {
     });
     queryClient.invalidateQueries({ queryKey: ["intune-apps"] });
     setImportingId(null);
+  };
+
+  const deployToIntune = async (app) => {
+    if (!selectedTenant?.tenant_id) return;
+    setDeployingId(app.id);
+    setDeployResult(null);
+    try {
+      const res = await base44.functions.invoke("portalData", {
+        action: "deploy_app_to_intune",
+        azure_tenant_id: selectedTenant.tenant_id,
+        app,
+      });
+      setDeployResult({ app, result: res.data });
+    } catch (e) {
+      setDeployResult({ app, result: { success: false, error: e.message } });
+    } finally {
+      setDeployingId(null);
+    }
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -201,10 +221,21 @@ export default function IntuneApps({ selectedTenant, tenants }) {
                 <div className="text-xs text-slate-400 bg-slate-50 rounded px-2 py-1">
                   Tenant: <span className="font-medium text-slate-600">{getTenantName(app.tenant_id)}</span>
                 </div>
-                <div className="flex gap-2 mt-auto">
+                <div className="flex gap-2 mt-auto flex-wrap">
                   <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" onClick={() => setViewApp(app)}>
-                    <Eye className="h-3.5 w-3.5" /> View Details
+                    <Eye className="h-3.5 w-3.5" /> View
                   </Button>
+                  {selectedTenant?.tenant_id && (
+                    <Button
+                      size="sm"
+                      className="flex-1 gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={deployingId === app.id}
+                      onClick={() => deployToIntune(app)}
+                    >
+                      {deployingId === app.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      Deploy to Intune
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" className="px-2" onClick={() => deleteMut.mutate(app.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-red-400" />
                   </Button>
@@ -437,6 +468,51 @@ export default function IntuneApps({ selectedTenant, tenants }) {
             <Button onClick={() => createMut.mutate(form)} className="bg-slate-900 hover:bg-slate-800" disabled={!form.app_name || !form.tenant_id}>
               Create App
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deploy Result Dialog */}
+      <Dialog open={!!deployResult} onOpenChange={() => setDeployResult(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {deployResult?.result?.success
+                ? <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                : <AlertTriangle className="h-5 w-5 text-red-500" />}
+              {deployResult?.result?.success ? "Deployed to Intune" : "Deployment Failed"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            {deployResult?.result?.success ? (
+              <>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800">
+                  <p className="font-semibold mb-1">✅ App created in Intune successfully!</p>
+                  <p><span className="text-emerald-600">App Name:</span> {deployResult.result.displayName}</p>
+                  <p><span className="text-emerald-600">Intune App ID:</span> <code className="text-xs bg-emerald-100 px-1 rounded">{deployResult.result.intuneAppId}</code></p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>For <strong>Win32 apps</strong>, you still need to upload the <code>.intunewin</code> package file via the Intune portal. The app entry has been created — navigate to Intune → Apps → find this app → upload the content file.</span>
+                </div>
+                <a
+                  href={`https://intune.microsoft.com/#view/Microsoft_Intune_Apps/AppListBlade`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                >
+                  <Upload className="h-3.5 w-3.5" />Open Intune Apps Portal
+                </a>
+              </>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+                <p className="font-semibold mb-1">Deployment error:</p>
+                <pre className="text-xs whitespace-pre-wrap overflow-auto max-h-40">{deployResult?.result?.error}</pre>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setDeployResult(null)} className="bg-slate-900 hover:bg-slate-800">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
