@@ -72,6 +72,7 @@ const navSections = [
       { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
       { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
       { name: "Workflow Engine", icon: Zap, page: "WorkflowEngine" },
+      { name: "Hybrid Setup Analyzer", icon: GitMerge, page: "HybridSetupAnalyzer" },
     ]
   },
   {

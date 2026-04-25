@@ -91,6 +91,7 @@ import SopGenerator from './pages/SopGenerator';
 import EntraDevices from './pages/EntraDevices';
 import EntraCompliance from './pages/EntraCompliance';
 import WorkflowEngine from './pages/WorkflowEngine';
+import HybridSetupAnalyzer from './pages/HybridSetupAnalyzer';
 import __Layout from './Layout.jsx';
 
 
@@ -139,6 +140,7 @@ export const PAGES = {
     "EntraDevices": EntraDevices,
     "EntraCompliance": EntraCompliance,
     "WorkflowEngine": WorkflowEngine,
+    "HybridSetupAnalyzer": HybridSetupAnalyzer,
 }
 
 export const pagesConfig = {
