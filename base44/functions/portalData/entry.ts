@@ -955,6 +955,172 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, results: results.map(r => r.status) });
     }
 
+    // ── Entra: Create Conditional Access Policy ──────────────────────────────
+    if (action === "create_conditional_access_policy") {
+      const { policy } = body;
+      const createRes = await fetch("https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(policy),
+      });
+      if (!createRes.ok) {
+        const err = await createRes.text();
+        return Response.json({ success: false, error: err }, { status: createRes.status });
+      }
+      const created = await createRes.json();
+      return Response.json({ success: true, policyId: created.id, displayName: created.displayName });
+    }
+
+    // ── Entra: List Directory Roles (active role assignments) ────────────────
+    if (action === "list_directory_roles") {
+      const roles = await graphGetAll(token, "https://graph.microsoft.com/v1.0/directoryRoles?$select=id,displayName,description,roleTemplateId");
+      return Response.json({ success: true, roles });
+    }
+
+    // ── Entra: Get members of a directory role ───────────────────────────────
+    if (action === "get_role_members") {
+      const { role_id } = body;
+      const members = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles/${role_id}/members?$select=id,displayName,userPrincipalName`);
+      return Response.json({ success: true, members });
+    }
+
+    // ── Entra: Assign directory role to user ─────────────────────────────────
+    if (action === "assign_directory_role") {
+      const { role_template_id, user_id } = body;
+      // Activate the role if not already active (idempotent)
+      const activateRes = await fetch("https://graph.microsoft.com/v1.0/directoryRoles", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ roleTemplateId: role_template_id }),
+      });
+      // Get the role id (whether created or already exists)
+      const roles = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles?$filter=roleTemplateId eq '${role_template_id}'&$select=id`);
+      const roleId = roles[0]?.id;
+      if (!roleId) return Response.json({ success: false, error: "Role not found" }, { status: 404 });
+      const assignRes = await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${roleId}/members/$ref`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${user_id}` }),
+      });
+      if (!assignRes.ok && assignRes.status !== 400) { // 400 = already member
+        const err = await assignRes.text();
+        return Response.json({ success: false, error: err }, { status: assignRes.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Entra: Remove member from directory role ──────────────────────────────
+    if (action === "remove_directory_role_member") {
+      const { role_id, user_id } = body;
+      await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${role_id}/members/${user_id}/$ref`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return Response.json({ success: true });
+    }
+
+    // ── Entra: Named Locations ────────────────────────────────────────────────
+    if (action === "list_named_locations") {
+      const locations = await graphGetAll(token, "https://graph.microsoft.com/v1.0/identity/conditionalAccess/namedLocations");
+      return Response.json({ success: true, locations });
+    }
+
+    if (action === "create_named_location") {
+      const { location } = body;
+      const res = await fetch("https://graph.microsoft.com/v1.0/identity/conditionalAccess/namedLocations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(location),
+      });
+      if (!res.ok) { const err = await res.text(); return Response.json({ success: false, error: err }, { status: res.status }); }
+      return Response.json({ success: true, location: await res.json() });
+    }
+
+    if (action === "delete_named_location") {
+      const { location_id } = body;
+      await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/namedLocations/${location_id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      return Response.json({ success: true });
+    }
+
+    // ── Intune: List mobile devices (iOS/Android) ─────────────────────────────
+    if (action === "sync_mobile_devices") {
+      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$filter=operatingSystem eq 'Android' or operatingSystem eq 'iOS' or operatingSystem eq 'iPadOS'&$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,serialNumber,imei,manufacturer,model,isEncrypted,jailBroken,enrolledDateTime,lastSyncDateTime,managedDeviceOwnerType`);
+      return Response.json({ success: true, devices });
+    }
+
+    // ── Intune: Autopilot profiles ────────────────────────────────────────────
+    if (action === "list_autopilot_profiles") {
+      const profiles = await graphGetAll(token, "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles?$select=id,displayName,description,deviceType,enableWhiteGlove,outOfBoxExperienceSettings,assignedDeviceCount,lastModifiedDateTime");
+      return Response.json({ success: true, profiles });
+    }
+
+    if (action === "create_autopilot_profile") {
+      const { profile } = body;
+      const res = await fetch("https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      if (!res.ok) { const err = await res.text(); return Response.json({ success: false, error: err }, { status: res.status }); }
+      return Response.json({ success: true, profile: await res.json() });
+    }
+
+    if (action === "delete_autopilot_profile") {
+      const { profile_id } = body;
+      await fetch(`https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles/${profile_id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      return Response.json({ success: true });
+    }
+
+    // ── Intune: Assignment Filters ────────────────────────────────────────────
+    if (action === "list_intune_filters") {
+      const filters = await graphGetAll(token, "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters?$select=id,displayName,description,platform,rule,lastModifiedDateTime");
+      return Response.json({ success: true, filters });
+    }
+
+    if (action === "create_intune_filter") {
+      const { filter } = body;
+      const res = await fetch("https://graph.microsoft.com/beta/deviceManagement/assignmentFilters", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(filter),
+      });
+      if (!res.ok) { const err = await res.text(); return Response.json({ success: false, error: err }, { status: res.status }); }
+      return Response.json({ success: true, filter: await res.json() });
+    }
+
+    if (action === "delete_intune_filter") {
+      const { filter_id } = body;
+      await fetch(`https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/${filter_id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      return Response.json({ success: true });
+    }
+
+    // ── On-Prem Sync Status from Azure ────────────────────────────────────────
+    if (action === "get_onprem_sync_status") {
+      const [orgRes, healthRes] = await Promise.allSettled([
+        fetch(`https://graph.microsoft.com/v1.0/organization?$select=onPremisesSyncEnabled,onPremisesLastSyncDateTime,onPremisesProvisioningErrors`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`https://graph.microsoft.com/beta/hybridAuthenticationStatus`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      let syncEnabled = false, lastSyncDateTime = null, provisioningErrors = [], connectHealth = [];
+      if (orgRes.status === "fulfilled" && orgRes.value.ok) {
+        const orgData = await orgRes.value.json();
+        const org = orgData.value?.[0] || orgData;
+        syncEnabled = org.onPremisesSyncEnabled || false;
+        lastSyncDateTime = org.onPremisesLastSyncDateTime || null;
+        provisioningErrors = org.onPremisesProvisioningErrors || [];
+      }
+      if (healthRes.status === "fulfilled" && healthRes.value.ok) {
+        const h = await healthRes.value.json();
+        connectHealth = Array.isArray(h.value) ? h.value : (h ? [h] : []);
+      }
+      return Response.json({ success: true, syncEnabled, lastSyncDateTime, provisioningErrors, connectHealth });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[portalData]", err.message);

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, Eye, Pencil } from "lucide-react";
+import { Shield, Eye, Pencil, Plus } from "lucide-react";
+import CAPolicyWizard from "@/components/entra/CAPolicyWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/shared/PageHeader";
@@ -13,6 +14,7 @@ import QuickSyncButton from "@/components/shared/QuickSyncButton";
 
 export default function EntraPolicies({ selectedTenant }) {
   const [editing, setEditing] = useState(null);
+  const [showWizard, setShowWizard] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: policies = [] } = useQuery({
@@ -66,12 +68,19 @@ export default function EntraPolicies({ selectedTenant }) {
         subtitle={selectedTenant ? `Policies in ${selectedTenant.name}` : "All tenant policies"}
         icon={Shield}
         actions={
-          <QuickSyncButton
-            selectedTenant={selectedTenant}
-            syncAction="sync_policies"
-            label="Sync Policies"
-            onSynced={() => queryClient.invalidateQueries({ queryKey: ['entra-policies'] })}
-          />
+          <div className="flex gap-2">
+            <QuickSyncButton
+              selectedTenant={selectedTenant}
+              syncAction="sync_policies"
+              label="Sync Policies"
+              onSynced={() => queryClient.invalidateQueries({ queryKey: ['entra-policies'] })}
+            />
+            {selectedTenant && (
+              <Button size="sm" onClick={() => setShowWizard(true)} className="gap-1.5 bg-blue-600 hover:bg-blue-700">
+                <Plus className="h-3.5 w-3.5" /> New CA Policy
+              </Button>
+            )}
+          </div>
         }
       />
       <DataTable
@@ -88,6 +97,13 @@ export default function EntraPolicies({ selectedTenant }) {
           onClose={() => setEditing(null)}
         />
       )}
+
+      <CAPolicyWizard
+        open={showWizard}
+        onClose={() => setShowWizard(false)}
+        selectedTenant={selectedTenant}
+        onDeployed={() => queryClient.invalidateQueries({ queryKey: ['entra-policies'] })}
+      />
     </div>
   );
 }
