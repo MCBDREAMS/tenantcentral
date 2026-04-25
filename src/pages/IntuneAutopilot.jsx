@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Rocket, Plus, Trash2, Monitor } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Rocket, Plus, Trash2, RefreshCw, Loader2, Monitor, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,142 +10,232 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import PageHeader from "@/components/shared/PageHeader";
-import StatusBadge from "@/components/shared/StatusBadge";
 import ReadOnlyBanner from "@/components/shared/ReadOnlyBanner";
 import { useRbac } from "@/components/shared/useRbac";
 import { logAction } from "@/components/shared/auditLogger";
+import { format } from "date-fns";
 
-// Store Autopilot profiles as IntuneProfile with profile_type = "autopilot_profile"
+function fmt(v) {
+  if (!v) return "—";
+  try { return format(new Date(v), "PP"); } catch { return v; }
+}
+
 export default function IntuneAutopilot({ selectedTenant, tenants }) {
   const { canEdit } = useRbac();
+  const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ profile_name: "", deployment_mode: "self_deploying", join_type: "azure_ad", user_account_type: "standard", oobe_language: "OS default", skip_keyboard: true, hide_privacy: true, hide_eula: true });
-  const queryClient = useQueryClient();
-
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["autopilot", selectedTenant?.id],
-    queryFn: () => {
-      const q = { profile_type: "autopilot_profile" };
-      if (selectedTenant?.id) q.tenant_id = selectedTenant.id;
-      return base44.entities.IntuneProfile.filter(q);
-    },
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [form, setForm] = useState({
+    displayName: "",
+    deploymentMode: "selfDeploying",
+    joinType: "azureADJoined",
+    userAccountType: "standard",
+    language: "os-default",
+    hideEULA: true,
+    hidePrivacy: true,
+    skipKeyboard: true,
   });
 
-  const { data: allTenants = [] } = useQuery({
-    queryKey: ["tenants"], queryFn: () => base44.entities.Tenant.list(), initialData: tenants || [],
+  const azureTenantId = selectedTenant?.tenant_id;
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["autopilot_profiles_live", azureTenantId],
+    enabled: !!azureTenantId,
+    queryFn: () =>
+      base44.functions.invoke("portalData", {
+        action: "list_autopilot_profiles",
+        azure_tenant_id: azureTenantId,
+      }).then(r => r.data),
   });
 
-  const createMut = useMutation({
-    mutationFn: (data) => base44.entities.IntuneProfile.create(data),
-    onSuccess: async (c) => {
-      queryClient.invalidateQueries({ queryKey: ["autopilot"] });
-      await logAction({ action: "CREATE_AUTOPILOT_PROFILE", category: "intune_profile", tenant_id: c.tenant_id, tenant_name: allTenants.find(t => t.id === c.tenant_id)?.name, target_name: c.profile_name, severity: "info" });
-      setShowCreate(false);
-    },
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id) => base44.entities.IntuneProfile.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["autopilot"] }),
-  });
-
+  const profiles = data?.profiles || [];
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const getTenantName = (tid) => allTenants.find(t => t.id === tid)?.name || "Unknown";
+
+  const handleCreate = async () => {
+    if (!form.displayName || !azureTenantId) return;
+    setSaving(true);
+    try {
+      const profileBody = {
+        "@odata.type": "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile",
+        displayName: form.displayName,
+        description: "",
+        language: form.language === "os-default" ? "os-default" : form.language,
+        deviceType: "windowsPc",
+        enableWhiteGlove: form.deploymentMode === "selfDeploying",
+        extractHardwareHash: false,
+        outOfBoxExperienceSettings: {
+          hidePrivacySettings: form.hidePrivacy,
+          hideEULA: form.hideEULA,
+          userType: form.userAccountType,
+          deviceUsageType: form.deploymentMode,
+          skipKeyboardSelectionPage: form.skipKeyboard,
+          hideEscapeLink: true,
+        },
+      };
+      await base44.functions.invoke("portalData", {
+        action: "create_autopilot_profile",
+        azure_tenant_id: azureTenantId,
+        profile: profileBody,
+      });
+      await logAction({
+        action: "CREATE_AUTOPILOT_PROFILE",
+        category: "intune_profile",
+        tenant_id: selectedTenant?.id,
+        tenant_name: selectedTenant?.name,
+        target_name: form.displayName,
+        severity: "info",
+      });
+      setShowCreate(false);
+      setForm({ displayName: "", deploymentMode: "selfDeploying", joinType: "azureADJoined", userAccountType: "standard", language: "os-default", hideEULA: true, hidePrivacy: true, skipKeyboard: true });
+      refetch();
+    } catch (e) {
+      alert("Failed: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (profile) => {
+    if (!window.confirm(`Delete Autopilot profile "${profile.displayName}"?`)) return;
+    setDeleting(profile.id);
+    try {
+      await base44.functions.invoke("portalData", {
+        action: "delete_autopilot_profile",
+        azure_tenant_id: azureTenantId,
+        profile_id: profile.id,
+      });
+      await logAction({
+        action: "DELETE_AUTOPILOT_PROFILE",
+        category: "intune_profile",
+        tenant_id: selectedTenant?.id,
+        tenant_name: selectedTenant?.name,
+        target_name: profile.displayName,
+        severity: "warning",
+      });
+      refetch();
+    } catch (e) {
+      alert("Failed to delete: " + e.message);
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <PageHeader
         title="Autopilot Profiles"
-        subtitle="Windows Autopilot deployment profiles"
+        subtitle={selectedTenant ? `Live Autopilot profiles for ${selectedTenant.name}` : "Select a tenant"}
         icon={Rocket}
-        actions={canEdit() && (
-          <Button onClick={() => setShowCreate(true)} className="gap-2 bg-slate-900 hover:bg-slate-800">
-            <Plus className="h-4 w-4" /> New Profile
-          </Button>
-        )}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading || !azureTenantId} className="gap-1.5">
+              {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </Button>
+            {canEdit() && azureTenantId && (
+              <Button onClick={() => setShowCreate(true)} className="gap-2 bg-slate-900 hover:bg-slate-800">
+                <Plus className="h-4 w-4" /> New Profile
+              </Button>
+            )}
+          </div>
+        }
       />
       {!canEdit() && <ReadOnlyBanner />}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {profiles.map(p => {
-          let settings = {};
-          try { settings = JSON.parse(p.settings_summary || "{}"); } catch {}
-          return (
-            <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3 hover:shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-                    <Rocket className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{p.profile_name}</p>
-                    <p className="text-xs text-slate-400">{getTenantName(p.tenant_id)}</p>
-                  </div>
-                </div>
-                <StatusBadge status={p.state} />
-              </div>
-              <div className="grid grid-cols-2 gap-1 text-xs">
-                {[
-                  ["Mode", settings.deployment_mode || "-"],
-                  ["Join Type", settings.join_type || "-"],
-                  ["User Type", settings.user_account_type || "-"],
-                  ["Groups", p.assigned_groups || "None"],
-                ].map(([k, v]) => (
-                  <div key={k} className="bg-slate-50 rounded px-2 py-1">
-                    <span className="text-slate-400">{k}: </span>
-                    <span className="font-medium text-slate-700">{v}</span>
-                  </div>
-                ))}
-              </div>
-              {canEdit() && (
-                <Button variant="ghost" size="sm" className="self-end px-2 mt-auto" onClick={() => deleteMut.mutate(p.id)}>
-                  <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                </Button>
-              )}
-            </div>
-          );
-        })}
-        {profiles.length === 0 && (
-          <div className="col-span-3 text-center py-16 text-slate-400">
-            <Rocket className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No Autopilot profiles yet.</p>
-          </div>
-        )}
-      </div>
+      {!azureTenantId && (
+        <div className="text-center py-16 text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl">
+          Select a tenant to view live Autopilot profiles.
+        </div>
+      )}
 
+      {azureTenantId && isLoading && (
+        <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>
+      )}
+
+      {azureTenantId && !isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {profiles.map(p => {
+            const oobe = p.outOfBoxExperienceSettings || {};
+            return (
+              <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3 hover:shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+                      <Rocket className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{p.displayName}</p>
+                      <p className="text-xs text-slate-400">{p.description || "No description"}</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-emerald-50 text-emerald-700 border-0 text-xs">Live</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  {[
+                    ["Mode", oobe.deviceUsageType || p.deviceType || "—"],
+                    ["User Type", oobe.userType || "—"],
+                    ["Last Modified", fmt(p.lastModifiedDateTime)],
+                    ["Assigned Devices", p.assignedDeviceCount ?? "—"],
+                  ].map(([k, v]) => (
+                    <div key={k} className="bg-slate-50 rounded px-2 py-1">
+                      <span className="text-slate-400">{k}: </span>
+                      <span className="font-medium text-slate-700">{v}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  {oobe.hideEULA && <Badge variant="outline" className="text-[10px]">Hide EULA</Badge>}
+                  {oobe.hidePrivacySettings && <Badge variant="outline" className="text-[10px]">Hide Privacy</Badge>}
+                  {oobe.skipKeyboardSelectionPage && <Badge variant="outline" className="text-[10px]">Skip Keyboard</Badge>}
+                </div>
+                {canEdit() && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="self-end px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+                    disabled={deleting === p.id}
+                    onClick={() => handleDelete(p)}
+                  >
+                    {deleting === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+          {profiles.length === 0 && (
+            <div className="col-span-3 text-center py-16 text-slate-400">
+              <Rocket className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No Autopilot profiles found in Intune.</p>
+              <p className="text-xs mt-1">Requires <code className="bg-slate-100 px-1 rounded">DeviceManagementServiceConfig.Read.All</code> permission.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>New Autopilot Profile</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Profile Name</Label>
-              <Input value={form.profile_name} onChange={e => set("profile_name", e.target.value)} placeholder="Corporate Standard Deployment" />
+              <Input value={form.displayName} onChange={e => set("displayName", e.target.value)} placeholder="Corporate Standard Deployment" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Deployment Mode</Label>
-                <Select value={form.deployment_mode} onValueChange={v => set("deployment_mode", v)}>
+                <Select value={form.deploymentMode} onValueChange={v => set("deploymentMode", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user_driven">User-Driven</SelectItem>
-                    <SelectItem value="self_deploying">Self-Deploying</SelectItem>
-                    <SelectItem value="pre_provisioned">Pre-Provisioned</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Join Type</Label>
-                <Select value={form.join_type} onValueChange={v => set("join_type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="azure_ad">Azure AD Joined</SelectItem>
-                    <SelectItem value="hybrid">Hybrid AD Joined</SelectItem>
+                    <SelectItem value="userDriven">User-Driven</SelectItem>
+                    <SelectItem value="selfDeploying">Self-Deploying</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">User Account Type</Label>
-                <Select value={form.user_account_type} onValueChange={v => set("user_account_type", v)}>
+                <Select value={form.userAccountType} onValueChange={v => set("userAccountType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="standard">Standard User</SelectItem>
@@ -153,41 +243,25 @@ export default function IntuneAutopilot({ selectedTenant, tenants }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Tenant</Label>
-                <Select value={form.tenant_id || ""} onValueChange={v => set("tenant_id", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select tenant" /></SelectTrigger>
-                  <SelectContent>
-                    {allTenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className="space-y-2">
-              {[["hide_eula", "Hide EULA"], ["hide_privacy", "Hide Privacy Settings"], ["skip_keyboard", "Skip Keyboard Selection"]].map(([k, label]) => (
+              {[
+                ["hideEULA", "Hide EULA"],
+                ["hidePrivacy", "Hide Privacy Settings"],
+                ["skipKeyboard", "Skip Keyboard Selection"],
+              ].map(([k, label]) => (
                 <div key={k} className="flex items-center gap-2">
                   <Switch checked={!!form[k]} onCheckedChange={v => set(k, v)} id={k} />
                   <Label htmlFor={k} className="text-xs cursor-pointer">{label}</Label>
                 </div>
               ))}
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Assigned Groups</Label>
-              <Input value={form.assigned_groups || ""} onChange={e => set("assigned_groups", e.target.value)} placeholder="All Devices, New Hires" />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button className="bg-slate-900 hover:bg-slate-800" onClick={() => createMut.mutate({
-              tenant_id: form.tenant_id || selectedTenant?.id || "",
-              profile_name: form.profile_name,
-              profile_type: "autopilot_profile",
-              platform: "windows",
-              state: "active",
-              assigned_groups: form.assigned_groups || "",
-              settings_summary: JSON.stringify({ deployment_mode: form.deployment_mode, join_type: form.join_type, user_account_type: form.user_account_type }),
-            })} disabled={!form.profile_name}>
-              Create Profile
+            <Button className="bg-slate-900 hover:bg-slate-800" onClick={handleCreate} disabled={!form.displayName || saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Create in Intune
             </Button>
           </DialogFooter>
         </DialogContent>
