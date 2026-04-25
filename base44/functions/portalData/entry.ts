@@ -720,6 +720,100 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── MDM: scan and detect active MDM solutions for tenant ─────────────────
+    if (action === "scan_mdm_solutions") {
+      // Query Intune device management to detect MDM authority and enrolled device count
+      const [deviceMgmt, managedDevices, mobileApps] = await Promise.allSettled([
+        graphGetBeta(token, `/deviceManagement?$select=subscriptionState,mdmAuthority,managedDeviceOverview`),
+        graphGetBeta(token, `/deviceManagement/managedDevices?$select=id,managementAgent,deviceEnrollmentType&$top=1`),
+        graphGetBeta(token, `/deviceManagement/mobileApps?$select=id&$top=1`),
+      ]);
+
+      const mgmt = deviceMgmt.status === "fulfilled" ? deviceMgmt.value : null;
+      const subscriptionState = mgmt?.subscriptionState || null;
+      const mdmAuthority = mgmt?.mdmAuthority || null;
+
+      // Count total managed devices
+      let deviceCount = 0;
+      try {
+        const countRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/$count`, {
+          headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" }
+        });
+        if (countRes.ok) deviceCount = parseInt(await countRes.text()) || 0;
+      } catch {}
+
+      // Determine if Intune is active
+      const intuneActive = subscriptionState === "active" || mdmAuthority === "intune" || deviceCount > 0;
+
+      // Check for JAMF co-management connector
+      let jamfFound = false;
+      try {
+        const jamf = await graphGetBeta(token, `/deviceManagement/remoteActionAudits?$top=1`);
+        // If this succeeds, Intune is definitely active
+      } catch {}
+      try {
+        const partnerConfigs = await graphGetBeta(token, `/deviceManagement/deviceManagementPartners?$select=id,displayName,isConfigured,partnerState`);
+        const partners = partnerConfigs.value || [];
+        jamfFound = partners.some(p => (p.displayName || "").toLowerCase().includes("jamf") && p.isConfigured);
+      } catch {}
+
+      // Check for Workspace ONE / AirWatch
+      let workspaceOneFound = false;
+      try {
+        const partnerConfigs = await graphGetBeta(token, `/deviceManagement/deviceManagementPartners?$select=id,displayName,isConfigured`);
+        const partners = partnerConfigs.value || [];
+        workspaceOneFound = partners.some(p =>
+          ((p.displayName || "").toLowerCase().includes("workspace one") ||
+           (p.displayName || "").toLowerCase().includes("airwatch")) && p.isConfigured
+        );
+      } catch {}
+
+      const solutions = [];
+
+      if (intuneActive) {
+        solutions.push({
+          solution_name: "intune",
+          is_active: true,
+          platform_scope: "all",
+          auth_method: "oauth2",
+          connection_status: "connected",
+          managed_device_count: deviceCount,
+          server_url: "https://intune.microsoft.com",
+          api_endpoint: "https://graph.microsoft.com/beta/deviceManagement",
+          notes: `MDM Authority: ${mdmAuthority || "intune"}. Subscription: ${subscriptionState || "active"}.`,
+          last_sync: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      if (jamfFound) {
+        solutions.push({
+          solution_name: "jamf",
+          is_active: true,
+          platform_scope: "macos",
+          auth_method: "oauth2",
+          connection_status: "connected",
+          managed_device_count: 0,
+          notes: "Detected via Intune device management partner connector.",
+          last_sync: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      if (workspaceOneFound) {
+        solutions.push({
+          solution_name: "workspace_one",
+          is_active: true,
+          platform_scope: "all",
+          auth_method: "oauth2",
+          connection_status: "connected",
+          managed_device_count: 0,
+          notes: "Detected via Intune device management partner connector.",
+          last_sync: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      return Response.json({ success: true, solutions, mdmAuthority, subscriptionState, deviceCount });
+    }
+
     // ── Intune: cleanup onboarding script and temp group ─────────────────────
     if (action === "cleanup_onboard_script") {
       const { script_id, group_id } = body;

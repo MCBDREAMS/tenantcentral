@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Layers, Plus, RefreshCw, CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
+import { Layers, Plus, RefreshCw, CheckCircle2, XCircle, AlertCircle, Clock, Scan, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ export default function MdmSolutions({ selectedTenant, tenants }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
 
   const { data: solutions = [], isLoading, refetch } = useQuery({
     queryKey: ["mdm-solutions", selectedTenant?.id],
@@ -45,6 +47,47 @@ export default function MdmSolutions({ selectedTenant, tenants }) {
       ? base44.entities.MdmSolution.filter({ tenant_id: selectedTenant.id })
       : base44.entities.MdmSolution.list("-created_date", 100),
   });
+
+  const handleScan = async () => {
+    if (!selectedTenant?.tenant_id) return;
+    setScanning(true);
+    setScanMsg("");
+    try {
+      const res = await base44.functions.invoke("portalData", {
+        action: "scan_mdm_solutions",
+        azure_tenant_id: selectedTenant.tenant_id,
+      });
+      const detected = res.data?.solutions || [];
+      if (detected.length === 0) {
+        setScanMsg("No active MDM solutions detected for this tenant.");
+        return;
+      }
+      // Get existing records to avoid duplicates
+      const existing = await base44.entities.MdmSolution.filter({ tenant_id: selectedTenant.id });
+      const existingNames = existing.map(e => e.solution_name);
+      let created = 0;
+      let updated = 0;
+      for (const sol of detected) {
+        const match = existing.find(e => e.solution_name === sol.solution_name);
+        if (match) {
+          await base44.entities.MdmSolution.update(match.id, {
+            ...sol,
+            tenant_id: selectedTenant.id,
+          });
+          updated++;
+        } else {
+          await base44.entities.MdmSolution.create({ ...sol, tenant_id: selectedTenant.id });
+          created++;
+        }
+      }
+      setScanMsg(`Scan complete: ${created} added, ${updated} updated.`);
+      qc.invalidateQueries(["mdm-solutions"]);
+    } catch (e) {
+      setScanMsg(`Scan failed: ${e.message}`);
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const save = useMutation({
     mutationFn: (d) => editing
@@ -72,6 +115,12 @@ export default function MdmSolutions({ selectedTenant, tenants }) {
             <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
+            {selectedTenant?.tenant_id && (
+              <Button variant="outline" size="sm" onClick={handleScan} disabled={scanning} className="gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50">
+                {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scan className="h-3.5 w-3.5" />}
+                Auto-Scan MDM
+              </Button>
+            )}
             <Button size="sm" onClick={openNew} className="gap-1.5 bg-slate-900 hover:bg-slate-800">
               <Plus className="h-3.5 w-3.5" /> Add MDM
             </Button>
@@ -79,15 +128,29 @@ export default function MdmSolutions({ selectedTenant, tenants }) {
         }
       />
 
+      {scanMsg && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm border ${scanMsg.includes("failed") ? "bg-red-50 border-red-200 text-red-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"}`}>
+          {scanMsg}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-400">Loading MDM solutions...</div>
       ) : solutions.length === 0 ? (
         <div className="text-center py-20 text-slate-400">
           <Layers className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No MDM solutions configured. Add one to get started.</p>
-          <Button size="sm" className="mt-4 bg-slate-900 hover:bg-slate-800" onClick={openNew}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add MDM Solution
-          </Button>
+          <p className="text-sm">No MDM solutions configured.</p>
+          <div className="flex gap-2 justify-center mt-4">
+            {selectedTenant?.tenant_id && (
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 gap-1.5" onClick={handleScan} disabled={scanning}>
+                {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scan className="h-3.5 w-3.5" />}
+                Auto-Scan from Azure
+              </Button>
+            )}
+            <Button size="sm" className="bg-slate-900 hover:bg-slate-800" onClick={openNew}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Manually
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
