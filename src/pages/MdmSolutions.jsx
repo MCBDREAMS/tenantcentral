@@ -59,7 +59,8 @@ export default function MdmSolutions({ selectedTenant, tenants }) {
       });
       const detected = res.data?.solutions || [];
       if (detected.length === 0) {
-        setScanMsg("No active MDM solutions detected for this tenant.");
+        const { mdmAuthority, subscriptionState, deviceCount } = res.data || {};
+        setScanMsg(`No active MDM solutions detected. (Authority: ${mdmAuthority || "none"}, State: ${subscriptionState || "none"}, Devices: ${deviceCount ?? 0})`);
         return;
       }
       // Get existing records to avoid duplicates

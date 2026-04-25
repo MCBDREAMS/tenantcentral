@@ -733,7 +733,7 @@ Deno.serve(async (req) => {
       const subscriptionState = mgmt?.subscriptionState || null;
       const mdmAuthority = mgmt?.mdmAuthority || null;
 
-      // Count total managed devices
+      // Count total managed devices - try multiple methods
       let deviceCount = 0;
       try {
         const countRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/$count`, {
@@ -742,8 +742,20 @@ Deno.serve(async (req) => {
         if (countRes.ok) deviceCount = parseInt(await countRes.text()) || 0;
       } catch {}
 
-      // Determine if Intune is active
-      const intuneActive = subscriptionState === "active" || mdmAuthority === "intune" || deviceCount > 0;
+      // If count failed, try getting first page to see if any devices exist
+      if (deviceCount === 0 && managedDevices.status === "fulfilled") {
+        const devVal = managedDevices.value?.value || [];
+        if (devVal.length > 0) deviceCount = 1; // at least some exist
+      }
+
+      // Determine if Intune is active — be permissive: any sign of MDM = active
+      // subscriptionState can be: active, warning, disabled, deleted, lockedOut
+      const intuneActive = 
+        subscriptionState != null ||
+        mdmAuthority != null ||
+        deviceCount > 0 ||
+        managedDevices.status === "fulfilled" ||
+        mobileApps.status === "fulfilled";
 
       // Check for JAMF co-management connector
       let jamfFound = false;
@@ -811,6 +823,8 @@ Deno.serve(async (req) => {
         });
       }
 
+      console.log("[scan_mdm_solutions] mgmt:", JSON.stringify(mgmt));
+      console.log("[scan_mdm_solutions] subscriptionState:", subscriptionState, "mdmAuthority:", mdmAuthority, "deviceCount:", deviceCount, "intuneActive:", intuneActive);
       return Response.json({ success: true, solutions, mdmAuthority, subscriptionState, deviceCount });
     }
 
