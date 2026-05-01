@@ -338,25 +338,61 @@ Deno.serve(async (req) => {
 
     // ── Exchange: scan all users' inbox rules ─────────────────────────────────
     if (action === "get_all_mailbox_rules") {
-      const usersData = await graphGet(token, `/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$top=50`);
-      const allUsers = (usersData.value || []).slice(0, 40);
+      // Fetch ALL licensed users (following pagination)
+      const allUsers = await graphGetAll(token, `https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$filter=accountEnabled eq true&$top=999`);
+
       const results = [];
       let errorCount = 0;
       const errors = [];
 
-      await Promise.all(allUsers.map(async u => {
-        try {
-          const rules = await graphGet(token, `/users/${u.id}/mailFolders/inbox/messageRules`);
-          results.push({ user: u, rules: rules.value || [] });
-        } catch (e) {
-          errorCount++;
-          errors.push({ user: u.userPrincipalName, error: e.message });
-          console.error(`[mailbox rules] ${u.userPrincipalName}: ${e.message}`);
-        }
-      }));
+      // Process in batches of 20 concurrent requests to avoid Graph throttling
+      const BATCH = 20;
+      for (let i = 0; i < allUsers.length; i += BATCH) {
+        const batch = allUsers.slice(i, i + BATCH);
+        await Promise.all(batch.map(async u => {
+          try {
+            const rules = await graphGet(token, `/users/${u.id}/mailFolders/inbox/messageRules`);
+            results.push({ user: u, rules: rules.value || [] });
+          } catch (e) {
+            errorCount++;
+            errors.push({ user: u.userPrincipalName, error: e.message });
+            console.error(`[mailbox rules] ${u.userPrincipalName}: ${e.message}`);
+          }
+        }));
+      }
 
       const usersWithRules = results.filter(r => r.rules.length > 0);
-      const permissionError = errorCount > 0 && usersWithRules.length === 0;
+      const permissionError = errorCount > 0 && results.length === 0;
+
+      // Detect client-side rules that conflict with server-side transport rules
+      // A conflict occurs when a client rule tries to forward/redirect externally
+      // or stops processing rules — these are commonly overridden by server transport rules
+      const CONFLICT_ACTIONS = ["forwardTo", "redirectTo", "forwardAsAttachmentTo", "stopProcessingRules"];
+      const conflictingRules = [];
+      usersWithRules.forEach(ur => {
+        ur.rules.forEach(rule => {
+          const conflicts = [];
+          if (rule.actions?.forwardTo?.length > 0) conflicts.push("external forward");
+          if (rule.actions?.redirectTo?.length > 0) conflicts.push("redirect");
+          if (rule.actions?.forwardAsAttachmentTo?.length > 0) conflicts.push("forward as attachment");
+          if (rule.actions?.stopProcessingRules) conflicts.push("stop processing rules");
+          if (conflicts.length > 0) {
+            conflictingRules.push({
+              user_display_name: ur.user.displayName,
+              user_email: ur.user.mail || ur.user.userPrincipalName,
+              rule_name: rule.displayName,
+              rule_id: rule.id,
+              is_enabled: rule.isEnabled,
+              conflict_type: conflicts.join(", "),
+              forward_targets: [
+                ...(rule.actions?.forwardTo || []),
+                ...(rule.actions?.redirectTo || []),
+                ...(rule.actions?.forwardAsAttachmentTo || []),
+              ].map(a => a.emailAddress?.address).filter(Boolean).join("; "),
+            });
+          }
+        });
+      });
 
       return Response.json({
         success: true,
@@ -364,6 +400,7 @@ Deno.serve(async (req) => {
         scannedCount: allUsers.length,
         successCount: results.length,
         errorCount,
+        conflictingRules,
         permissionError,
         permissionNote: permissionError
           ? "Could not read inbox rules. Ensure MailboxSettings.Read or Mail.ReadBasic app permission is granted in your Azure App Registration."

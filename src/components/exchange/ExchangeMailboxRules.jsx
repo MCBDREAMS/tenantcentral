@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import {
   AlertTriangle, ChevronDown, ChevronRight, RefreshCw,
   Upload, CheckCircle2, XCircle, Loader2, FileText, Download,
-  ShieldAlert, Trash2, BellOff, Copy
+  ShieldAlert, Trash2, BellOff, Copy, ServerCrash
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,8 +93,31 @@ export default function ExchangeMailboxRules({ tenantId }) {
   const errorCount = data?.errorCount || 0;
   const permissionError = data?.permissionError || false;
   const permissionNote = data?.permissionNote || null;
+  const conflictingRules = data?.conflictingRules || [];
   const suspiciousCount = userRules.reduce((acc, ur) => acc + ur.rules.filter(isSuspicious).length, 0);
   const duplicateGroups = findDuplicateGroups(userRules);
+
+  const exportConflictsCSV = () => {
+    if (!conflictingRules.length) return;
+    const headers = ["User Name", "User Email", "Rule Name", "Conflict Type", "Forward Targets", "Rule Enabled", "Rule ID"];
+    const rows = conflictingRules.map(r => [
+      `"${r.user_display_name}"`,
+      `"${r.user_email}"`,
+      `"${r.rule_name}"`,
+      `"${r.conflict_type}"`,
+      `"${r.forward_targets}"`,
+      r.is_enabled ? "Yes" : "No",
+      `"${r.rule_id}"`,
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `exchange_rule_conflicts_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const toggleExpand = (uid) => setExpanded(prev => ({ ...prev, [uid]: !prev[uid] }));
 
@@ -247,6 +270,11 @@ export default function ExchangeMailboxRules({ tenantId }) {
       <Tabs defaultValue="report">
         <TabsList className="mb-5">
           <TabsTrigger value="report">Rules Report</TabsTrigger>
+          <TabsTrigger value="conflicts">
+            Server Conflicts {conflictingRules.length > 0 && (
+              <Badge className="ml-1.5 bg-red-100 text-red-700 text-[10px] py-0">{conflictingRules.length}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="duplicates">
             Duplicates {duplicateGroups.length > 0 && (
               <Badge className="ml-1.5 bg-amber-100 text-amber-700 text-[10px] py-0">{duplicateGroups.length}</Badge>
@@ -263,7 +291,7 @@ export default function ExchangeMailboxRules({ tenantId }) {
                 ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Scanning mailboxes…</>
                 : <><RefreshCw className="h-4 w-4 mr-2" />Scan All Mailboxes</>}
             </Button>
-            <p className="text-xs text-slate-400">Scans inbox rules across all users (up to 40 mailboxes)</p>
+            <p className="text-xs text-slate-400">Scans inbox rules across all enabled mailboxes</p>
             {isFetched && !isLoading && scannedCount > 0 && (
               <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
                 {scannedCount} mailboxes scanned · {errorCount > 0 ? `${errorCount} access errors` : "all accessible"}
@@ -282,7 +310,7 @@ export default function ExchangeMailboxRules({ tenantId }) {
                 <Loader2 className="h-4 w-4 animate-spin" />Scanning mailboxes for inbox rules…
               </div>
               <Progress value={undefined} className="h-1.5 animate-pulse" />
-              <p className="text-xs text-blue-600 mt-1.5">Checking up to 40 mailboxes via Microsoft Graph. This may take 15–30 seconds.</p>
+              <p className="text-xs text-blue-600 mt-1.5">Fetching all mailboxes via Microsoft Graph (paginated). Large tenants may take 30–60 seconds.</p>
             </div>
           )}
 
@@ -338,6 +366,103 @@ export default function ExchangeMailboxRules({ tenantId }) {
               );
             })}
           </div>
+        </TabsContent>
+
+        {/* ── SERVER CONFLICTS TAB ── */}
+        <TabsContent value="conflicts">
+          {!isFetched ? (
+            <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
+              <ServerCrash className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+              <p className="text-sm text-slate-400">Scan mailboxes first to detect rules that conflict with server-side transport rules</p>
+            </div>
+          ) : conflictingRules.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
+              <CheckCircle2 className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">No client rules conflicting with server transport rules detected</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge className="bg-red-100 text-red-700">{conflictingRules.length} conflicting rule(s)</Badge>
+                <p className="text-xs text-slate-500 flex-1">
+                  These client-side inbox rules perform actions (forwarding, redirecting, stop-processing) that are commonly blocked or overridden by Exchange server transport rules / mail flow policies.
+                </p>
+                <Button size="sm" variant="outline" onClick={exportConflictsCSV} className="gap-1.5 shrink-0">
+                  <Download className="h-3.5 w-3.5" />Export CSV
+                </Button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Why this matters:</strong> Exchange transport rules (mail flow rules) set by admins run server-side and take priority over client-side inbox rules.
+                  Rules that forward externally, redirect, or stop processing may be silently blocked by server policies, causing user confusion.
+                  Review these rules with your Exchange admin and disable or remove client rules that duplicate or conflict with server-side policies.
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-slate-500 font-semibold">User</th>
+                      <th className="px-3 py-2.5 text-left text-slate-500 font-semibold">Rule Name</th>
+                      <th className="px-3 py-2.5 text-left text-slate-500 font-semibold">Conflict Type</th>
+                      <th className="px-3 py-2.5 text-left text-slate-500 font-semibold">Forward Target(s)</th>
+                      <th className="px-3 py-2.5 text-left text-slate-500 font-semibold">Status</th>
+                      <th className="px-3 py-2.5 w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {conflictingRules.map((r, i) => {
+                      const ur = userRules.find(u => (u.user.mail || u.user.userPrincipalName) === r.user_email);
+                      const rule = ur?.rules.find(rl => rl.id === r.rule_id);
+                      return (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-3 py-2.5">
+                            <div className="font-medium text-slate-700">{r.user_display_name}</div>
+                            <div className="text-slate-400">{r.user_email}</div>
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-slate-700">{r.rule_name}</td>
+                          <td className="px-3 py-2.5">
+                            <Badge className="bg-red-100 text-red-700 text-[10px] border-0">{r.conflict_type}</Badge>
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-600 max-w-[180px] truncate">{r.forward_targets || "—"}</td>
+                          <td className="px-3 py-2.5">
+                            <Badge className={r.is_enabled ? "bg-emerald-100 text-emerald-700 border-0 text-[10px]" : "bg-slate-100 text-slate-500 border-0 text-[10px]"}>
+                              {r.is_enabled ? "Active" : "Disabled"}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex gap-1">
+                              {r.is_enabled && ur && rule && (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  className="h-6 px-2 text-[10px] text-amber-600 hover:bg-amber-50"
+                                  onClick={() => handleDisableRule(ur.user.id, r.rule_id, r.rule_name)}
+                                >
+                                  <BellOff className="h-3 w-3 mr-1" />Disable
+                                </Button>
+                              )}
+                              {ur && (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  className="h-6 px-2 text-[10px] text-red-500 hover:bg-red-50"
+                                  onClick={() => handleDeleteRule(ur.user.id, r.rule_id, r.rule_name)}
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />Delete
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* ── DUPLICATES TAB ── */}
