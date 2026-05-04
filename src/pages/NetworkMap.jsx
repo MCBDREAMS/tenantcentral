@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, Globe, Monitor, Smartphone, Laptop, RefreshCw, Search } from "lucide-react";
+import { MapPin, Globe, Monitor, Smartphone, Laptop, RefreshCw, Search, Wifi, Info } from "lucide-react";
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import PageHeader from "@/components/shared/PageHeader";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import ConnectivityTester from "@/components/network/ConnectivityTester";
 
 // Country code → approx lat/lon centroid
 const COUNTRY_COORDS = {
@@ -85,6 +86,31 @@ export default function NetworkMap({ selectedTenant, tenants }) {
   });
   const graphDevices = graphResult?.devices || [];
 
+  // Fetch Entra users to get usageLocation (the authoritative country source in Entra ID)
+  const { data: entraUsersResult } = useQuery({
+    queryKey: ["network-map-entra-users", azureTenantId],
+    enabled: !!azureTenantId,
+    queryFn: () => base44.functions.invoke("portalData", {
+      action: "list_users",
+      azure_tenant_id: azureTenantId,
+    }).then(r => r.data),
+  });
+
+  // Build a UPN → usageLocation map from Entra users
+  const userLocationMap = useMemo(() => {
+    const users = entraUsersResult?.users || [];
+    const map = {};
+    users.forEach(u => {
+      if (u.usageLocation && u.userPrincipalName) {
+        map[u.userPrincipalName.toLowerCase()] = u.usageLocation;
+      }
+      if (u.usageLocation && u.mail) {
+        map[u.mail.toLowerCase()] = u.usageLocation;
+      }
+    });
+    return map;
+  }, [entraUsersResult]);
+
   // Normalise all devices into a unified shape
   const allDevices = useMemo(() => {
     const local = [...devices, ...mobileDevices].map(d => ({
@@ -104,7 +130,8 @@ export default function NetworkMap({ selectedTenant, tenants }) {
       os: d.operatingSystem,
       user: d.userPrincipalName,
       compliance: d.complianceState,
-      country: null, // Graph doesn't return country directly
+      // Resolve country from Entra usageLocation of the device's primary user
+      country: (d.userPrincipalName && userLocationMap[d.userPrincipalName.toLowerCase()]) || null,
       source: "graph",
       model: `${d.manufacturer || ""} ${d.model || ""}`.trim(),
     }));
@@ -117,7 +144,7 @@ export default function NetworkMap({ selectedTenant, tenants }) {
       }
     });
     return merged;
-  }, [devices, mobileDevices, graphDevices]);
+  }, [devices, mobileDevices, graphDevices, userLocationMap]);
 
   const filtered = useMemo(() => {
     if (!search) return allDevices;
@@ -186,6 +213,7 @@ export default function NetworkMap({ selectedTenant, tenants }) {
           <TabsTrigger value="map" className="gap-2"><Globe className="h-3.5 w-3.5" />World Map</TabsTrigger>
           <TabsTrigger value="country" className="gap-2"><MapPin className="h-3.5 w-3.5" />By Country</TabsTrigger>
           <TabsTrigger value="devices" className="gap-2"><Monitor className="h-3.5 w-3.5" />All Devices</TabsTrigger>
+          <TabsTrigger value="connectivity" className="gap-2"><Wifi className="h-3.5 w-3.5" />Connectivity Test</TabsTrigger>
         </TabsList>
 
         {/* MAP TAB */}
@@ -321,7 +349,21 @@ export default function NetworkMap({ selectedTenant, tenants }) {
             </table>
           </div>
         </TabsContent>
+        {/* CONNECTIVITY TEST TAB */}
+        <TabsContent value="connectivity">
+          <ConnectivityTester selectedTenant={selectedTenant} />
+        </TabsContent>
       </Tabs>
+
+      {/* Location source note */}
+      <div className="flex gap-2 mt-4 text-xs text-slate-400 items-start">
+        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <span>
+          Device locations are sourced from <strong>Entra ID usageLocation</strong> (set per user in Azure AD — the authoritative country field for compliance and licensing).
+          Devices without a primary user, or users without usageLocation set, will appear as "Unknown Location".
+          To populate map pins: set <code>usageLocation</code> on users in Entra ID &gt; Users &gt; Profile.
+        </span>
+      </div>
     </div>
   );
 }
