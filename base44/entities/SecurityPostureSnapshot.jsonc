@@ -1,0 +1,40 @@
+{
+  "name": "SecurityPostureSnapshot",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "score": {
+      "type": "number",
+      "description": "Aggregate security posture score 0-100"
+    },
+    "mfa_score": {
+      "type": "number"
+    },
+    "policy_score": {
+      "type": "number"
+    },
+    "compliance_score": {
+      "type": "number"
+    },
+    "baseline_score": {
+      "type": "number"
+    },
+    "patch_score": {
+      "type": "number"
+    },
+    "snapshot_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "score",
+    "snapshot_date"
+  ]
+}
