@@ -1137,6 +1137,127 @@ Deno.serve(async (req) => {
       return Response.json({ success: true });
     }
 
+    // ── Entra: Get CA Policy impact (affected users/devices) ─────────────────
+    if (action === "get_ca_policy_impact") {
+      const { policy_id } = body;
+
+      // Fetch the raw CA policy from Graph
+      const policyRes = await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies/${policy_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!policyRes.ok) {
+        const err = await policyRes.text();
+        return Response.json({ success: false, error: err }, { status: policyRes.status });
+      }
+      const caPolicy = await policyRes.json();
+      const conditions = caPolicy.conditions || {};
+      const users = conditions.users || {};
+      const apps = conditions.applications || {};
+
+      // Resolve included user/group names
+      const resolveIds = async (ids = [], type = "users") => {
+        if (!ids.length) return [];
+        const results = await Promise.all(ids.slice(0, 20).map(async id => {
+          if (id === "All") return { id, displayName: "All Users" };
+          if (id === "GuestsOrExternalUsers") return { id, displayName: "Guests / External Users" };
+          if (id === "None") return { id, displayName: "None" };
+          try {
+            const r = await graphGet(token, `/${type === "groups" ? "groups" : "users"}/${id}?$select=id,displayName,userPrincipalName,mail`);
+            return { id, displayName: r.displayName || r.userPrincipalName || id };
+          } catch {
+            try {
+              // Try as group if user lookup fails
+              const r = await graphGet(token, `/groups/${id}?$select=id,displayName`);
+              return { id, displayName: `[Group] ${r.displayName}` };
+            } catch {
+              return { id, displayName: id };
+            }
+          }
+        }));
+        return results;
+      };
+
+      // Resolve app names
+      const resolveApps = async (appIds = []) => {
+        if (!appIds.length) return [];
+        // Well-known app IDs
+        const wellKnown = {
+          "All": "All Cloud Apps",
+          "None": "None",
+          "Office365": "Microsoft 365",
+          "MicrosoftAdminPortals": "Microsoft Admin Portals",
+          "00000002-0000-0ff1-ce00-000000000000": "Exchange Online",
+          "00000003-0000-0ff1-ce00-000000000000": "SharePoint Online",
+          "4765445b-32c6-49b0-83e6-1d93765276ca": "Microsoft Teams",
+          "00000004-0000-0ff1-ce00-000000000000": "Microsoft Lync Online",
+          "00000005-0000-0000-c000-000000000000": "Microsoft Office",
+          "00000007-0000-0ff1-ce00-000000000000": "Dynamics CRM",
+          "797f4846-ba00-4fd7-ba43-dac1f8f63013": "Windows Azure Service Management",
+        };
+        return appIds.map(id => ({ id, displayName: wellKnown[id] || id }));
+      };
+
+      const [includedUsers, excludedUsers, includedGroups, excludedGroups, targetApps] = await Promise.all([
+        resolveIds(users.includeUsers || []),
+        resolveIds(users.excludeUsers || []),
+        resolveIds(users.includeGroups || [], "groups"),
+        resolveIds(users.excludeGroups || [], "groups"),
+        resolveApps([...(apps.includeApplications || []), ...(apps.includeAuthenticationContextClassReferences || [])]),
+      ]);
+
+      // Resolve excluded apps
+      const excludedApps = await resolveApps(apps.excludeApplications || []);
+
+      // Count total users in tenant (for "All users" context)
+      let totalUserCount = 0;
+      try {
+        const countRes = await fetch("https://graph.microsoft.com/v1.0/users/$count", {
+          headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" }
+        });
+        if (countRes.ok) totalUserCount = parseInt(await countRes.text()) || 0;
+      } catch {}
+
+      // Expand group member counts for included groups
+      const groupDetails = await Promise.all(
+        (users.includeGroups || []).slice(0, 10).map(async gid => {
+          try {
+            const countRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${gid}/members/$count`, {
+              headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" }
+            });
+            const count = countRes.ok ? parseInt(await countRes.text()) || 0 : 0;
+            const nameObj = includedGroups.find(g => g.id === gid);
+            return { id: gid, displayName: nameObj?.displayName || gid, memberCount: count };
+          } catch {
+            return { id: gid, displayName: gid, memberCount: 0 };
+          }
+        })
+      );
+
+      return Response.json({
+        success: true,
+        caPolicy,
+        impact: {
+          totalUserCount,
+          includedUsers,
+          excludedUsers,
+          includedGroups,
+          excludedGroups,
+          groupDetails,
+          targetApps,
+          excludedApps,
+          platforms: conditions.platforms?.includePlatforms || [],
+          excludedPlatforms: conditions.platforms?.excludePlatforms || [],
+          locations: conditions.locations?.includeLocations || [],
+          excludedLocations: conditions.locations?.excludeLocations || [],
+          signInRisk: conditions.signInRiskLevels || [],
+          userRisk: conditions.userRiskLevels || [],
+          deviceFilter: conditions.devices?.deviceFilter || null,
+          grantControls: caPolicy.grantControls || null,
+          sessionControls: caPolicy.sessionControls || null,
+        }
+      });
+    }
+
     // ── On-Prem Sync Status from Azure ────────────────────────────────────────
     if (action === "get_onprem_sync_status") {
       const [orgRes, healthRes] = await Promise.allSettled([

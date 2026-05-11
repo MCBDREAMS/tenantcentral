@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, Eye, Pencil, Plus } from "lucide-react";
+import { Shield, Eye, Pencil, Plus, GitBranch, List } from "lucide-react";
 import CAPolicyWizard from "@/components/entra/CAPolicyWizard";
+import CAPolicyFlowChart from "@/components/entra/CAPolicyFlowChart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/shared/PageHeader";
@@ -15,6 +16,7 @@ import QuickSyncButton from "@/components/shared/QuickSyncButton";
 export default function EntraPolicies({ selectedTenant }) {
   const [editing, setEditing] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [view, setView] = useState("table"); // "table" | "flow"
   const queryClient = useQueryClient();
 
   const { data: policies = [] } = useQuery({
@@ -69,6 +71,23 @@ export default function EntraPolicies({ selectedTenant }) {
         icon={Shield}
         actions={
           <div className="flex gap-2">
+            {/* View toggle */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+              <button
+                onClick={() => setView("table")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors
+                  ${view === "table" ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+              >
+                <List className="h-3.5 w-3.5" /> Table
+              </button>
+              <button
+                onClick={() => setView("flow")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors
+                  ${view === "flow" ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+              >
+                <GitBranch className="h-3.5 w-3.5" /> Flow Chart
+              </button>
+            </div>
             <QuickSyncButton
               selectedTenant={selectedTenant}
               syncAction="sync_policies"
@@ -83,12 +102,24 @@ export default function EntraPolicies({ selectedTenant }) {
           </div>
         }
       />
-      <DataTable
-        columns={columns}
-        data={policies}
-        onExport={(d) => exportToCSV(d, "entra_policies")}
-        emptyMessage="No policies found"
-      />
+
+      {view === "table" && (
+        <DataTable
+          columns={columns}
+          data={policies}
+          onExport={(d) => exportToCSV(d, "entra_policies")}
+          emptyMessage="No policies found"
+        />
+      )}
+
+      {view === "flow" && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <CAPolicyFlowChart
+            policies={policies}
+            azureTenantId={selectedTenant?.tenant_id}
+          />
+        </div>
+      )}
 
       {editing && (
         <PolicyEditDialog
