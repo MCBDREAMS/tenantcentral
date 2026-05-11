@@ -9,6 +9,7 @@ import StatCard from "@/components/shared/StatCard";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import GraphSyncPanel from "@/components/sync/GraphSyncPanel";
+import MisconfigPanel from "@/components/dashboard/MisconfigPanel";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Progress } from "@/components/ui/progress";
@@ -161,6 +162,18 @@ export default function Dashboard({ selectedTenant, tenants }) {
 
       <div className="mb-6">
         <GraphSyncPanel selectedTenant={selectedTenant} tenants={tenants} />
+      </div>
+
+      {/* Misconfiguration Findings */}
+      <div className="mb-6">
+        <MisconfigPanel
+          selectedTenant={selectedTenant}
+          policies={policies}
+          profiles={profiles}
+          baselines={baselines}
+          devices={devices}
+          users={users}
+        />
       </div>
 
       {/* Security Insights */}
