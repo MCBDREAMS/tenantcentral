@@ -43,6 +43,8 @@ const navSections = [
     section: "intune",
     items: [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
+      { name: "Company Portal", icon: AppWindow, page: "CompanyPortal" },
+      { name: "Remote PS Console", icon: Terminal, page: "RemotePSConsole" },
       { name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
       { name: "Windows Updates", icon: ShieldCheck, page: "WindowsUpdates" },
       { name: "Threat Insights", icon: ShieldAlert, page: "ThreatInsights" },

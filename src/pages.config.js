@@ -92,6 +92,8 @@ import EntraDevices from './pages/EntraDevices';
 import EntraCompliance from './pages/EntraCompliance';
 import WorkflowEngine from './pages/WorkflowEngine';
 import HybridSetupAnalyzer from './pages/HybridSetupAnalyzer';
+import CompanyPortal from './pages/CompanyPortal';
+import RemotePSConsole from './pages/RemotePSConsole';
 import __Layout from './Layout.jsx';
 
 
@@ -141,6 +143,8 @@ export const PAGES = {
     "EntraCompliance": EntraCompliance,
     "WorkflowEngine": WorkflowEngine,
     "HybridSetupAnalyzer": HybridSetupAnalyzer,
+    "CompanyPortal": CompanyPortal,
+    "RemotePSConsole": RemotePSConsole,
 }
 
 export const pagesConfig = {
