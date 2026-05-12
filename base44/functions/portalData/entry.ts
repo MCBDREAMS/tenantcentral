@@ -67,6 +67,16 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, azure_tenant_id, top = 50 } = body;
 
+    // ── Validate azure_tenant_id is a proper GUID ─────────────────────────────
+    const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!azure_tenant_id || !GUID_REGEX.test(azure_tenant_id)) {
+      return Response.json({
+        success: false,
+        error: "Invalid or missing azure_tenant_id. Please ensure the selected tenant has a valid Azure Tenant ID (GUID) configured in Tenants settings.",
+        hint: "The Tenant ID should look like: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      }, { status: 400 });
+    }
+
     // ── Look up per-tenant credentials ───────────────────────────────────────
     let clientId = GLOBAL_CLIENT_ID;
     let clientSecret = GLOBAL_CLIENT_SECRET;

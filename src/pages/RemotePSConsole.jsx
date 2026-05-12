@@ -70,9 +70,11 @@ export default function RemotePSConsole({ selectedTenant }) {
   const [deviceSearch, setDeviceSearch] = useState("");
   const [jobName, setJobName] = useState("");
   const azureTenantId = selectedTenant?.tenant_id;
+  const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validTenantId = azureTenantId && GUID_REGEX.test(azureTenantId);
 
   const loadDevices = async () => {
-    if (!azureTenantId) return;
+    if (!validTenantId) return;
     setLoadingDevices(true);
     try {
       const res = await base44.functions.invoke("portalData", {
@@ -88,7 +90,7 @@ export default function RemotePSConsole({ selectedTenant }) {
   };
 
   useEffect(() => {
-    if (azureTenantId) loadDevices();
+    if (validTenantId) loadDevices();
   }, [azureTenantId]);
 
   const toggleDevice = (id) => {
@@ -105,7 +107,11 @@ export default function RemotePSConsole({ selectedTenant }) {
     : liveDevices.filter(d => selectedDevices.includes(d.id));
 
   const executeScript = async () => {
-    if (!script.trim() || !azureTenantId || targetDevices.length === 0) return;
+    if (!script.trim() || targetDevices.length === 0) return;
+    if (!azureTenantId) {
+      setResults({ success: false, error: "This tenant does not have an Azure Tenant ID configured. Please edit the tenant and add the Azure Tenant ID (GUID)." });
+      return;
+    }
     setRunning(true);
     setResults(null);
 
@@ -152,14 +158,25 @@ export default function RemotePSConsole({ selectedTenant }) {
         }
       />
 
-      {!azureTenantId && (
+      {!selectedTenant && (
         <div className="text-center py-20 border border-dashed border-slate-200 rounded-2xl text-slate-400">
           <Terminal className="h-12 w-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium text-slate-500">Select a tenant to use the remote console</p>
         </div>
       )}
 
-      {azureTenantId && (
+      {selectedTenant && !validTenantId && (
+        <div className="flex items-start gap-3 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
+          <div>
+            <p className="font-semibold">Azure Tenant ID not configured</p>
+            <p className="text-sm mt-1">The selected tenant <strong>{selectedTenant.name}</strong> does not have a valid Azure Tenant ID (GUID) set. Please go to <strong>Tenants</strong> and edit this tenant to add the Azure Tenant ID.</p>
+            <p className="text-xs mt-2 text-amber-600">Expected format: <code className="bg-amber-100 px-1 rounded">xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code></p>
+          </div>
+        </div>
+      )}
+
+      {selectedTenant && validTenantId && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
           {/* ── LEFT: Script Editor ── */}
