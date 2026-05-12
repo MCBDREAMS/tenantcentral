@@ -992,6 +992,63 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, results: results.map(r => r.status) });
     }
 
+    // ── Autopilot: Import devices via Hardware Hash ──────────────────────────
+    if (action === "import_autopilot_devices") {
+      const { devices = [] } = body;
+      if (!devices.length) return Response.json({ success: false, error: "No devices provided" }, { status: 400 });
+
+      const results = [];
+
+      for (const device of devices) {
+        if (!device.serialNumber || !device.hardwareHash) {
+          results.push({ serialNumber: device.serialNumber || "unknown", success: false, error: "Missing serial number or hardware hash" });
+          continue;
+        }
+
+        const importBody = {
+          "@odata.type": "#microsoft.graph.importedWindowsAutopilotDeviceIdentity",
+          serialNumber: device.serialNumber,
+          hardwareIdentifier: device.hardwareHash,
+          ...(device.windowsProductId ? { productKey: device.windowsProductId } : {}),
+          ...(device.groupTag ? { groupTag: device.groupTag } : {}),
+          ...(device.assignedUser ? { assignedUserPrincipalName: device.assignedUser } : {}),
+          state: {
+            "@odata.type": "microsoft.graph.importedWindowsAutopilotDeviceIdentityState",
+            deviceImportStatus: "pending",
+            deviceRegistrationId: "",
+            deviceErrorCode: 0,
+            deviceErrorName: ""
+          }
+        };
+
+        const res = await fetch("https://graph.microsoft.com/beta/deviceManagement/importedWindowsAutopilotDeviceIdentities", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(importBody)
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          let errMsg = err;
+          try {
+            const parsed = JSON.parse(err);
+            errMsg = parsed.error?.message || err;
+          } catch {}
+          results.push({ serialNumber: device.serialNumber, success: false, error: errMsg });
+        } else {
+          const created = await res.json();
+          results.push({ serialNumber: device.serialNumber, success: true, id: created.id });
+        }
+      }
+
+      return Response.json({
+        success: true,
+        results,
+        imported: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      });
+    }
+
     // ── Entra: Create Conditional Access Policy ──────────────────────────────
     if (action === "create_conditional_access_policy") {
       const { policy } = body;

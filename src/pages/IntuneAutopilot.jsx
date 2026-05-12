@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Rocket, Plus, Trash2, RefreshCw, Loader2, Monitor, AlertTriangle } from "lucide-react";
+import { Rocket, Plus, Trash2, RefreshCw, Loader2, Monitor, AlertTriangle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import ReadOnlyBanner from "@/components/shared/ReadOnlyBanner";
 import { useRbac } from "@/components/shared/useRbac";
 import { logAction } from "@/components/shared/auditLogger";
 import { format } from "date-fns";
+import AutopilotHashImport from "@/components/intune/AutopilotHashImport";
 
 function fmt(v) {
   if (!v) return "—";
@@ -24,6 +25,7 @@ export default function IntuneAutopilot({ selectedTenant, tenants }) {
   const { canEdit } = useRbac();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [showHashImport, setShowHashImport] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [form, setForm] = useState({
@@ -134,9 +136,14 @@ export default function IntuneAutopilot({ selectedTenant, tenants }) {
               Refresh
             </Button>
             {canEdit() && azureTenantId && (
-              <Button onClick={() => setShowCreate(true)} className="gap-2 bg-slate-900 hover:bg-slate-800">
-                <Plus className="h-4 w-4" /> New Profile
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => setShowHashImport(true)} className="gap-1.5">
+                  <Upload className="h-3.5 w-3.5" /> Import Hardware Hash
+                </Button>
+                <Button onClick={() => setShowCreate(true)} className="gap-2 bg-slate-900 hover:bg-slate-800">
+                  <Plus className="h-4 w-4" /> New Profile
+                </Button>
+              </>
             )}
           </div>
         }
@@ -212,6 +219,13 @@ export default function IntuneAutopilot({ selectedTenant, tenants }) {
           )}
         </div>
       )}
+
+      {/* Hardware Hash Import */}
+      <AutopilotHashImport
+        open={showHashImport}
+        onClose={() => setShowHashImport(false)}
+        selectedTenant={selectedTenant}
+      />
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
