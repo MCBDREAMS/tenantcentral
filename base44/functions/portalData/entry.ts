@@ -149,7 +149,22 @@ Deno.serve(async (req) => {
 
     // ── Service Health ───────────────────────────────────────────────────────
     if (action === "service_health") {
-      const data = await graphGet(token, "/admin/serviceAnnouncement/healthOverviews?$expand=issues");
+      const res = await fetch(`https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews?$expand=issues`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 403) {
+        return Response.json({
+          success: false,
+          permission_error: true,
+          services: [],
+          message: "Missing permission: ServiceHealth.Read.All must be granted in your Azure App Registration to view Microsoft 365 service health."
+        });
+      }
+      if (!res.ok) {
+        const err = await res.text();
+        return Response.json({ success: false, services: [], message: `Service health unavailable: ${res.status}` });
+      }
+      const data = await res.json();
       return Response.json({ success: true, services: data.value || [] });
     }
 

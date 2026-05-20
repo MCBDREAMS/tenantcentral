@@ -19,13 +19,17 @@ const STATUS_CONFIG = {
 export default function PortalServiceHealth({ selectedTenant }) {
   const tenantId = selectedTenant?.tenant_id;
 
-  const { data: services = [], isLoading, error, refetch } = useQuery({
+  const { data: result = {}, isLoading, error, refetch } = useQuery({
     queryKey: ["service_health", tenantId],
     enabled: !!tenantId,
     queryFn: () =>
       base44.functions.invoke("portalData", { action: "service_health", azure_tenant_id: tenantId })
-        .then(r => r.data.services || []),
+        .then(r => r.data),
   });
+
+  const services = result.services || [];
+  const permissionError = result.permission_error;
+  const permissionMessage = result.message;
 
   if (!tenantId) return (
     <div className="p-6">
@@ -66,7 +70,16 @@ export default function PortalServiceHealth({ selectedTenant }) {
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-500 mb-4">{error.message}</div>}
+      {(error || permissionError) && (
+        <div className="mb-4 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <p className="text-sm font-semibold">Permission Required</p>
+            <p className="text-xs mt-0.5">{permissionMessage || error?.message}</p>
+            <p className="text-xs mt-1 text-amber-700">Grant <strong>ServiceHealth.Read.All</strong> in your Azure App Registration → API Permissions.</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {isLoading
