@@ -1053,7 +1053,7 @@ Deno.serve(async (req) => {
     // ── Autopilot: Delete device from Autopilot ───────────────────────────────
     if (action === "delete_autopilot_device") {
       const { device_id } = body;
-      // Find the Autopilot device entry by serial or azureADDeviceId
+
       // First get the managed device to find serialNumber
       const mdRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}?$select=id,serialNumber,azureADDeviceId`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -1070,15 +1070,22 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      if (apRes.status === 403) {
+        return Response.json({
+          success: false,
+          permission_error: true,
+          error: "Missing permission: DeviceManagementServiceConfig.ReadWrite.All must be granted in your Azure App Registration to manage Autopilot devices."
+        });
+      }
       if (!apRes.ok) {
         const err = await apRes.text();
-        return Response.json({ success: false, error: `Could not search Autopilot records: ${err}` }, { status: apRes.status });
+        return Response.json({ success: false, error: `Could not search Autopilot records: ${err}` });
       }
       const apData = await apRes.json();
       const autopilotDevices = apData.value || [];
 
       if (autopilotDevices.length === 0) {
-        return Response.json({ success: false, error: `No Autopilot record found for serial: ${serial}` });
+        return Response.json({ success: false, error: `No Autopilot record found for serial number: ${serial}. This device may not be registered in Autopilot.` });
       }
 
       const results = await Promise.all(autopilotDevices.map(async (ap) => {
@@ -1086,8 +1093,20 @@ Deno.serve(async (req) => {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` }
         });
+        if (delRes.status === 403) {
+          return { id: ap.id, serial: ap.serialNumber, success: false, error: "DeviceManagementServiceConfig.ReadWrite.All permission required." };
+        }
         return { id: ap.id, serial: ap.serialNumber, success: delRes.ok || delRes.status === 204 };
       }));
+
+      const anyPermissionError = results.some(r => r.error?.includes("permission"));
+      if (anyPermissionError) {
+        return Response.json({
+          success: false,
+          permission_error: true,
+          error: "Missing permission: DeviceManagementServiceConfig.ReadWrite.All must be granted in your Azure App Registration to delete Autopilot device identities."
+        });
+      }
 
       return Response.json({ success: true, results, deletedCount: results.filter(r => r.success).length });
     }

@@ -104,9 +104,13 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
         azure_tenant_id: azureTenantId,
         device_id: device.id,
       });
-      if (!res.data?.success) {
+      if (res.data?.permission_error) {
+        alert(`⚠️ Permission Required\n\n${res.data.error}\n\nGo to Azure Portal → App Registrations → API Permissions and grant the required permission.`);
+      } else if (!res.data?.success) {
         alert(`Failed: ${res.data?.error || "Unknown error"}`);
       } else {
+        const count = res.data?.deletedCount;
+        if (count !== undefined) alert(`✅ Removed ${count} Autopilot record(s) successfully.`);
         refetchGraph();
       }
     } catch (e) {
