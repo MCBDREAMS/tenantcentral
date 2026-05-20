@@ -1007,6 +1007,91 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, solutions, mdmAuthority, subscriptionState, deviceCount });
     }
 
+    // ── Intune: Delete device from Intune ────────────────────────────────────
+    if (action === "delete_intune_device") {
+      const { device_id } = body;
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Intune: Wipe (factory reset) device ───────────────────────────────────
+    if (action === "wipe_intune_device") {
+      const { device_id } = body;
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/wipe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ keepEnrollmentData: false, keepUserData: false })
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Intune: Retire device (remove company data) ───────────────────────────
+    if (action === "retire_intune_device") {
+      const { device_id } = body;
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/retire`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.text();
+        return Response.json({ success: false, error: err }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    }
+
+    // ── Autopilot: Delete device from Autopilot ───────────────────────────────
+    if (action === "delete_autopilot_device") {
+      const { device_id } = body;
+      // Find the Autopilot device entry by serial or azureADDeviceId
+      // First get the managed device to find serialNumber
+      const mdRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}?$select=id,serialNumber,azureADDeviceId`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!mdRes.ok) {
+        const err = await mdRes.text();
+        return Response.json({ success: false, error: `Could not fetch device info: ${err}` }, { status: mdRes.status });
+      }
+      const md = await mdRes.json();
+      const serial = md.serialNumber;
+
+      // Search Autopilot devices by serial
+      const apRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeviceIdentities?$filter=contains(serialNumber,'${encodeURIComponent(serial)}')&$select=id,serialNumber`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!apRes.ok) {
+        const err = await apRes.text();
+        return Response.json({ success: false, error: `Could not search Autopilot records: ${err}` }, { status: apRes.status });
+      }
+      const apData = await apRes.json();
+      const autopilotDevices = apData.value || [];
+
+      if (autopilotDevices.length === 0) {
+        return Response.json({ success: false, error: `No Autopilot record found for serial: ${serial}` });
+      }
+
+      const results = await Promise.all(autopilotDevices.map(async (ap) => {
+        const delRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeviceIdentities/${ap.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        return { id: ap.id, serial: ap.serialNumber, success: delRes.ok || delRes.status === 204 };
+      }));
+
+      return Response.json({ success: true, results, deletedCount: results.filter(r => r.success).length });
+    }
+
     // ── Intune: cleanup onboarding script and temp group ─────────────────────
     if (action === "cleanup_onboard_script") {
       const { script_id, group_id } = body;

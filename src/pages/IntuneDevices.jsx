@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { MonitorSmartphone, Search, RefreshCw } from "lucide-react";
+import { MonitorSmartphone, Search, RefreshCw, Trash2, ShieldOff, RotateCcw, ChevronDown } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -11,6 +11,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import DeviceDetailPanel from "@/components/intune/DeviceDetailPanel";
 import { format } from "date-fns";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 function fmt(v) {
   if (!v) return "—";
@@ -20,6 +27,8 @@ function fmt(v) {
 export default function IntuneDevices({ selectedTenant, tenants }) {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState(null); // { device, action }
+  const [actionLoading, setActionLoading] = useState(null);
 
   const { data: devices = [] } = useQuery({
     queryKey: ['intune-devices', selectedTenant?.id],
@@ -55,6 +64,57 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
   );
 
   const getTenantName = (tid) => allTenants.find(t => t.id === tid)?.name || tid;
+
+  const ACTION_CONFIG = {
+    delete: {
+      label: "Delete from Intune",
+      description: "This will permanently remove the device record from Intune. The device will no longer be managed.",
+      confirmLabel: "Delete Device",
+      variant: "destructive",
+      apiAction: "delete_intune_device",
+    },
+    retire: {
+      label: "Retire Device",
+      description: "Removes company data and unenrols the device from Intune. Personal data is preserved on personal devices.",
+      confirmLabel: "Retire Device",
+      variant: "destructive",
+      apiAction: "retire_intune_device",
+    },
+    wipe: {
+      label: "Wipe (Factory Reset)",
+      description: "Performs a full factory reset. ALL data on the device will be erased. This cannot be undone.",
+      confirmLabel: "Wipe Device",
+      variant: "destructive",
+      apiAction: "wipe_intune_device",
+    },
+    delete_autopilot: {
+      label: "Remove from Autopilot",
+      description: "Removes the device from Windows Autopilot. The device will need to be re-registered to use Autopilot again.",
+      confirmLabel: "Remove from Autopilot",
+      variant: "destructive",
+      apiAction: "delete_autopilot_device",
+    },
+  };
+
+  async function executeDeviceAction(device, action) {
+    setActionLoading(device.id + action);
+    try {
+      const res = await base44.functions.invoke("portalData", {
+        action: ACTION_CONFIG[action].apiAction,
+        azure_tenant_id: azureTenantId,
+        device_id: device.id,
+      });
+      if (!res.data?.success) {
+        alert(`Failed: ${res.data?.error || "Unknown error"}`);
+      } else {
+        refetchGraph();
+      }
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    }
+    setActionLoading(null);
+    setConfirmDialog(null);
+  }
 
   const localColumns = [
     { header: "Device", accessor: "device_name", render: (r) => <span className="font-medium text-slate-800">{r.device_name}</span> },
@@ -139,10 +199,46 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
                           <td className="px-4 py-3"><ComplianceBadge state={d.complianceState} /></td>
                           <td className="px-4 py-3 text-xs text-slate-400">{fmt(d.lastSyncDateTime)}</td>
                           <td className="px-4 py-3">
-                            <Button size="sm" variant="outline"
-                              onClick={() => setSelectedDevice({ ...d, graph_id: d.id, device_name: d.deviceName, os: d.operatingSystem, model: d.model })}>
-                              View Details
-                            </Button>
+                           <div className="flex items-center gap-1.5">
+                             <Button size="sm" variant="outline"
+                               onClick={() => setSelectedDevice({ ...d, graph_id: d.id, device_name: d.deviceName, os: d.operatingSystem, model: d.model })}>
+                               View
+                             </Button>
+                             <DropdownMenu>
+                               <DropdownMenuTrigger asChild>
+                                 <Button size="sm" variant="outline" className="px-2">
+                                   <ChevronDown className="h-3.5 w-3.5" />
+                                 </Button>
+                               </DropdownMenuTrigger>
+                               <DropdownMenuContent align="end">
+                                 <DropdownMenuItem
+                                   className="text-amber-600"
+                                   onClick={() => setConfirmDialog({ device: d, action: "retire" })}
+                                 >
+                                   <ShieldOff className="h-4 w-4 mr-2" /> Retire Device
+                                 </DropdownMenuItem>
+                                 <DropdownMenuItem
+                                   className="text-orange-600"
+                                   onClick={() => setConfirmDialog({ device: d, action: "wipe" })}
+                                 >
+                                   <RotateCcw className="h-4 w-4 mr-2" /> Wipe (Factory Reset)
+                                 </DropdownMenuItem>
+                                 <DropdownMenuSeparator />
+                                 <DropdownMenuItem
+                                   className="text-red-600"
+                                   onClick={() => setConfirmDialog({ device: d, action: "delete" })}
+                                 >
+                                   <Trash2 className="h-4 w-4 mr-2" /> Delete from Intune
+                                 </DropdownMenuItem>
+                                 <DropdownMenuItem
+                                   className="text-red-600"
+                                   onClick={() => setConfirmDialog({ device: d, action: "delete_autopilot" })}
+                                 >
+                                   <Trash2 className="h-4 w-4 mr-2" /> Remove from Autopilot
+                                 </DropdownMenuItem>
+                               </DropdownMenuContent>
+                             </DropdownMenu>
+                           </div>
                           </td>
                         </tr>
                       ))}
@@ -171,6 +267,31 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
           azureTenantId={azureTenantId}
           onClose={() => setSelectedDevice(null)}
         />
+      )}
+
+      {confirmDialog && (
+        <AlertDialog open onOpenChange={() => setConfirmDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{ACTION_CONFIG[confirmDialog.action].label}</AlertDialogTitle>
+              <AlertDialogDescription>
+                <span className="font-semibold text-slate-800">{confirmDialog.device.deviceName}</span>
+                <br /><br />
+                {ACTION_CONFIG[confirmDialog.action].description}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={!!actionLoading}
+                onClick={() => executeDeviceAction(confirmDialog.device, confirmDialog.action)}
+              >
+                {actionLoading ? "Processing..." : ACTION_CONFIG[confirmDialog.action].confirmLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
