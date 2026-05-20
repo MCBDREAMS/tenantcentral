@@ -94,6 +94,8 @@ import WorkflowEngine from './pages/WorkflowEngine';
 import HybridSetupAnalyzer from './pages/HybridSetupAnalyzer';
 import CompanyPortal from './pages/CompanyPortal';
 import RemotePSConsole from './pages/RemotePSConsole';
+import ApprovalQueue from './pages/ApprovalQueue';
+import DeploymentPlans from './pages/DeploymentPlans';
 import __Layout from './Layout.jsx';
 
 
@@ -145,6 +147,8 @@ export const PAGES = {
     "HybridSetupAnalyzer": HybridSetupAnalyzer,
     "CompanyPortal": CompanyPortal,
     "RemotePSConsole": RemotePSConsole,
+    "ApprovalQueue": ApprovalQueue,
+    "DeploymentPlans": DeploymentPlans,
 }
 
 export const pagesConfig = {
