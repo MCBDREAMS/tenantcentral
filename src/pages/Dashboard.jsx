@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Building2, Users, Shield, MonitorSmartphone,
-  ShieldCheck, AlertTriangle, CheckCircle2, TrendingUp, Laptop
+  ShieldCheck, AlertTriangle, CheckCircle2, TrendingUp, Laptop, Clock, Wifi, WifiOff
 } from "lucide-react";
 import StatCard from "@/components/shared/StatCard";
 import PageHeader from "@/components/shared/PageHeader";
@@ -21,6 +21,18 @@ export default function Dashboard({ selectedTenant, tenants }) {
   const tenantFilter = selectedTenant?.id ? { tenant_id: selectedTenant.id } : {};
 
   const { data: allTenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: () => base44.entities.Tenant.list() });
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['pending-approvals'],
+    queryFn: () => base44.entities.ApprovalRequest.filter({ status: "pending" }, "-requested_at", 50),
+    refetchInterval: 60000,
+  });
+  const { data: telemetrySnapshots = [] } = useQuery({
+    queryKey: ['telemetry-snapshots', selectedTenant?.id],
+    queryFn: () => selectedTenant?.id
+      ? base44.entities.TelemetrySnapshot.filter({ tenant_id: selectedTenant.id }, "-snapshot_time", 5)
+      : base44.entities.TelemetrySnapshot.list("-snapshot_time", 20),
+    refetchInterval: 120000,
+  });
   const { data: policies = [] } = useQuery({
     queryKey: ['entra-policies', selectedTenant?.id],
     queryFn: () => selectedTenant?.id ? base44.entities.EntraPolicy.filter(tenantFilter) : base44.entities.EntraPolicy.list(),
@@ -62,6 +74,14 @@ export default function Dashboard({ selectedTenant, tenants }) {
     { name: "Disabled", value: disabledPolicies, color: "#94a3b8" },
   ].filter(d => d.value > 0) : [];
 
+  // Telemetry staleness calculation
+  const latestSnapshot = telemetrySnapshots[0];
+  const snapshotAgeH = latestSnapshot
+    ? (Date.now() - new Date(latestSnapshot.snapshot_time).getTime()) / 3600000
+    : null;
+  const syncStale = snapshotAgeH !== null && snapshotAgeH > 2;
+  const syncCritical = snapshotAgeH !== null && snapshotAgeH > 6;
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -69,6 +89,29 @@ export default function Dashboard({ selectedTenant, tenants }) {
         subtitle={selectedTenant ? `Overview for ${selectedTenant.name}` : "Cross-tenant overview"}
         icon={LayoutDashboard}
       />
+
+      {/* Pending Approvals Banner */}
+      {pendingApprovals.length > 0 && (
+        <div className="mb-4 flex items-center gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+          <Shield className="h-4 w-4 shrink-0 text-amber-600" />
+          <p className="text-sm flex-1">
+            <strong>{pendingApprovals.length} action{pendingApprovals.length > 1 ? "s" : ""}</strong> pending approval
+            {pendingApprovals.some(r => r.risk_level === "critical") && <span className="ml-1 font-bold text-red-700">— includes CRITICAL actions</span>}
+          </p>
+          <Link to={createPageUrl("ApprovalQueue")} className="text-xs font-semibold text-amber-700 hover:underline shrink-0">Review Queue →</Link>
+        </div>
+      )}
+
+      {/* Sync Staleness Indicator */}
+      {syncStale && (
+        <div className={`mb-4 flex items-center gap-3 p-3.5 border rounded-xl text-sm ${syncCritical ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+          {syncCritical ? <WifiOff className="h-4 w-4 shrink-0" /> : <Clock className="h-4 w-4 shrink-0" />}
+          <p className="flex-1">
+            Last telemetry snapshot: <strong>{snapshotAgeH?.toFixed(1)}h ago</strong>
+            {syncCritical ? " — data may be significantly out of date" : " — consider running a sync"}
+          </p>
+        </div>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

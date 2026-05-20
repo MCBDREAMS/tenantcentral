@@ -3,11 +3,13 @@ import { base44 } from "@/api/base44Client";
 
 // Role capability map
 const ROLE_SECTIONS = {
-  global_admin: ["entra", "intune", "security", "scripts", "export", "admin"],
-  intune_admin: ["intune", "scripts", "export"],
-  entra_admin: ["entra", "export"],
-  security_admin: ["security", "entra", "intune", "export"],
-  readonly: ["entra", "intune", "security", "scripts", "export"],
+  global_admin:    ["entra", "intune", "security", "scripts", "export", "admin", "approval_queue", "deployment_plans"],
+  intune_admin:    ["intune", "scripts", "export", "deployment_plans"],
+  entra_admin:     ["entra", "export"],
+  security_admin:  ["security", "entra", "intune", "export", "approval_queue"],
+  approval_admin:  ["approval_queue", "admin"],
+  deployment_mgr:  ["intune", "scripts", "export", "deployment_plans"],
+  readonly:        ["entra", "intune", "security", "scripts", "export"],
 };
 
 const READONLY_ROLES = ["readonly"];

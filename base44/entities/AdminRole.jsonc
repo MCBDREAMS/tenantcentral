@@ -1,0 +1,41 @@
+{
+  "name": "AdminRole",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "global_admin",
+        "intune_admin",
+        "entra_admin",
+        "security_admin",
+        "approval_admin",
+        "deployment_mgr",
+        "readonly"
+      ],
+      "default": "readonly"
+    },
+    "assigned_tenants": {
+      "type": "string",
+      "description": "Comma-separated tenant IDs this admin can manage (empty = all)"
+    },
+    "allowed_sections": {
+      "type": "string",
+      "description": "Comma-separated sections: entra,intune,security,scripts,export,approval_queue,deployment_plans"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "user_email",
+    "role"
+  ]
+}

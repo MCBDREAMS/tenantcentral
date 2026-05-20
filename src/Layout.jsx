@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ const navSections = [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
       { name: "Company Portal", icon: AppWindow, page: "CompanyPortal" },
       { name: "Remote PS Console", icon: Terminal, page: "RemotePSConsole" },
+      { name: "Deployment Plans", icon: GitBranch, page: "DeploymentPlans" },
       { name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
       { name: "Windows Updates", icon: ShieldCheck, page: "WindowsUpdates" },
       { name: "Threat Insights", icon: ShieldAlert, page: "ThreatInsights" },
@@ -106,6 +107,7 @@ const navSections = [
     label: "Admin",
     section: "admin",
     items: [
+      { name: "Approval Queue", icon: Shield, page: "ApprovalQueue", badgeKey: "approvals" },
       { name: "Export Center", icon: FileText, page: "ExportCenter" },
       { name: "Audit Logs", icon: ClipboardList, page: "AuditLogs" },
       { name: "RBAC / Roles", icon: UserCog, page: "RbacAdmin" },
@@ -124,6 +126,7 @@ export default function Layout({ children, currentPageName }) {
   );
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenants, setTenants] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const { rbac, canAccess, filterTenants } = useRbac();
 
   useEffect(() => {
@@ -135,6 +138,17 @@ export default function Layout({ children, currentPageName }) {
         setSelectedTenant(scoped[0]);
       }
     });
+    // Poll for pending approvals every 60s (only for admins)
+    if (["global_admin", "security_admin", "approval_admin"].includes(rbac?.role)) {
+      const fetchCount = () => {
+        base44.functions.invoke("approvalEngine", { action: "count_pending" })
+          .then(res => setPendingApprovals(res.data?.count || 0))
+          .catch(() => {});
+      };
+      fetchCount();
+      const t = setInterval(fetchCount, 60000);
+      return () => clearInterval(t);
+    }
   }, [rbac]);
 
   const toggleSection = (index) => {
@@ -204,7 +218,10 @@ export default function Layout({ children, currentPageName }) {
                       title={item.name}
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {(sidebarOpen || mobile) && <span>{item.name}</span>}
+                      {(sidebarOpen || mobile) && <span className="flex-1">{item.name}</span>}
+                      {(sidebarOpen || mobile) && item.badgeKey === "approvals" && pendingApprovals > 0 && (
+                        <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">{pendingApprovals}</span>
+                      )}
                     </Link>
                   );
                 })}
