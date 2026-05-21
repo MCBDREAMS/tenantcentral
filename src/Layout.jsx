@@ -43,6 +43,7 @@ const navSections = [
     section: "intune",
     items: [
       { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
+      { name: "Starter Kit", icon: Rocket, page: "IntuneStarterKit" },
       { name: "Company Portal", icon: AppWindow, page: "CompanyPortal" },
       { name: "Remote PS Console", icon: Terminal, page: "RemotePSConsole" },
       { name: "Deployment Plans", icon: GitBranch, page: "DeploymentPlans" },
