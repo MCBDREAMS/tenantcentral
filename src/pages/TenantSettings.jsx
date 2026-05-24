@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Save, Plus, Trash2, Bell, RefreshCw, GitMerge } from "lucide-react";
+import { Settings, Save, Plus, Trash2, Bell, RefreshCw, GitMerge, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +43,8 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
   const [form, setForm] = useState(defaultSettings);
   const [mappings, setMappings] = useState([]);
   const [saved, setSaved] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const queryClient = useQueryClient();
 
   const activeTenant = selectedTenant;
@@ -280,7 +286,62 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
             />
           </CardContent>
         </Card>
+
+        {/* Danger Zone */}
+        <Card className="border-red-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <CardTitle className="text-base text-red-600">Danger Zone</CardTitle>
+            </div>
+            <CardDescription>Irreversible and destructive actions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 border border-red-200 rounded-xl bg-red-50">
+              <div>
+                <p className="text-sm font-semibold text-red-700">Delete Tenant Settings</p>
+                <p className="text-xs text-red-500 mt-0.5">Permanently remove all settings and field mappings for <strong>{activeTenant.name}</strong>. This cannot be undone.</p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="ml-4 shrink-0 min-h-[44px]"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tenant Settings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all settings and field mappings for <strong>{activeTenant.name}</strong>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleting}
+              onClick={async () => {
+                if (!existingSettings) { setShowDeleteDialog(false); return; }
+                setDeleting(true);
+                await base44.entities.TenantSettings.delete(existingSettings.id);
+                queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
+                setDeleting(false);
+                setShowDeleteDialog(false);
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete Settings"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

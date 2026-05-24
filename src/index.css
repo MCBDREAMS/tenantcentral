@@ -84,5 +84,19 @@
 
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none;
+  }
+
+  button, a, [role="button"], nav a {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (max-width: 768px) {
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 }

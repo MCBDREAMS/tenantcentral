@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
+import BottomNav from "@/components/mobile/BottomNav";
+import MobileHeader from "@/components/mobile/MobileHeader";
 import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
@@ -272,8 +274,8 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+        {/* Top Bar — desktop only */}
+        <header className="hidden md:flex h-14 bg-white border-b border-slate-200 items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -311,9 +313,16 @@ export default function Layout({ children, currentPageName }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto">
+          {/* Mobile top spacer */}
+          <div className="md:hidden h-14" />
           {React.cloneElement(children, { selectedTenant, tenants })}
+          {/* Mobile bottom spacer for BottomNav */}
+          <div className="md:hidden h-16" />
         </main>
       </div>
+
+      <MobileHeader currentPageName={currentPageName} />
+      <BottomNav />
     </div>
   );
 }

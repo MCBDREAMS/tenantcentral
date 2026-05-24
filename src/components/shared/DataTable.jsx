@@ -1,12 +1,23 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Download } from "lucide-react";
 
+function useIsMobile() {
+  const [mobile, setMobile] = React.useState(() => window.innerWidth < 768);
+  React.useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return mobile;
+}
+
 export default function DataTable({ columns, data, onExport, emptyMessage = "No data found" }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const isMobile = useIsMobile();
   const pageSize = 15;
 
   const filtered = useMemo(() => {
@@ -43,38 +54,59 @@ export default function DataTable({ columns, data, onExport, emptyMessage = "No 
         )}
       </div>
 
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50/80">
+      {isMobile ? (
+        /* Mobile: stacked card view */
+        <div className="space-y-3">
+          {paged.length === 0 ? (
+            <div className="text-center py-12 text-sm text-slate-400 border border-dashed rounded-xl">{emptyMessage}</div>
+          ) : paged.map((row, i) => (
+            <div key={row.id || i} className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
               {columns.map(col => (
-                <TableHead key={col.header} className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  {col.header}
-                </TableHead>
+                <div key={col.header} className="flex items-start justify-between gap-2 min-h-[44px]">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 pt-0.5">{col.header}</span>
+                  <span className="text-sm text-slate-700 text-right">
+                    {col.render ? col.render(row) : row[col.accessor]}
+                  </span>
+                </div>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paged.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-12 text-sm text-slate-400">
-                  {emptyMessage}
-                </TableCell>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Desktop: standard table */
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/80">
+                {columns.map(col => (
+                  <TableHead key={col.header} className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    {col.header}
+                  </TableHead>
+                ))}
               </TableRow>
-            ) : (
-              paged.map((row, i) => (
-                <TableRow key={row.id || i} className="hover:bg-slate-50/50 transition-colors">
-                  {columns.map(col => (
-                    <TableCell key={col.header} className="text-sm">
-                      {col.render ? col.render(row) : row[col.accessor]}
-                    </TableCell>
-                  ))}
+            </TableHeader>
+            <TableBody>
+              {paged.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center py-12 text-sm text-slate-400">
+                    {emptyMessage}
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : (
+                paged.map((row, i) => (
+                  <TableRow key={row.id || i} className="hover:bg-slate-50/50 transition-colors">
+                    {columns.map(col => (
+                      <TableCell key={col.header} className="text-sm">
+                        {col.render ? col.render(row) : row[col.accessor]}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-500">
