@@ -130,9 +130,14 @@ export default function Layout({ children, currentPageName }) {
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState(
-    navSections.map((_, i) => true)
-  );
+  const [expandedSections, setExpandedSections] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("nav_expanded_sections");
+      return stored ? JSON.parse(stored) : navSections.map(() => true);
+    } catch {
+      return navSections.map(() => true);
+    }
+  });
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
@@ -144,7 +149,13 @@ export default function Layout({ children, currentPageName }) {
       const scoped = filterTenants(t);
       setTenants(scoped);
       if (scoped.length > 0 && !selectedTenant) {
-        setSelectedTenant(scoped[0]);
+        try {
+          const storedId = sessionStorage.getItem("selected_tenant_id");
+          const restored = storedId ? scoped.find(x => x.id === storedId) : null;
+          setSelectedTenant(restored || scoped[0]);
+        } catch {
+          setSelectedTenant(scoped[0]);
+        }
       }
     });
     // Poll for pending approvals every 60s (only for admins)
@@ -161,7 +172,11 @@ export default function Layout({ children, currentPageName }) {
   }, [rbac]);
 
   const toggleSection = (index) => {
-    setExpandedSections(prev => prev.map((v, i) => i === index ? !v : v));
+    setExpandedSections(prev => {
+      const next = prev.map((v, i) => i === index ? !v : v);
+      try { sessionStorage.setItem("nav_expanded_sections", JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   const Sidebar = ({ mobile = false }) => (
@@ -184,6 +199,7 @@ export default function Layout({ children, currentPageName }) {
             onValueChange={(val) => {
               const t = tenants.find(t => t.id === val) || null;
               setSelectedTenant(t);
+              try { sessionStorage.setItem("selected_tenant_id", val); } catch {}
             }}
           >
             <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-slate-200 text-sm focus:ring-blue-500 min-h-[44px]">

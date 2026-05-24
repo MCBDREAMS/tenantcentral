@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import MobileSelect from "@/components/mobile/MobileSelect";
 import { ShieldCheck, Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,12 +43,51 @@ const catColors = {
   compliance: "bg-cyan-50 text-cyan-700",
 };
 
+const CATEGORY_OPTIONS = [
+  { value: "all", label: "All Categories" },
+  { value: "privileged", label: "Privileged" },
+  { value: "identity", label: "Identity" },
+  { value: "security", label: "Security" },
+  { value: "device", label: "Device" },
+  { value: "apps", label: "Apps" },
+  { value: "compliance", label: "Compliance" },
+];
+
 export default function EntraRoles({ selectedTenant, tenants }) {
+  const queryClient = useQueryClient();
   const { canEdit } = useRbac();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [showAssign, setShowAssign] = useState(null); // role name
   const [assignEmail, setAssignEmail] = useState("");
+  const [assignedRoles, setAssignedRoles] = useState({}); // optimistic: { [roleName]: email[] }
+
+  const assignMut = useMutation({
+    mutationFn: async ({ roleName, email, tenantId, tenantName }) => {
+      await logAction({
+        action: "ASSIGN_ENTRA_ROLE",
+        category: "entra_policy",
+        tenant_id: tenantId,
+        tenant_name: tenantName,
+        target_name: `${email} → ${roleName}`,
+        severity: "warning",
+      });
+    },
+    onMutate: ({ roleName, email }) => {
+      // Optimistic: immediately show the assignment
+      setAssignedRoles(prev => ({
+        ...prev,
+        [roleName]: [...(prev[roleName] || []), email],
+      }));
+    },
+    onError: (_err, { roleName, email }) => {
+      // Rollback on error
+      setAssignedRoles(prev => ({
+        ...prev,
+        [roleName]: (prev[roleName] || []).filter(e => e !== email),
+      }));
+    },
+  });
 
   const filtered = BUILTIN_ROLES.filter(r => {
     if (filter !== "all" && r.category !== filter) return false;
@@ -67,15 +107,13 @@ export default function EntraRoles({ selectedTenant, tenants }) {
 
       <div className="flex gap-3 mb-5 flex-wrap">
         <Input placeholder="Search roles..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 w-56 text-sm" />
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="h-9 w-36 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {["privileged","identity","security","device","apps","compliance"].map(c => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MobileSelect
+          label="Filter by category"
+          value={filter}
+          onValueChange={setFilter}
+          options={CATEGORY_OPTIONS}
+          triggerClassName="h-9 w-36 text-sm"
+        />
         <span className="text-xs text-slate-400 self-center ml-auto">{filtered.length} roles</span>
       </div>
 
@@ -89,6 +127,13 @@ export default function EntraRoles({ selectedTenant, tenants }) {
               </div>
               <Badge className={`${catColors[role.category]} border-0 text-xs shrink-0`}>{role.category}</Badge>
             </div>
+            {assignedRoles[role.name]?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {assignedRoles[role.name].map(email => (
+                  <span key={email} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">{email}</span>
+                ))}
+              </div>
+            )}
             {canEdit() && (
               <Button variant="outline" size="sm" className="gap-1.5 text-xs mt-auto" onClick={() => { setShowAssign(role.name); setAssignEmail(""); }}>
                 <Users className="h-3.5 w-3.5" /> Assign Member
@@ -110,11 +155,20 @@ export default function EntraRoles({ selectedTenant, tenants }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAssign(null)}>Cancel</Button>
-            <Button className="bg-slate-900 hover:bg-slate-800" onClick={async () => {
-              await logAction({ action: "ASSIGN_ENTRA_ROLE", category: "entra_policy", tenant_id: selectedTenant?.id, tenant_name: selectedTenant?.name, target_name: `${assignEmail} → ${showAssign}`, severity: "warning" });
-              setShowAssign(null);
-            }} disabled={!assignEmail}>
-              Assign
+            <Button
+              className="bg-slate-900 hover:bg-slate-800"
+              disabled={!assignEmail || assignMut.isPending}
+              onClick={() => {
+                assignMut.mutate({
+                  roleName: showAssign,
+                  email: assignEmail,
+                  tenantId: selectedTenant?.id,
+                  tenantName: selectedTenant?.name,
+                });
+                setShowAssign(null);
+              }}
+            >
+              {assignMut.isPending ? "Assigning…" : "Assign"}
             </Button>
           </DialogFooter>
         </DialogContent>

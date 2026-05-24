@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Save, Plus, Trash2, Bell, RefreshCw, GitMerge, AlertTriangle } from "lucide-react";
+import { Settings, Save, Plus, Trash2, Bell, RefreshCw, GitMerge, AlertTriangle, UserX } from "lucide-react";
+import MobileSelect from "@/components/mobile/MobileSelect";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
@@ -44,6 +45,8 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
   const [mappings, setMappings] = useState([]);
   const [saved, setSaved] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const queryClient = useQueryClient();
 
@@ -79,6 +82,20 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
       } else {
         return base44.entities.TenantSettings.create(data);
       }
+    },
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ["tenant-settings"] });
+      const previous = queryClient.getQueryData(["tenant-settings"]);
+      queryClient.setQueryData(["tenant-settings"], (old = []) => {
+        if (existingSettings) {
+          return old.map(s => s.id === existingSettings.id ? { ...s, ...data } : s);
+        }
+        return [...old, { ...data, id: "__optimistic__" }];
+      });
+      return { previous };
+    },
+    onError: (_err, _data, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(["tenant-settings"], ctx.previous);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
@@ -143,19 +160,12 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
           <CardContent>
             <div className="max-w-xs">
               <Label className="text-xs mb-1.5 block">Default Sync Interval</Label>
-              <Select
+              <MobileSelect
+                label="Sync Interval"
                 value={String(form.sync_interval_minutes)}
                 onValueChange={v => setForm(f => ({ ...f, sync_interval_minutes: Number(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SYNC_INTERVALS.map(i => (
-                    <SelectItem key={i.value} value={String(i.value)}>{i.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={SYNC_INTERVALS.map(i => ({ value: String(i.value), label: i.label }))}
+              />
             </div>
           </CardContent>
         </Card>
@@ -296,7 +306,8 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
             </div>
             <CardDescription>Irreversible and destructive actions.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Delete Settings */}
             <div className="flex items-center justify-between p-4 border border-red-200 rounded-xl bg-red-50">
               <div>
                 <p className="text-sm font-semibold text-red-700">Delete Tenant Settings</p>
@@ -309,6 +320,22 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
                 onClick={() => setShowDeleteDialog(true)}
               >
                 <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+              </Button>
+            </div>
+
+            {/* Delete Account */}
+            <div className="flex items-center justify-between p-4 border border-red-300 rounded-xl bg-red-50">
+              <div>
+                <p className="text-sm font-semibold text-red-800">Delete Account</p>
+                <p className="text-xs text-red-600 mt-0.5">Permanently delete the tenant <strong>{activeTenant.name}</strong> and all associated data from this platform. This action is irreversible.</p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="ml-4 shrink-0 min-h-[44px] bg-red-700 hover:bg-red-800"
+                onClick={() => { setDeleteConfirmText(""); setShowDeleteAccountDialog(true); }}
+              >
+                <UserX className="h-4 w-4 mr-1.5" /> Delete Account
               </Button>
             </div>
           </CardContent>
@@ -338,6 +365,54 @@ export default function TenantSettings({ selectedTenant, tenants = [] }) {
               }}
             >
               {deleting ? "Deleting…" : "Delete Settings"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Account Dialog */}
+      <AlertDialog open={showDeleteAccountDialog} onOpenChange={setShowDeleteAccountDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-700 flex items-center gap-2">
+              <UserX className="h-5 w-5" /> Delete Account
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>This will permanently delete tenant <strong>{activeTenant.name}</strong> and all associated records (settings, devices, users, policies, scripts) from this platform.</p>
+                <p className="text-red-600 font-medium">This action cannot be undone. All data will be lost.</p>
+                <div className="pt-1">
+                  <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    Type <span className="font-mono bg-slate-100 px-1 rounded">{activeTenant.name}</span> to confirm
+                  </label>
+                  <input
+                    className="w-full border border-red-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    placeholder={activeTenant.name}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-700 hover:bg-red-800 text-white"
+              disabled={deleting || deleteConfirmText !== activeTenant.name}
+              onClick={async () => {
+                setDeleting(true);
+                if (existingSettings) {
+                  await base44.entities.TenantSettings.delete(existingSettings.id);
+                }
+                await base44.entities.Tenant.delete(activeTenant.id);
+                queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
+                queryClient.invalidateQueries({ queryKey: ["tenants"] });
+                setDeleting(false);
+                setShowDeleteAccountDialog(false);
+              }}
+            >
+              {deleting ? "Deleting…" : "Permanently Delete Account"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
