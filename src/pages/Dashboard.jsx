@@ -15,9 +15,11 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Progress } from "@/components/ui/progress";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { useChartColors } from "@/hooks/useChartColors";
 import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard({ selectedTenant, tenants }) {
+  const chartColors = useChartColors();
   const tenantFilter = selectedTenant?.id ? { tenant_id: selectedTenant.id } : {};
 
   const { data: allTenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: () => base44.entities.Tenant.list() });
@@ -63,15 +65,15 @@ export default function Dashboard({ selectedTenant, tenants }) {
   const connectedTenants = allTenants.filter(t => t.status === 'connected').length;
 
   const devicePieData = devices.length > 0 ? [
-    { name: "Compliant", value: compliantDevices, color: "#10b981" },
-    { name: "Non-Compliant", value: nonCompliantDevices, color: "#ef4444" },
-    { name: "Other", value: devices.length - compliantDevices - nonCompliantDevices, color: "#94a3b8" },
+    { name: "Compliant", value: compliantDevices, color: chartColors.compliant },
+    { name: "Non-Compliant", value: nonCompliantDevices, color: chartColors.nonCompliant },
+    { name: "Other", value: devices.length - compliantDevices - nonCompliantDevices, color: chartColors.other },
   ].filter(d => d.value > 0) : [];
 
   const policyPieData = policies.length > 0 ? [
-    { name: "Enabled", value: enabledPolicies, color: "#10b981" },
-    { name: "Report Only", value: reportOnlyPolicies, color: "#3b82f6" },
-    { name: "Disabled", value: disabledPolicies, color: "#94a3b8" },
+    { name: "Enabled", value: enabledPolicies, color: chartColors.enabled },
+    { name: "Report Only", value: reportOnlyPolicies, color: chartColors.reportOnly },
+    { name: "Disabled", value: disabledPolicies, color: chartColors.disabled },
   ].filter(d => d.value > 0) : [];
 
   // Telemetry staleness calculation
@@ -166,6 +168,7 @@ export default function Dashboard({ selectedTenant, tenants }) {
                   <Pie data={policyPieData} cx="50%" cy="50%" innerRadius={25} outerRadius={40} dataKey="value" paddingAngle={2}>
                     {policyPieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
+                  <Tooltip contentStyle={{ background: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.tooltipText, borderRadius: 8, fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5">

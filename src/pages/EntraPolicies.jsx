@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Shield, Eye, Pencil, Plus, GitBranch, List } from "lucide-react";
 import CAPolicyWizard from "@/components/entra/CAPolicyWizard";
 import CAPolicyFlowChart from "@/components/entra/CAPolicyFlowChart";
@@ -31,6 +31,27 @@ export default function EntraPolicies({ selectedTenant }) {
     queryFn: () => base44.entities.Tenant.list(),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.EntraPolicy.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['entra-policies'] }),
+  });
+
+  const handleToggleState = (policy) => {
+    const nextState = policy.state === 'enabled' ? 'disabled' : 'enabled';
+    // Optimistic update
+    queryClient.setQueryData(['entra-policies', selectedTenant?.id], (old = []) =>
+      old.map(p => p.id === policy.id ? { ...p, state: nextState } : p)
+    );
+    updateMutation.mutate({ id: policy.id, data: { state: nextState } }, {
+      onError: () => {
+        // Revert on failure
+        queryClient.setQueryData(['entra-policies', selectedTenant?.id], (old = []) =>
+          old.map(p => p.id === policy.id ? { ...p, state: policy.state } : p)
+        );
+      },
+    });
+  };
+
   const getTenantName = (tid) => allTenants.find(t => t.id === tid)?.name || tid;
 
   const typeColors = {
@@ -50,7 +71,11 @@ export default function EntraPolicies({ selectedTenant }) {
         {r.policy_type?.replace(/_/g, ' ')}
       </Badge>
     )},
-    { header: "State", accessor: "state", render: (r) => <StatusBadge status={r.state} /> },
+    { header: "State", accessor: "state", render: (r) => (
+      <button onClick={() => handleToggleState(r)} title="Click to toggle state" className="focus:outline-none">
+        <StatusBadge status={r.state} />
+      </button>
+    )},
     { header: "Target Users", accessor: "target_users", render: (r) => <span className="text-xs text-slate-500">{r.target_users || "—"}</span> },
     { header: "Target Apps", accessor: "target_apps", render: (r) => <span className="text-xs text-slate-500">{r.target_apps || "—"}</span> },
     { header: "Grant Controls", accessor: "grant_controls", render: (r) => <span className="text-xs text-slate-500">{r.grant_controls || "—"}</span> },

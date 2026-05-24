@@ -93,7 +93,18 @@ export default function WorkflowEngine({ selectedTenant, tenants = [] }) {
   };
 
   const handleToggle = async (rule) => {
-    await updateMutation.mutateAsync({ id: rule.id, data: { is_active: !rule.is_active } });
+    // Optimistic update
+    qc.setQueryData(["workflow_rules", selectedTenant?.id], (old = []) =>
+      old.map(r => r.id === rule.id ? { ...r, is_active: !r.is_active } : r)
+    );
+    try {
+      await updateMutation.mutateAsync({ id: rule.id, data: { is_active: !rule.is_active } });
+    } catch {
+      // Revert on failure
+      qc.setQueryData(["workflow_rules", selectedTenant?.id], (old = []) =>
+        old.map(r => r.id === rule.id ? { ...r, is_active: rule.is_active } : r)
+      );
+    }
   };
 
   const handleDelete = async (rule) => {

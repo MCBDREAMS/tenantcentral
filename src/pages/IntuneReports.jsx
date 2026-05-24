@@ -5,9 +5,10 @@ import { BarChart2, MonitorSmartphone, AppWindow, ShieldCheck, CheckCircle2, XCi
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
 
-const COLORS = ["#22c55e", "#ef4444", "#f59e0b", "#94a3b8"];
+import { useChartColors } from "@/hooks/useChartColors";
 
 export default function IntuneReports({ selectedTenant, tenants }) {
+  const chartColors = useChartColors();
   const { data: devices = [] } = useQuery({
     queryKey: ["devices", selectedTenant?.id],
     queryFn: () => selectedTenant?.id ? base44.entities.IntuneDevice.filter({ tenant_id: selectedTenant.id }) : base44.entities.IntuneDevice.list(),
@@ -21,6 +22,8 @@ export default function IntuneReports({ selectedTenant, tenants }) {
   const { data: allTenants = [] } = useQuery({
     queryKey: ["tenants"], queryFn: () => base44.entities.Tenant.list(), initialData: tenants || [],
   });
+
+  const COLORS = [chartColors.compliant, chartColors.nonCompliant, chartColors.gracePeriod, chartColors.notEvaluated];
 
   const complianceData = useMemo(() => {
     const counts = { compliant: 0, non_compliant: 0, in_grace_period: 0, not_evaluated: 0 };
@@ -85,7 +88,7 @@ export default function IntuneReports({ selectedTenant, tenants }) {
               <Pie data={complianceData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
                 {complianceData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip contentStyle={{ background: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.tooltipText, borderRadius: 8, fontSize: 12 }} />
               <Legend iconType="circle" iconSize={8} />
             </PieChart>
           </ResponsiveContainer>
@@ -96,11 +99,11 @@ export default function IntuneReports({ selectedTenant, tenants }) {
           <h3 className="text-sm font-semibold text-slate-800 mb-4">App Deployment Status</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={appInstallData} margin={{ left: -20 }}>
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="installed" fill="#22c55e" radius={[3,3,0,0]} name="Installed" />
-              <Bar dataKey="failed" fill="#ef4444" radius={[3,3,0,0]} name="Failed" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: chartColors.axisColor }} />
+              <YAxis tick={{ fontSize: 10, fill: chartColors.axisColor }} />
+              <Tooltip contentStyle={{ background: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.tooltipText, borderRadius: 8, fontSize: 12 }} />
+              <Bar dataKey="installed" fill={chartColors.installed} radius={[3,3,0,0]} name="Installed" />
+              <Bar dataKey="failed" fill={chartColors.failed} radius={[3,3,0,0]} name="Failed" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -111,12 +114,12 @@ export default function IntuneReports({ selectedTenant, tenants }) {
             <h3 className="text-sm font-semibold text-slate-800 mb-4">Devices by Tenant & OS</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={osByTenant} margin={{ left: -20 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartColors.axisColor }} />
+                <YAxis tick={{ fontSize: 10, fill: chartColors.axisColor }} />
+                <Tooltip contentStyle={{ background: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.tooltipText, borderRadius: 8, fontSize: 12 }} />
                 <Legend iconType="circle" iconSize={8} />
                 {["Windows 10", "Windows 11", "macOS", "iOS", "Android"].map((os, i) => (
-                  <Bar key={os} dataKey={os} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === 0 ? [0,0,3,3] : [0,0,0,0]} />
+                  <Bar key={os} dataKey={os} stackId="a" fill={chartColors.palette[i % chartColors.palette.length]} radius={i === 0 ? [0,0,3,3] : [0,0,0,0]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
