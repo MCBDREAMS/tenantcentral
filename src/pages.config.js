@@ -1,103 +1,60 @@
 /**
- * pages.config.js - Page routing configuration
- * 
- * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
- * Pages are auto-registered when you create files in the ./pages/ folder.
- * 
- * THE ONLY EDITABLE VALUE: mainPage
- * This controls which page is the landing page (shown when users visit the app).
- * 
- * Example file structure:
- * 
- *   import HomePage from './pages/HomePage';
- *   import Dashboard from './pages/Dashboard';
- *   import Settings from './pages/Settings';
- *   
- *   export const PAGES = {
- *       "HomePage": HomePage,
- *       "Dashboard": Dashboard,
- *       "Settings": Settings,
- *   }
- *   
- *   export const pagesConfig = {
- *       mainPage: "HomePage",
- *       Pages: PAGES,
- *   };
- * 
- * Example with Layout (wraps all pages):
- *
- *   import Home from './pages/Home';
- *   import Settings from './pages/Settings';
- *   import __Layout from './Layout.jsx';
- *
- *   export const PAGES = {
- *       "Home": Home,
- *       "Settings": Settings,
- *   }
- *
- *   export const pagesConfig = {
- *       mainPage: "Home",
- *       Pages: PAGES,
- *       Layout: __Layout,
- *   };
- *
- * To change the main page from HomePage to Dashboard, use find_replace:
- *   Old: mainPage: "HomePage",
- *   New: mainPage: "Dashboard",
- *
- * The mainPage value must match a key in the PAGES object exactly.
+ * pages.config.js - Page routing configuration (lazy-loaded for mobile WebView perf)
  */
-import AdminConsole from './pages/AdminConsole';
-import DeviceAppMonitor from './pages/DeviceAppMonitor';
-import AppPermissionsCopy from './pages/AppPermissionsCopy';
-import AuditLogs from './pages/AuditLogs';
-import ComplianceReporting from './pages/ComplianceReporting';
-import Dashboard from './pages/Dashboard';
-import DeviceScripts from './pages/DeviceScripts';
-import EntraAuthMethods from './pages/EntraAuthMethods';
-import EntraGroups from './pages/EntraGroups';
-import EntraNamedLocations from './pages/EntraNamedLocations';
-import EntraPolicies from './pages/EntraPolicies';
-import EntraRoles from './pages/EntraRoles';
-import EntraUsers from './pages/EntraUsers';
-import ExportCenter from './pages/ExportCenter';
-import IntuneApps from './pages/IntuneApps';
-import IntuneAutopilot from './pages/IntuneAutopilot';
-import IntuneDevices from './pages/IntuneDevices';
-import IntuneFilters from './pages/IntuneFilters';
-import IntuneProfiles from './pages/IntuneProfiles';
-import IntuneReports from './pages/IntuneReports';
-import MdmSolutions from './pages/MdmSolutions';
-import MobileDevices from './pages/MobileDevices';
-import OnPremSync from './pages/OnPremSync';
-import PortalDefender from './pages/PortalDefender';
-import PortalExchange from './pages/PortalExchange';
-import PortalServiceHealth from './pages/PortalServiceHealth';
-import PortalSharePoint from './pages/PortalSharePoint';
-import PortalTeams from './pages/PortalTeams';
-import RbacAdmin from './pages/RbacAdmin';
-import SecurityBaselines from './pages/SecurityBaselines';
-import TenantAnalyzer from './pages/TenantAnalyzer';
-import TenantSettings from './pages/TenantSettings';
-import Tenants from './pages/Tenants';
-import ThreatInsights from './pages/ThreatInsights';
-import WindowsUpdates from './pages/WindowsUpdates';
-import SophosReport from './pages/SophosReport';
-import LicenseAdmin from './pages/LicenseAdmin';
-import AzureAppRegistrations from './pages/AzureAppRegistrations';
-import About from './pages/About';
-import NetworkMap from './pages/NetworkMap';
-import SopGenerator from './pages/SopGenerator';
-import EntraDevices from './pages/EntraDevices';
-import EntraCompliance from './pages/EntraCompliance';
-import WorkflowEngine from './pages/WorkflowEngine';
-import HybridSetupAnalyzer from './pages/HybridSetupAnalyzer';
-import CompanyPortal from './pages/CompanyPortal';
-import RemotePSConsole from './pages/RemotePSConsole';
-import ApprovalQueue from './pages/ApprovalQueue';
-import DeploymentPlans from './pages/DeploymentPlans';
+import React, { Suspense } from 'react';
 import __Layout from './Layout.jsx';
 
+const lazy = (fn) => React.lazy(fn);
+
+const AdminConsole        = lazy(() => import('./pages/AdminConsole'));
+const DeviceAppMonitor    = lazy(() => import('./pages/DeviceAppMonitor'));
+const AppPermissionsCopy  = lazy(() => import('./pages/AppPermissionsCopy'));
+const AuditLogs           = lazy(() => import('./pages/AuditLogs'));
+const ComplianceReporting = lazy(() => import('./pages/ComplianceReporting'));
+const Dashboard           = lazy(() => import('./pages/Dashboard'));
+const DeviceScripts       = lazy(() => import('./pages/DeviceScripts'));
+const EntraAuthMethods    = lazy(() => import('./pages/EntraAuthMethods'));
+const EntraGroups         = lazy(() => import('./pages/EntraGroups'));
+const EntraNamedLocations = lazy(() => import('./pages/EntraNamedLocations'));
+const EntraPolicies       = lazy(() => import('./pages/EntraPolicies'));
+const EntraRoles          = lazy(() => import('./pages/EntraRoles'));
+const EntraUsers          = lazy(() => import('./pages/EntraUsers'));
+const ExportCenter        = lazy(() => import('./pages/ExportCenter'));
+const IntuneApps          = lazy(() => import('./pages/IntuneApps'));
+const IntuneAutopilot     = lazy(() => import('./pages/IntuneAutopilot'));
+const IntuneDevices       = lazy(() => import('./pages/IntuneDevices'));
+const IntuneFilters       = lazy(() => import('./pages/IntuneFilters'));
+const IntuneProfiles      = lazy(() => import('./pages/IntuneProfiles'));
+const IntuneReports       = lazy(() => import('./pages/IntuneReports'));
+const MdmSolutions        = lazy(() => import('./pages/MdmSolutions'));
+const MobileDevices       = lazy(() => import('./pages/MobileDevices'));
+const OnPremSync          = lazy(() => import('./pages/OnPremSync'));
+const PortalDefender      = lazy(() => import('./pages/PortalDefender'));
+const PortalExchange      = lazy(() => import('./pages/PortalExchange'));
+const PortalServiceHealth = lazy(() => import('./pages/PortalServiceHealth'));
+const PortalSharePoint    = lazy(() => import('./pages/PortalSharePoint'));
+const PortalTeams         = lazy(() => import('./pages/PortalTeams'));
+const RbacAdmin           = lazy(() => import('./pages/RbacAdmin'));
+const SecurityBaselines   = lazy(() => import('./pages/SecurityBaselines'));
+const TenantAnalyzer      = lazy(() => import('./pages/TenantAnalyzer'));
+const TenantSettings      = lazy(() => import('./pages/TenantSettings'));
+const Tenants             = lazy(() => import('./pages/Tenants'));
+const ThreatInsights      = lazy(() => import('./pages/ThreatInsights'));
+const WindowsUpdates      = lazy(() => import('./pages/WindowsUpdates'));
+const SophosReport        = lazy(() => import('./pages/SophosReport'));
+const LicenseAdmin        = lazy(() => import('./pages/LicenseAdmin'));
+const AzureAppRegistrations = lazy(() => import('./pages/AzureAppRegistrations'));
+const About               = lazy(() => import('./pages/About'));
+const NetworkMap          = lazy(() => import('./pages/NetworkMap'));
+const SopGenerator        = lazy(() => import('./pages/SopGenerator'));
+const EntraDevices        = lazy(() => import('./pages/EntraDevices'));
+const EntraCompliance     = lazy(() => import('./pages/EntraCompliance'));
+const WorkflowEngine      = lazy(() => import('./pages/WorkflowEngine'));
+const HybridSetupAnalyzer = lazy(() => import('./pages/HybridSetupAnalyzer'));
+const CompanyPortal       = lazy(() => import('./pages/CompanyPortal'));
+const RemotePSConsole     = lazy(() => import('./pages/RemotePSConsole'));
+const ApprovalQueue       = lazy(() => import('./pages/ApprovalQueue'));
+const DeploymentPlans     = lazy(() => import('./pages/DeploymentPlans'));
 
 export const PAGES = {
     "AdminConsole": AdminConsole,

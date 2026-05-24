@@ -5,6 +5,9 @@ import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
 import BottomNav from "@/components/mobile/BottomNav";
 import MobileHeader from "@/components/mobile/MobileHeader";
+import PullToRefresh from "@/components/mobile/PullToRefresh";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
@@ -14,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const navSections = [
   {
@@ -122,6 +126,8 @@ const navSections = [
 ];
 
 export default function Layout({ children, currentPageName }) {
+  const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(
@@ -173,19 +179,23 @@ export default function Layout({ children, currentPageName }) {
       {/* Tenant Selector */}
       {(sidebarOpen || mobile) && (
         <div className="px-3 py-3 border-b border-slate-800">
-          <select
+          <Select
             value={selectedTenant?.id || ""}
-            onChange={(e) => {
-              const t = tenants.find(t => t.id === e.target.value);
+            onValueChange={(val) => {
+              const t = tenants.find(t => t.id === val) || null;
               setSelectedTenant(t);
             }}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            {rbac?.role === "global_admin" && <option value="">All Tenants</option>}
-            {tenants.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-slate-200 text-sm focus:ring-blue-500 min-h-[44px]">
+              <SelectValue placeholder="All Tenants" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+              {rbac?.role === "global_admin" && <SelectItem value={null}>All Tenants</SelectItem>}
+              {tenants.map(t => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -312,17 +322,22 @@ export default function Layout({ children, currentPageName }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
-          {/* Mobile top spacer */}
-          <div className="md:hidden h-14" />
-          {React.cloneElement(children, { selectedTenant, tenants })}
-          {/* Mobile bottom spacer for BottomNav */}
-          <div className="md:hidden h-16" />
-        </main>
+        {isMobile ? (
+          <PullToRefresh onRefresh={() => queryClient.invalidateQueries()}>
+            <div className="h-14" />
+            {React.cloneElement(children, { selectedTenant, tenants })}
+            <div className="h-16" />
+          </PullToRefresh>
+        ) : (
+          <main className="flex-1 overflow-auto h-full">
+            {React.cloneElement(children, { selectedTenant, tenants })}
+          </main>
+        )}
       </div>
 
       <MobileHeader currentPageName={currentPageName} />
       <BottomNav />
     </div>
   );
+
 }

@@ -3,20 +3,75 @@ import LicenseGate from '@/components/shared/LicenseGate';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import ClientRegister from './pages/ClientRegister';
 import IntuneStarterKit from './pages/IntuneStarterKit';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { AnimatePresence, motion } from 'framer-motion';
+import React, { Suspense } from 'react';
 
 const { Pages, Layout: PageLayout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-40">
+    <div className="w-6 h-6 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
+  </div>
+);
+
 const LayoutWrapper = ({ children, currentPageName }) => PageLayout ?
   <PageLayout currentPageName={currentPageName}>{children}</PageLayout>
   : <>{children}</>;
+
+const pageVariants = {
+  initial: { opacity: 0, x: 24 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -24 },
+};
+
+const AnimatedRoutes = () => {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        transition={{ duration: 0.18, ease: "easeInOut" }}
+        className="flex-1 flex flex-col min-h-0"
+      >
+        <Suspense fallback={<PageFallback />}>
+          <Routes location={location}>
+            <Route path="/" element={
+              <LayoutWrapper currentPageName={mainPageKey}>
+                <MainPage />
+              </LayoutWrapper>
+            } />
+            {Object.entries(Pages).map(([path, Page]) => (
+              <Route
+                key={path}
+                path={`/${path}`}
+                element={
+                  <LayoutWrapper currentPageName={path}>
+                    <Page />
+                  </LayoutWrapper>
+                }
+              />
+            ))}
+            <Route path="/IntuneStarterKit" element={<LayoutWrapper currentPageName="IntuneStarterKit"><IntuneStarterKit /></LayoutWrapper>} />
+            <Route path="/register" element={<ClientRegister />} />
+            <Route path="*" element={<PageNotFound />} />
+          </Routes>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -42,29 +97,7 @@ const AuthenticatedApp = () => {
   }
 
   // Render the main app
-  return (
-    <Routes>
-      <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
-      } />
-      {Object.entries(Pages).map(([path, Page]) => (
-        <Route
-          key={path}
-          path={`/${path}`}
-          element={
-            <LayoutWrapper currentPageName={path}>
-              <Page />
-            </LayoutWrapper>
-          }
-        />
-      ))}
-      <Route path="/IntuneStarterKit" element={<LayoutWrapper currentPageName="IntuneStarterKit"><IntuneStarterKit /></LayoutWrapper>} />
-      <Route path="/register" element={<ClientRegister />} />
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
-  );
+  return <AnimatedRoutes />;
 };
 
 
