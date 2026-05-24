@@ -267,8 +267,8 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/60">
               <Lock className="h-3 w-3 text-slate-500" />
               <span className="text-xs text-slate-400 truncate">{rbac.email}</span>
-              <Badge className="ml-auto text-[9px] px-1.5 py-0 bg-slate-700 text-slate-300 border-0 shrink-0">
-                {rbac.role?.replace(/_/g, " ")}
+              <Badge className={`ml-auto text-[9px] px-1.5 py-0 border-0 shrink-0 ${rbac.role === "local_admin" ? "bg-purple-600 text-white" : rbac.role === "tenant_admin" ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300"}`}>
+                {rbac.role === "local_admin" ? "Local Admin" : rbac.role?.replace(/_/g, " ")}
               </Badge>
             </div>
           )}
