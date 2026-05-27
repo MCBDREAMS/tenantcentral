@@ -297,6 +297,94 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, report });
     }
 
+    // ── Migrate: fetch scripts from source tenant (Adidy/ADI) ─────────────────
+    if (action === "list_source_scripts") {
+      const { source_tenant_id } = body;
+      const srcToken = await getAccessToken(source_tenant_id);
+      const res = await fetch("https://graph.microsoft.com/v1.0/deviceManagement/deviceManagementScripts?$select=id,displayName,description,scriptContent,runAsAccount,runAs32Bit,enforceSignatureCheck,fileName,platform", {
+        headers: { Authorization: `Bearer ${srcToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(`Graph error: ${JSON.stringify(data)}`);
+      // Decode base64 script content
+      const scripts = (data.value || []).map(s => ({
+        ...s,
+        scriptContentDecoded: s.scriptContent ? atob(s.scriptContent) : ""
+      }));
+      return Response.json({ success: true, scripts });
+    }
+
+    // ── Migrate: push selected scripts to target tenant ────────────────────────
+    if (action === "push_scripts_to_target") {
+      const { target_tenant_id, scripts } = body;
+      const tgtToken = await getAccessToken(target_tenant_id);
+      const results = [];
+      for (const script of scripts) {
+        const encodedContent = btoa(script.scriptContentDecoded || script.script_content || "");
+        const payload = {
+          "@odata.type": "#microsoft.graph.deviceManagementScript",
+          displayName: script.displayName || script.script_name,
+          description: script.description || "",
+          scriptContent: encodedContent,
+          runAsAccount: script.runAsAccount || "system",
+          runAs32Bit: script.runAs32Bit === true,
+          enforceSignatureCheck: script.enforceSignatureCheck === true,
+          fileName: script.fileName || `${(script.displayName || "script").replace(/\s+/g, "_")}.ps1`,
+        };
+        const res = await fetch("https://graph.microsoft.com/v1.0/deviceManagement/deviceManagementScripts", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tgtToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        results.push({
+          name: payload.displayName,
+          success: res.ok,
+          id: data.id,
+          error: res.ok ? null : (data.error?.message || "Unknown error")
+        });
+      }
+      return Response.json({ success: true, results });
+    }
+
+    // ── Migrate: fetch device inventory from source tenant ─────────────────────
+    if (action === "list_source_devices") {
+      const { source_tenant_id } = body;
+      const srcToken = await getAccessToken(source_tenant_id);
+      const res = await fetch("https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,enrolledDateTime,lastSyncDateTime,serialNumber,model,manufacturer&$top=200", {
+        headers: { Authorization: `Bearer ${srcToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(`Graph error: ${JSON.stringify(data)}`);
+      return Response.json({ success: true, devices: data.value || [] });
+    }
+
+    // ── Migrate: import device inventory into target Base44 tenant ─────────────
+    if (action === "import_devices_to_target") {
+      const { target_tenant_record_id, devices } = body;
+      const osMap = { Windows: "Windows 11", macOS: "macOS", iOS: "iOS", Android: "Android" };
+      const compMap = { compliant: "compliant", noncompliant: "non_compliant", inGracePeriod: "in_grace_period" };
+      let imported = 0, skipped = 0;
+      for (const d of devices) {
+        const existing = await base44.asServiceRole.entities.IntuneDevice.filter({ tenant_id: target_tenant_record_id, device_name: d.deviceName });
+        if (existing.length > 0) { skipped++; continue; }
+        await base44.asServiceRole.entities.IntuneDevice.create({
+          tenant_id: target_tenant_record_id,
+          device_name: d.deviceName || "",
+          os: osMap[d.operatingSystem] || d.operatingSystem || "Windows 11",
+          compliance_state: compMap[d.complianceState] || "not_evaluated",
+          ownership: d.managedDeviceOwnerType === "personal" ? "personal" : "corporate",
+          primary_user: d.userPrincipalName || "",
+          enrolled_date: d.enrolledDateTime ? d.enrolledDateTime.split("T")[0] : "",
+          last_check_in: d.lastSyncDateTime ? d.lastSyncDateTime.split("T")[0] : "",
+          serial_number: d.serialNumber || "",
+          model: d.model || "",
+        });
+        imported++;
+      }
+      return Response.json({ success: true, imported, skipped, total: devices.length });
+    }
+
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
     console.error("[tenantWrite]", err.message);
