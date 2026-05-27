@@ -147,17 +147,17 @@ export default function ApprovalQueue({ selectedTenant }) {
     base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
   }, []);
 
-  const tenantFilter = selectedTenant?.id ? { tenant_id: selectedTenant.id } : {};
-
+  // Approval requests may have empty tenant_id (created by automated remediations),
+  // so always fetch ALL pending/history and filter client-side if a tenant is selected.
   const { data: pending = [], isLoading: loadingPending, refetch } = useQuery({
-    queryKey: ["approvals-pending", selectedTenant?.id],
-    queryFn: () => base44.entities.ApprovalRequest.filter({ ...tenantFilter, status: "pending" }, "-requested_at", 50),
+    queryKey: ["approvals-pending"],
+    queryFn: () => base44.entities.ApprovalRequest.filter({ status: "pending" }, "-requested_at", 50),
     refetchInterval: 30000,
   });
 
   const { data: history = [], isLoading: loadingHistory } = useQuery({
-    queryKey: ["approvals-history", selectedTenant?.id],
-    queryFn: () => base44.entities.ApprovalRequest.filter({ ...tenantFilter }, "-requested_at", 100),
+    queryKey: ["approvals-history"],
+    queryFn: () => base44.entities.ApprovalRequest.list("-requested_at", 100),
   });
 
   const approveMutation = useMutation({
