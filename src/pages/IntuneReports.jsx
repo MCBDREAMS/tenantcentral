@@ -1,11 +1,12 @@
 import React, { useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart2, MonitorSmartphone, AppWindow, ShieldCheck, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { BarChart2, MonitorSmartphone, AppWindow, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, Layers, ArrowUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
-
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useChartColors } from "@/hooks/useChartColors";
+import WindowsVersionReport from "@/components/windows/WindowsVersionReport";
 
 export default function IntuneReports({ selectedTenant, tenants }) {
   const chartColors = useChartColors();
@@ -56,6 +57,21 @@ export default function IntuneReports({ selectedTenant, tenants }) {
         icon={BarChart2}
       />
 
+      <Tabs defaultValue="overview" className="mb-6">
+        <TabsList className="bg-slate-100 mb-6">
+          <TabsTrigger value="overview" className="gap-1.5"><BarChart2 className="h-3.5 w-3.5" /> Overview</TabsTrigger>
+          <TabsTrigger value="windows" className="gap-1.5" disabled={!selectedTenant?.tenant_id}><Layers className="h-3.5 w-3.5" /> Windows Versions</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="windows">
+          {selectedTenant?.tenant_id ? (
+            <WindowsVersionReport selectedTenant={selectedTenant} />
+          ) : (
+            <div className="text-center py-20 text-slate-400 text-sm">Select a specific tenant to view Windows version data.</div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="overview">
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
@@ -126,6 +142,8 @@ export default function IntuneReports({ selectedTenant, tenants }) {
           </div>
         )}
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

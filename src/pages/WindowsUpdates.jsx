@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   ShieldCheck, RefreshCw, Loader2, CheckCircle2, XCircle, AlertTriangle,
-  Monitor, RotateCcw, Scan, Power, Download, Users, BarChart2, Search, Package
+  Monitor, RotateCcw, Scan, Power, Download, Users, BarChart2, Search, Package,
+  ArrowUp, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,9 @@ import KbDeployments from "@/components/updates/KbDeployments.jsx";
 import AutopatchGroups from "@/components/updates/AutopatchGroups.jsx";
 import FeatureQualityUpdates from "@/components/updates/FeatureQualityUpdates.jsx";
 import UpdateCompliance from "@/components/updates/UpdateCompliance.jsx";
+import WindowsVersionReport from "@/components/windows/WindowsVersionReport";
+import Win11UpgradeDeployer from "@/components/windows/Win11UpgradeDeployer";
+import IntuneUpdateDeployer from "@/components/windows/IntuneUpdateDeployer";
 
 const AGE_OPTIONS = [
   { label: "30 days", value: 30 },
@@ -316,6 +320,15 @@ export default function WindowsUpdates({ selectedTenant }) {
           <TabsTrigger value="report" className="gap-1.5">
             <BarChart2 className="h-3.5 w-3.5" /> Compliance Report
           </TabsTrigger>
+          <TabsTrigger value="versions" className="gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Version Report
+          </TabsTrigger>
+          <TabsTrigger value="upgrade" className="gap-1.5">
+            <ArrowUp className="h-3.5 w-3.5" /> W11 Upgrade Deploy
+          </TabsTrigger>
+          <TabsTrigger value="updatering" className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Update Rings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="compliance" className="mt-5">
@@ -336,6 +349,18 @@ export default function WindowsUpdates({ selectedTenant }) {
 
         <TabsContent value="report" className="mt-5">
           <UpdateCompliance selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="versions" className="mt-5">
+          <WindowsVersionReport selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="upgrade" className="mt-5">
+          <Win11UpgradeDeployer selectedTenant={selectedTenant} />
+        </TabsContent>
+
+        <TabsContent value="updatering" className="mt-5">
+          <IntuneUpdateDeployer selectedTenant={selectedTenant} />
         </TabsContent>
       </Tabs>
     </div>

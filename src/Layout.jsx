@@ -122,6 +122,7 @@ const navSections = [
       { name: "Copy App Permissions", icon: GitMerge, page: "AppPermissionsCopy" },
       { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
       { name: "SOP Generator", icon: FileText, page: "SopGenerator" },
+      { name: "App Health Check", icon: Activity, page: "AppHealthCheck" },
     ]
   }
 ];
