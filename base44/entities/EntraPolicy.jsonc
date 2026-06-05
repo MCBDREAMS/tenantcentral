@@ -1,0 +1,63 @@
+{
+  "name": "EntraPolicy",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "description": "Reference to tenant"
+    },
+    "policy_name": {
+      "type": "string"
+    },
+    "policy_type": {
+      "type": "string",
+      "enum": [
+        "conditional_access",
+        "authentication_method",
+        "password_policy",
+        "mfa_policy",
+        "session_policy",
+        "terms_of_use",
+        "named_location"
+      ],
+      "default": "conditional_access"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "enabled",
+        "disabled",
+        "report_only"
+      ],
+      "default": "enabled"
+    },
+    "description": {
+      "type": "string"
+    },
+    "target_users": {
+      "type": "string",
+      "description": "Target users/groups (comma separated)"
+    },
+    "target_apps": {
+      "type": "string",
+      "description": "Target applications (comma separated)"
+    },
+    "conditions": {
+      "type": "string",
+      "description": "JSON string of conditions"
+    },
+    "grant_controls": {
+      "type": "string",
+      "description": "Grant controls summary"
+    },
+    "last_modified": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "policy_name",
+    "policy_type"
+  ]
+}

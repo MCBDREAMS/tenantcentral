@@ -1,0 +1,102 @@
+{
+  "name": "MobileDevice",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "device_name": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "android",
+        "ios",
+        "ipados"
+      ],
+      "default": "android"
+    },
+    "os_version": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "serial_number": {
+      "type": "string"
+    },
+    "imei": {
+      "type": "string"
+    },
+    "primary_user": {
+      "type": "string"
+    },
+    "enrollment_type": {
+      "type": "string",
+      "enum": [
+        "corporate_owned",
+        "byod",
+        "dedicated",
+        "kiosk"
+      ],
+      "default": "byod"
+    },
+    "mdm_solution": {
+      "type": "string",
+      "enum": [
+        "intune",
+        "jamf",
+        "workspace_one",
+        "kandji",
+        "mosyle",
+        "other"
+      ],
+      "default": "intune"
+    },
+    "compliance_state": {
+      "type": "string",
+      "enum": [
+        "compliant",
+        "non_compliant",
+        "in_grace_period",
+        "not_evaluated"
+      ],
+      "default": "compliant"
+    },
+    "supervised": {
+      "type": "boolean",
+      "default": false
+    },
+    "encrypted": {
+      "type": "boolean",
+      "default": true
+    },
+    "jailbroken": {
+      "type": "boolean",
+      "default": false
+    },
+    "app_protection_policy": {
+      "type": "string"
+    },
+    "enrolled_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "last_check_in": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "device_name",
+    "platform"
+  ]
+}

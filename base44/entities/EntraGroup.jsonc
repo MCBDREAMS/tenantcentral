@@ -1,0 +1,46 @@
+{
+  "name": "EntraGroup",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "group_type": {
+      "type": "string",
+      "enum": [
+        "security",
+        "microsoft_365",
+        "distribution",
+        "mail_enabled_security",
+        "dynamic"
+      ],
+      "default": "security"
+    },
+    "membership_type": {
+      "type": "string",
+      "enum": [
+        "assigned",
+        "dynamic_user",
+        "dynamic_device"
+      ],
+      "default": "assigned"
+    },
+    "member_count": {
+      "type": "number",
+      "default": 0
+    },
+    "description": {
+      "type": "string"
+    },
+    "mail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "display_name"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "name": "TelemetrySnapshot",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "azure_tenant_id": {
+      "type": "string"
+    },
+    "snapshot_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "total_devices": {
+      "type": "number",
+      "default": 0
+    },
+    "compliant_devices": {
+      "type": "number",
+      "default": 0
+    },
+    "noncompliant_devices": {
+      "type": "number",
+      "default": 0
+    },
+    "compliance_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "devices_checked_in_1h": {
+      "type": "number",
+      "default": 0
+    },
+    "devices_checked_in_8h": {
+      "type": "number",
+      "default": 0
+    },
+    "stale_devices": {
+      "type": "number",
+      "default": 0,
+      "description": "Devices not checked in for > 8 hours"
+    },
+    "drift_events": {
+      "type": "string",
+      "description": "JSON array of compliance drift events since last snapshot"
+    },
+    "defender_alerts_high": {
+      "type": "number",
+      "default": 0
+    },
+    "device_state_map": {
+      "type": "string",
+      "description": "JSON map of deviceId -> {complianceState, lastSync}"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "snapshot_time"
+  ]
+}

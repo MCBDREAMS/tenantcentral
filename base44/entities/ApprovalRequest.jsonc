@@ -1,0 +1,102 @@
+{
+  "name": "ApprovalRequest",
+  "type": "object",
+  "properties": {
+    "action_type": {
+      "type": "string",
+      "enum": [
+        "wipe_device",
+        "retire_device",
+        "disable_device",
+        "ca_policy_create",
+        "ca_policy_enable",
+        "bulk_script",
+        "mass_remediate",
+        "push_script",
+        "restart_device",
+        "disable_user"
+      ],
+      "description": "Type of action requiring approval"
+    },
+    "action_payload": {
+      "type": "string",
+      "description": "Full serialised action parameters as JSON"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Target tenant record ID"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "azure_tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant GUID"
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Email of user who requested the action"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "expired",
+        "executed",
+        "execution_failed"
+      ],
+      "default": "pending"
+    },
+    "approver_email": {
+      "type": "string"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "execution_result": {
+      "type": "string",
+      "description": "JSON result payload after execution"
+    },
+    "workflow_rule_id": {
+      "type": "string"
+    },
+    "affected_devices": {
+      "type": "string",
+      "description": "JSON array of {deviceId, deviceName}"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "high"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of what will happen"
+    }
+  },
+  "required": [
+    "action_type",
+    "tenant_id",
+    "requested_by",
+    "status"
+  ]
+}

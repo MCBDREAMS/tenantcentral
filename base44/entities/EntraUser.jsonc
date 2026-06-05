@@ -1,0 +1,71 @@
+{
+  "name": "EntraUser",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "upn": {
+      "type": "string",
+      "description": "User Principal Name"
+    },
+    "email": {
+      "type": "string"
+    },
+    "account_enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "user_type": {
+      "type": "string",
+      "enum": [
+        "member",
+        "guest"
+      ],
+      "default": "member"
+    },
+    "job_title": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "licenses": {
+      "type": "string",
+      "description": "Assigned licenses (comma separated)"
+    },
+    "mfa_status": {
+      "type": "string",
+      "enum": [
+        "enabled",
+        "disabled",
+        "enforced"
+      ],
+      "default": "enabled"
+    },
+    "mfa_methods": {
+      "type": "string",
+      "description": "Comma-separated MFA methods registered by this user"
+    },
+    "entra_roles": {
+      "type": "string",
+      "description": "Assigned Entra directory role(s)"
+    },
+    "graph_id": {
+      "type": "string",
+      "description": "Azure AD object ID for Graph API operations"
+    },
+    "last_sign_in": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "display_name",
+    "upn"
+  ]
+}

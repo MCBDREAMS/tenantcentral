@@ -66,6 +66,7 @@ const navSections = [
       { name: "Reports", icon: BarChart2, page: "IntuneReports" },
       { name: "Sophos Report", icon: ShieldCheck, page: "SophosReport" },
       { name: "Adidy → Intune Migration", icon: GitBranch, page: "IntuneAdiMigration" },
+      { name: "AD → Entra ID Migration", icon: GitMerge, page: "AdUserMigration" },
     ]
   },
   {

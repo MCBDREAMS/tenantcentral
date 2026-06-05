@@ -1,0 +1,63 @@
+{
+  "name": "IntuneDevice",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "device_name": {
+      "type": "string"
+    },
+    "os": {
+      "type": "string",
+      "enum": [
+        "Windows 10",
+        "Windows 11",
+        "macOS",
+        "iOS",
+        "Android",
+        "Linux"
+      ],
+      "default": "Windows 11"
+    },
+    "compliance_state": {
+      "type": "string",
+      "enum": [
+        "compliant",
+        "non_compliant",
+        "in_grace_period",
+        "not_evaluated"
+      ],
+      "default": "compliant"
+    },
+    "ownership": {
+      "type": "string",
+      "enum": [
+        "corporate",
+        "personal"
+      ],
+      "default": "corporate"
+    },
+    "primary_user": {
+      "type": "string"
+    },
+    "enrolled_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "last_check_in": {
+      "type": "string",
+      "format": "date"
+    },
+    "serial_number": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "device_name"
+  ]
+}

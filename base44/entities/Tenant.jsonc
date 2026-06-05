@@ -1,0 +1,59 @@
+{
+  "name": "Tenant",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Friendly name for the tenant"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant ID (GUID)"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Primary domain of the tenant"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "pending"
+      ],
+      "default": "pending"
+    },
+    "subscription_type": {
+      "type": "string",
+      "enum": [
+        "E3",
+        "E5",
+        "P1",
+        "P2",
+        "Business Premium",
+        "Other"
+      ],
+      "default": "E5"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "azure_client_id": {
+      "type": "string",
+      "description": "Azure App Registration Client ID for this tenant"
+    },
+    "azure_client_secret": {
+      "type": "string",
+      "description": "Azure App Registration Client Secret for this tenant"
+    },
+    "linked_user_email": {
+      "type": "string",
+      "description": "App user email linked/restricted to this tenant"
+    }
+  },
+  "required": [
+    "name",
+    "tenant_id",
+    "domain"
+  ]
+}

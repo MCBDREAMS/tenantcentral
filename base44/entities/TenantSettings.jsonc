@@ -1,0 +1,49 @@
+{
+  "name": "TenantSettings",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "description": "Reference to Tenant record ID"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "sync_interval_minutes": {
+      "type": "number",
+      "default": 60,
+      "description": "How often to auto-sync data from Microsoft Graph (minutes)"
+    },
+    "notify_on_noncompliance": {
+      "type": "boolean",
+      "default": true
+    },
+    "notify_on_policy_change": {
+      "type": "boolean",
+      "default": false
+    },
+    "notify_on_new_device": {
+      "type": "boolean",
+      "default": false
+    },
+    "notification_email": {
+      "type": "string",
+      "description": "Email address for compliance notifications"
+    },
+    "notification_threshold_pct": {
+      "type": "number",
+      "default": 80,
+      "description": "Alert when compliance drops below this percentage"
+    },
+    "field_mappings": {
+      "type": "string",
+      "description": "JSON array of {azure_field, base44_entity, base44_field} mappings"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id"
+  ]
+}

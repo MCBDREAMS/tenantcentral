@@ -1,0 +1,127 @@
+{
+  "name": "DeploymentPlan",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Deployment plan name"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "plan_type": {
+      "type": "string",
+      "enum": [
+        "script",
+        "compliance_policy",
+        "configuration_profile",
+        "app_deployment",
+        "security_baseline"
+      ],
+      "default": "script"
+    },
+    "payload": {
+      "type": "string",
+      "description": "JSON of the item being deployed (script content, policy body, etc.)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pilot",
+        "staging",
+        "production",
+        "complete",
+        "rolled_back"
+      ],
+      "default": "draft"
+    },
+    "current_ring": {
+      "type": "string",
+      "enum": [
+        "pilot",
+        "staging",
+        "production"
+      ],
+      "default": "pilot"
+    },
+    "pilot_groups": {
+      "type": "string",
+      "description": "JSON array of device/group IDs for pilot ring"
+    },
+    "staging_groups": {
+      "type": "string",
+      "description": "JSON array of device/group IDs for staging ring"
+    },
+    "production_groups": {
+      "type": "string",
+      "description": "JSON array of device/group IDs for production ring"
+    },
+    "pilot_results": {
+      "type": "string",
+      "description": "JSON results from pilot ring"
+    },
+    "staging_results": {
+      "type": "string",
+      "description": "JSON results from staging ring"
+    },
+    "production_results": {
+      "type": "string",
+      "description": "JSON results from production ring"
+    },
+    "pilot_success_rate": {
+      "type": "number",
+      "default": 0
+    },
+    "staging_success_rate": {
+      "type": "number",
+      "default": 0
+    },
+    "production_success_rate": {
+      "type": "number",
+      "default": 0
+    },
+    "success_threshold": {
+      "type": "number",
+      "default": 95,
+      "description": "Minimum success rate % required to promote to next ring"
+    },
+    "pilot_promoted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "staging_promoted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "production_started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rollback_reason": {
+      "type": "string"
+    },
+    "created_by": {
+      "type": "string"
+    },
+    "approval_request_id": {
+      "type": "string",
+      "description": "Linked ApprovalRequest when promotion requires approval"
+    }
+  },
+  "required": [
+    "name",
+    "tenant_id",
+    "plan_type"
+  ]
+}

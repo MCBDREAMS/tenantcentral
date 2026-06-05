@@ -1,0 +1,72 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action performed (e.g. CREATE_TENANT, DEPLOY_SCRIPT, EXPORT_CSV)"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "tenant",
+        "entra_user",
+        "entra_group",
+        "entra_policy",
+        "intune_device",
+        "intune_profile",
+        "intune_app",
+        "security_baseline",
+        "script",
+        "export",
+        "auth",
+        "rbac"
+      ],
+      "default": "tenant"
+    },
+    "actor": {
+      "type": "string",
+      "description": "Email of user who performed the action"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Affected tenant ID"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "target_name": {
+      "type": "string",
+      "description": "Name of the affected resource"
+    },
+    "details": {
+      "type": "string",
+      "description": "Additional details / JSON diff"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "default": "info"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure"
+      ],
+      "default": "success"
+    }
+  },
+  "required": [
+    "action",
+    "category",
+    "actor"
+  ]
+}

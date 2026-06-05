@@ -1,0 +1,85 @@
+{
+  "name": "OnPremSync",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "server_name": {
+      "type": "string"
+    },
+    "sync_type": {
+      "type": "string",
+      "enum": [
+        "entra_connect",
+        "ad_connect",
+        "password_hash_sync",
+        "pass_through_auth",
+        "federation"
+      ],
+      "default": "entra_connect"
+    },
+    "sync_status": {
+      "type": "string",
+      "enum": [
+        "healthy",
+        "warning",
+        "error",
+        "stopped",
+        "unknown"
+      ],
+      "default": "healthy"
+    },
+    "last_sync_time": {
+      "type": "string",
+      "format": "date"
+    },
+    "last_sync_duration_minutes": {
+      "type": "number"
+    },
+    "objects_synced": {
+      "type": "number",
+      "default": 0
+    },
+    "sync_errors": {
+      "type": "number",
+      "default": 0
+    },
+    "password_sync_enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "password_writeback_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "device_writeback_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "version": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "forest": {
+      "type": "string"
+    },
+    "staging_mode": {
+      "type": "boolean",
+      "default": false
+    },
+    "error_details": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "server_name",
+    "sync_type"
+  ]
+}

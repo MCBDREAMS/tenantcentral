@@ -1,0 +1,48 @@
+{
+  "name": "ScriptDeployment",
+  "type": "object",
+  "properties": {
+    "script_id": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "device_id": {
+      "type": "string"
+    },
+    "device_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "success",
+        "failed",
+        "not_applicable"
+      ],
+      "default": "pending"
+    },
+    "deployed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "last_run_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "result_message": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "script_id",
+    "tenant_id",
+    "device_id"
+  ]
+}

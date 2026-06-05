@@ -1,0 +1,67 @@
+{
+  "name": "IntuneProfile",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "profile_name": {
+      "type": "string"
+    },
+    "profile_type": {
+      "type": "string",
+      "enum": [
+        "compliance_policy",
+        "configuration_profile",
+        "endpoint_security",
+        "app_protection",
+        "update_ring",
+        "enrollment_restriction",
+        "autopilot_profile",
+        "script"
+      ],
+      "default": "compliance_policy"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "windows",
+        "macos",
+        "ios",
+        "android",
+        "linux",
+        "all"
+      ],
+      "default": "windows"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "draft"
+      ],
+      "default": "active"
+    },
+    "description": {
+      "type": "string"
+    },
+    "assigned_groups": {
+      "type": "string",
+      "description": "Assigned groups (comma separated)"
+    },
+    "settings_summary": {
+      "type": "string",
+      "description": "Summary of key settings"
+    },
+    "last_modified": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "profile_name",
+    "profile_type"
+  ]
+}

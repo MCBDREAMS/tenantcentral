@@ -1,0 +1,78 @@
+{
+  "name": "MdmSolution",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "solution_name": {
+      "type": "string",
+      "enum": [
+        "intune",
+        "jamf",
+        "workspace_one",
+        "kandji",
+        "mosyle",
+        "other"
+      ],
+      "default": "intune"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "platform_scope": {
+      "type": "string",
+      "enum": [
+        "all",
+        "windows",
+        "macos",
+        "ios",
+        "android",
+        "mobile_only"
+      ],
+      "default": "all"
+    },
+    "server_url": {
+      "type": "string"
+    },
+    "api_endpoint": {
+      "type": "string"
+    },
+    "auth_method": {
+      "type": "string",
+      "enum": [
+        "oauth2",
+        "api_key",
+        "certificate",
+        "basic"
+      ],
+      "default": "oauth2"
+    },
+    "connection_status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "error",
+        "pending"
+      ],
+      "default": "pending"
+    },
+    "last_sync": {
+      "type": "string",
+      "format": "date"
+    },
+    "managed_device_count": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "solution_name"
+  ]
+}

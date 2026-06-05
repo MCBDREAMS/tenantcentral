@@ -1,0 +1,64 @@
+{
+  "name": "SecurityBaseline",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "baseline_name": {
+      "type": "string"
+    },
+    "baseline_type": {
+      "type": "string",
+      "enum": [
+        "security_baseline_windows",
+        "security_baseline_edge",
+        "security_baseline_defender",
+        "security_baseline_m365",
+        "security_baseline_office",
+        "custom"
+      ],
+      "default": "security_baseline_windows"
+    },
+    "version": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "deployed",
+        "not_deployed",
+        "conflict"
+      ],
+      "default": "deployed"
+    },
+    "assigned_groups": {
+      "type": "string"
+    },
+    "compliant_devices": {
+      "type": "number",
+      "default": 0
+    },
+    "non_compliant_devices": {
+      "type": "number",
+      "default": 0
+    },
+    "settings_count": {
+      "type": "number",
+      "default": 0
+    },
+    "settings_detail": {
+      "type": "string",
+      "description": "JSON string of baseline settings"
+    },
+    "last_modified": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "baseline_name",
+    "baseline_type"
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "name": "IntuneApp",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "app_name": {
+      "type": "string"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "app_type": {
+      "type": "string",
+      "enum": [
+        "win32",
+        "msi",
+        "msix",
+        "store",
+        "web_link",
+        "ios_store",
+        "android_store",
+        "macos_pkg",
+        "office365"
+      ],
+      "default": "win32"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "productivity",
+        "security",
+        "developer",
+        "utilities",
+        "communication",
+        "custom"
+      ],
+      "default": "productivity"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "windows",
+        "macos",
+        "ios",
+        "android",
+        "all"
+      ],
+      "default": "windows"
+    },
+    "assignment_type": {
+      "type": "string",
+      "enum": [
+        "required",
+        "available",
+        "uninstall",
+        "not_assigned"
+      ],
+      "default": "available"
+    },
+    "assigned_groups": {
+      "type": "string"
+    },
+    "install_command": {
+      "type": "string"
+    },
+    "uninstall_command": {
+      "type": "string"
+    },
+    "detection_rule": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "package_url": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "published",
+        "draft",
+        "retired"
+      ],
+      "default": "published"
+    },
+    "install_count": {
+      "type": "number",
+      "default": 0
+    },
+    "failed_count": {
+      "type": "number",
+      "default": 0
+    },
+    "last_modified": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "app_name",
+    "app_type"
+  ]
+}

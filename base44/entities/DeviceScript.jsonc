@@ -1,0 +1,78 @@
+{
+  "name": "DeviceScript",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string"
+    },
+    "script_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "script_type": {
+      "type": "string",
+      "enum": [
+        "powershell",
+        "shell",
+        "batch",
+        "python"
+      ],
+      "default": "powershell"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "enrollment",
+        "security",
+        "configuration",
+        "maintenance",
+        "monitoring",
+        "custom"
+      ],
+      "default": "custom"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "windows",
+        "macos",
+        "ios",
+        "android",
+        "linux",
+        "all"
+      ],
+      "default": "windows"
+    },
+    "script_content": {
+      "type": "string",
+      "description": "The actual script content"
+    },
+    "is_template": {
+      "type": "boolean",
+      "default": false
+    },
+    "run_as_account": {
+      "type": "string",
+      "enum": [
+        "system",
+        "user"
+      ],
+      "default": "system"
+    },
+    "enforce_signature_check": {
+      "type": "boolean",
+      "default": false
+    },
+    "run_in_64bit": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "tenant_id",
+    "script_name",
+    "script_type"
+  ]
+}
