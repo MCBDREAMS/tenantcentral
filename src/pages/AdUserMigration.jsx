@@ -4,13 +4,14 @@ import { base44 } from "@/api/base44Client";
 import {
   Users, ArrowRightLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle,
   Loader2, Download, Upload, RefreshCw, Shield, Key, Monitor, Terminal,
-  Cloud, Server, Info, Copy, Eye, EyeOff, GitMerge, UserCheck, Lock
+  Cloud, Server, Info, Copy, Eye, EyeOff, GitMerge, UserCheck, Lock, Cpu
 } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import AgentDownloadPanel from "@/components/migration/AgentDownloadPanel";
 
 const STEPS = [
   { id: 0, label: "Configure", icon: Server },
@@ -90,6 +91,7 @@ function UserRow({ u, selected, onToggle, showDetails }) {
 
 export default function AdUserMigration({ tenants: propTenants }) {
   const [step, setStep] = useState(0);
+  const [scanSource, setScanSource] = useState("graph"); // "graph" | "agent"
   const [sourceTenantId, setSourceTenantId] = useState("");
   const [targetTenantRecord, setTargetTenantRecord] = useState(null);
   const [scanData, setScanData] = useState(null);
@@ -110,6 +112,55 @@ export default function AdUserMigration({ tenants: propTenants }) {
     queryFn: () => base44.entities.Tenant.list(),
     initialData: propTenants || [],
   });
+
+  // ── Agent scan loaded callback ────────────────────────────────────────────
+  const handleAgentScanLoaded = (agentUsers, agentScan) => {
+    // Convert raw AD agent users to the same shape as Graph scan
+    const mapped = (agentUsers || []).map(u => ({
+      id: u.objectGuid || u.samAccountName,
+      displayName: u.displayName || u.samAccountName,
+      upn: u.upn || `${u.samAccountName}@${agentScan.domain}`,
+      mail: u.mail,
+      accountEnabled: u.enabled !== false,
+      immutableId: u.immutableId,
+      distinguishedName: u.distinguishedName,
+      domainName: agentScan.domain,
+      samAccountName: u.samAccountName,
+      sid: u.sid,
+      jobTitle: u.title,
+      department: u.department,
+      mobilePhone: u.mobilePhone,
+      licenses: 0,
+      hasSyncErrors: false,
+      identityType: "AD_NATIVE",  // directly from AD, no Entra Connect needed
+      // extra AD-native fields
+      objectGuid: u.objectGuid,
+      ou: u.ou,
+      groups: u.groups,
+      passwordNeverExpires: u.passwordNeverExpires,
+      lastLogon: u.lastLogon,
+    }));
+
+    setScanData({
+      adSyncedUsers: mapped,
+      cloudOnlyCount: 0,
+      guestCount: 0,
+      totalUsers: mapped.length,
+      syncStatus: { onPremisesSyncEnabled: false, source: "AD_AGENT" },
+      domains: [{ id: agentScan.domain, isDefault: true, isVerified: true }],
+      stats: {
+        total: mapped.length,
+        adSynced: mapped.length,
+        cloudOnly: 0,
+        guests: 0,
+        withSyncErrors: 0,
+        withImmutableId: mapped.filter(u => !!u.immutableId).length,
+      },
+      agentScan,
+    });
+    setSelectedUsers(mapped.map(u => u.id));
+    setStep(1);
+  };
 
   // ── Step 1: Scan AD users ─────────────────────────────────────────────────
   const handleScan = async () => {
@@ -243,39 +294,13 @@ export default function AdUserMigration({ tenants: propTenants }) {
       {/* ── STEP 0: Configure ── */}
       {step === 0 && (
         <div className="space-y-5">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 text-sm text-blue-800">
-            <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
-            <div>
-              <p className="font-semibold mb-1">What this migration does</p>
-              <ul className="text-xs text-blue-700 space-y-0.5 list-disc list-inside">
-                <li>Scans AD-synced users and reads ObjectGUID → ImmutableID mappings</li>
-                <li>Preserves Kerberos/NTLM identity by setting ImmutableID on cloud accounts</li>
-                <li>Creates cloud-managed accounts in target Entra ID tenant</li>
-                <li>Syncs user profiles (name, dept, phone, location, employeeId)</li>
-                <li>Generates a complete PowerShell migration package</li>
-                <li>Optionally converts hybrid-joined devices and disables DirSync (Set-MsolDirSyncEnabled -EnableDirSync $false)</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
-            <h3 className="font-semibold text-slate-800">Tenant Configuration</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Target tenant — always required */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <h3 className="font-semibold text-slate-800">Target Tenant (Entra ID destination)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">
-                  Source — Azure Tenant ID (AD-synced)
-                </label>
-                <input
-                  value={sourceTenantId}
-                  onChange={e => setSourceTenantId(e.target.value.trim())}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-                <p className="text-xs text-slate-400 mt-1">The tenant currently running AD Connect / Entra Connect</p>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">
-                  Target — Entra ID Tenant (cloud destination)
+                  Target — Entra ID Tenant
                 </label>
                 <select
                   value={targetTenantRecord?.id || ""}
@@ -286,36 +311,86 @@ export default function AdUserMigration({ tenants: propTenants }) {
                   {allTenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.domain})</option>)}
                 </select>
               </div>
-            </div>
-
-            {/* Options */}
-            <div>
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Migration Options</p>
-              <div className="flex flex-wrap gap-3">
-                {[
-                  { key: "disableDirSync", val: disableDirSync, set: setDisableDirSync, label: "Disable DirSync after migration", desc: "Set-MsolDirSyncEnabled -EnableDirSync $false", danger: true },
-                  { key: "convertDevices", val: convertDevices, set: setConvertDevices, label: "Include device conversion", desc: "Hybrid join → Entra ID join", danger: false },
-                ].map(o => (
-                  <label key={o.key} className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer flex-1 min-w-[220px] ${o.val ? (o.danger ? "border-red-300 bg-red-50" : "border-blue-300 bg-blue-50") : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="checkbox" checked={o.val} onChange={e => o.set(e.target.checked)} className="mt-0.5" />
-                    <div>
-                      <p className={`text-sm font-medium ${o.val && o.danger ? "text-red-800" : "text-slate-800"}`}>{o.label}</p>
-                      <p className="text-xs font-mono text-slate-400">{o.desc}</p>
-                      {o.danger && <p className="text-[10px] text-red-600 font-semibold mt-0.5">⚠ IRREVERSIBLE</p>}
-                    </div>
-                  </label>
-                ))}
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 block">Migration Options</label>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { key: "disableDirSync", val: disableDirSync, set: setDisableDirSync, label: "Disable DirSync after migration", danger: true },
+                    { key: "convertDevices", val: convertDevices, set: setConvertDevices, label: "Include device conversion", danger: false },
+                  ].map(o => (
+                    <label key={o.key} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-sm ${o.val ? (o.danger ? "border-red-300 bg-red-50 text-red-800" : "border-blue-300 bg-blue-50 text-blue-800") : "border-slate-200 text-slate-700 hover:border-slate-300"}`}>
+                      <input type="checkbox" checked={o.val} onChange={e => o.set(e.target.checked)} />
+                      {o.label}
+                      {o.danger && <span className="text-[10px] text-red-500 font-bold ml-auto">⚠ IRREVERSIBLE</span>}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
+          </div>
 
-            <Button
-              onClick={handleScan}
-              disabled={!sourceTenantId || !targetTenantRecord || loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Connect & Scan AD Users
-            </Button>
+          {/* Source selector tabs */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="flex border-b border-slate-200">
+              {[
+                { key: "graph", label: "Graph API Scan", icon: Cloud, desc: "Reads Entra Connect-synced attributes — requires existing Entra Connect" },
+                { key: "agent", label: "On-Prem Agent", icon: Cpu, desc: "Downloads agent to DC — scans raw AD directly, no Entra Connect needed" },
+              ].map(s => {
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => setScanSource(s.key)}
+                    className={`flex-1 flex items-center gap-2 px-5 py-4 text-sm font-medium transition-all border-b-2 ${
+                      scanSource === s.key
+                        ? "border-blue-600 text-blue-700 bg-blue-50/50"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <div className="text-left">
+                      <p>{s.label}</p>
+                      <p className="text-[10px] font-normal opacity-70">{s.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="p-5">
+              {scanSource === "graph" && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 flex gap-2">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                    Reads users with <code className="bg-blue-100 px-1 rounded">onPremisesSyncEnabled=true</code> from Entra ID.
+                    Requires Entra Connect to already be syncing. Only users synced to Entra ID are visible.
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">
+                      Source — Azure Tenant ID (currently running AD Connect)
+                    </label>
+                    <input
+                      value={sourceTenantId}
+                      onChange={e => setSourceTenantId(e.target.value.trim())}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleScan}
+                    disabled={!sourceTenantId || !targetTenantRecord || loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Connect & Scan via Graph API
+                  </Button>
+                </div>
+              )}
+
+              {scanSource === "agent" && (
+                <AgentDownloadPanel onScanLoaded={handleAgentScanLoaded} />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -338,8 +413,15 @@ export default function AdUserMigration({ tenants: propTenants }) {
             ))}
           </div>
 
-          {/* Sync status */}
-          {scanData.syncStatus && (
+          {/* Scan source banner */}
+          {scanData.agentScan ? (
+            <div className="flex items-center gap-3 p-3 rounded-xl border bg-violet-50 border-violet-200 text-violet-800 text-sm">
+              <Cpu className="h-4 w-4 shrink-0" />
+              <span>Source: <strong>On-Prem AD Agent</strong> on <strong>{scanData.agentScan.hostname}</strong></span>
+              <Badge className="bg-violet-200 text-violet-800 border-0 ml-1">{scanData.agentScan.domain}</Badge>
+              <span className="text-xs opacity-70 ml-auto">Raw AD scan — ObjectGUID ImmutableIDs computed locally</span>
+            </div>
+          ) : scanData.syncStatus && (
             <div className={`flex items-center gap-3 p-3 rounded-xl border text-sm ${scanData.syncStatus.onPremisesSyncEnabled ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
               <Server className="h-4 w-4 shrink-0" />
               <span>DirSync: <strong>{scanData.syncStatus.onPremisesSyncEnabled ? "Enabled" : "Disabled"}</strong></span>

@@ -1,0 +1,73 @@
+{
+  "name": "AdAgentScan",
+  "type": "object",
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "Unique agent installation ID (GUID generated on install)"
+    },
+    "hostname": {
+      "type": "string",
+      "description": "Domain controller or server hostname running the agent"
+    },
+    "domain": {
+      "type": "string",
+      "description": "AD domain scanned (e.g. contoso.local)"
+    },
+    "domain_netbios": {
+      "type": "string"
+    },
+    "forest": {
+      "type": "string"
+    },
+    "scan_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent_version": {
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "idle",
+        "error"
+      ],
+      "default": "active"
+    },
+    "user_count": {
+      "type": "number",
+      "default": 0
+    },
+    "group_count": {
+      "type": "number",
+      "default": 0
+    },
+    "ou_count": {
+      "type": "number",
+      "default": 0
+    },
+    "users_payload": {
+      "type": "string",
+      "description": "JSON array of scanned AD users (ObjectGUID, SAM, UPN, groups, attributes)"
+    },
+    "stats_payload": {
+      "type": "string",
+      "description": "JSON summary stats from the scan"
+    },
+    "os_info": {
+      "type": "string",
+      "description": "OS and PS version of the agent host"
+    },
+    "error_message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "agent_id",
+    "hostname",
+    "domain"
+  ]
+}
