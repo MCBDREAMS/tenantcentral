@@ -5,21 +5,33 @@ const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
 const CRITICAL_ACTIONS = ["wipe_device", "retire_device", "disable_device"];
 
+function escapeHtml(str) {
+  const amp = String.fromCharCode(38);
+  const map = {
+    '&': amp + 'amp;',
+    '<': amp + 'lt;',
+    '>': amp + 'gt;',
+    '"': amp + 'quot;',
+    "'": amp + '#39;',
+  };
+  return String(str == null ? '' : str).replace(/[&<>"']/g, ch => map[ch]);
+}
+
 async function sendCriticalAlert(base44, { ruleName, tenantName, actor, notifyEmail, criticalEvents }) {
   if (!notifyEmail || criticalEvents.length === 0) return;
 
   const rows = criticalEvents.map(e => `
     <tr style="border-bottom:1px solid #e2e8f0;">
-      <td style="padding:10px 12px;font-weight:600;color:#1e293b;">${e.deviceName}</td>
-      <td style="padding:10px 12px;color:#64748b;">${e.user || "—"}</td>
-      <td style="padding:10px 12px;color:#64748b;">${e.os || "—"}</td>
-      <td style="padding:10px 12px;color:#64748b;">${e.serial || "—"}</td>
+      <td style="padding:10px 12px;font-weight:600;color:#1e293b;">${escapeHtml(e.deviceName)}</td>
+      <td style="padding:10px 12px;color:#64748b;">${escapeHtml(e.user || "—")}</td>
+      <td style="padding:10px 12px;color:#64748b;">${escapeHtml(e.os || "—")}</td>
+      <td style="padding:10px 12px;color:#64748b;">${escapeHtml(e.serial || "—")}</td>
       <td style="padding:10px 12px;">
         <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;">
-          ${e.action.replace(/_/g, " ").toUpperCase()}
+          ${escapeHtml(e.action.replace(/_/g, " ").toUpperCase())}
         </span>
       </td>
-      <td style="padding:10px 12px;font-size:12px;color:${e.status === "success" ? "#15803d" : "#b91c1c"};">${e.status}</td>
+      <td style="padding:10px 12px;font-size:12px;color:${e.status === "success" ? "#15803d" : "#b91c1c"};">${escapeHtml(e.status)}</td>
     </tr>`).join("");
 
   const body = `
@@ -45,22 +57,22 @@ async function sendCriticalAlert(base44, { ruleName, tenantName, actor, notifyEm
       <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin-bottom:24px;">
         <p style="margin:0;font-size:14px;color:#991b1b;">
           <strong>${criticalEvents.length} critical action${criticalEvents.length > 1 ? "s were" : " was"} executed</strong>
-          by the Workflow Engine on <strong>${tenantName}</strong>. Please review the details below.
+          by the Workflow Engine on <strong>${escapeHtml(tenantName)}</strong>. Please review the details below.
         </p>
       </div>
 
       <table style="width:100%;font-size:13px;border-collapse:collapse;">
         <tr>
           <td style="padding:6px 12px;color:#64748b;width:140px;">Rule</td>
-          <td style="padding:6px 12px;color:#1e293b;font-weight:600;">${ruleName}</td>
+          <td style="padding:6px 12px;color:#1e293b;font-weight:600;">${escapeHtml(ruleName)}</td>
         </tr>
         <tr>
           <td style="padding:6px 12px;color:#64748b;">Tenant</td>
-          <td style="padding:6px 12px;color:#1e293b;">${tenantName}</td>
+          <td style="padding:6px 12px;color:#1e293b;">${escapeHtml(tenantName)}</td>
         </tr>
         <tr>
           <td style="padding:6px 12px;color:#64748b;">Triggered by</td>
-          <td style="padding:6px 12px;color:#1e293b;">${actor}</td>
+          <td style="padding:6px 12px;color:#1e293b;">${escapeHtml(actor)}</td>
         </tr>
         <tr>
           <td style="padding:6px 12px;color:#64748b;">Timestamp</td>

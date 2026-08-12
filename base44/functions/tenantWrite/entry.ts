@@ -121,6 +121,30 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id } = body;
+
+    // ── Authorization: require admin role or tenant-scoped privileged role ───
+    if (user.role !== "admin") {
+      const adminRoles = await base44.asServiceRole.entities.AdminRole.filter({ user_email: user.email, is_active: true });
+      const adminRole = adminRoles[0];
+      if (!adminRole || adminRole.role === "readonly") {
+        return Response.json({ error: "Forbidden: insufficient privileges" }, { status: 403 });
+      }
+      // Verify every tenant referenced in this request is in the caller's assigned scope
+      const requestedTenantIds = [azure_tenant_id, body.source_tenant_id, body.target_tenant_id].filter(Boolean);
+      if (adminRole.assigned_tenants && requestedTenantIds.length > 0) {
+        const allowed = adminRole.assigned_tenants.split(",").map(s => s.trim()).filter(Boolean);
+        if (allowed.length > 0) {
+          for (const azureTid of requestedTenantIds) {
+            const tenantRecs = await base44.asServiceRole.entities.Tenant.filter({ tenant_id: azureTid });
+            const tenantRec = tenantRecs[0];
+            if (tenantRec && !allowed.includes(tenantRec.id)) {
+              return Response.json({ error: `Forbidden: tenant ${azureTid} not in your assigned scope` }, { status: 403 });
+            }
+          }
+        }
+      }
+    }
+
     const token = await getAccessToken(azure_tenant_id);
 
     // ── CA Policy: toggle state ──────────────────────────────────────────────

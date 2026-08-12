@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 // Shared secret to authenticate incoming agent payloads
 // The agent includes this in the Authorization header: Bearer <AGENT_SECRET>
-const AGENT_SECRET = Deno.env.get("LICENSE_SECRET") || "ad-agent-secret";
+const AGENT_SECRET = Deno.env.get("LICENSE_SECRET");
 
 Deno.serve(async (req) => {
   try {
@@ -21,13 +21,15 @@ Deno.serve(async (req) => {
     if (action === "get_agent_token") {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      if (user.role !== "admin") return Response.json({ error: "Forbidden: admin role required" }, { status: 403 });
+      if (!AGENT_SECRET) return Response.json({ error: "Agent secret not configured" }, { status: 500 });
       return Response.json({ success: true, agentToken: AGENT_SECRET });
     }
 
     // ── Agent scan upload ─────────────────────────────────────────────────────
     // Called by the on-prem agent — validate with shared secret
     if (action === "upload_scan") {
-      if (token !== AGENT_SECRET) {
+      if (!AGENT_SECRET || token !== AGENT_SECRET) {
         return Response.json({ error: "Invalid agent token" }, { status: 403 });
       }
 
@@ -100,7 +102,7 @@ Deno.serve(async (req) => {
 
     // ── Agent heartbeat ───────────────────────────────────────────────────────
     if (action === "heartbeat") {
-      if (token !== AGENT_SECRET) {
+      if (!AGENT_SECRET || token !== AGENT_SECRET) {
         return Response.json({ error: "Invalid agent token" }, { status: 403 });
       }
       const { agent_id, hostname } = body;

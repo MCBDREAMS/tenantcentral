@@ -198,7 +198,7 @@ export default function AgentDownloadPanel({ onScanLoaded }) {
 
   const handleDownload = () => {
     if (!agentToken) return;
-    const script = buildMsiScript(agentToken, callbackUrl);
+    const script = buildInstallerScript(agentToken, callbackUrl);
     const blob = new Blob([script], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -210,7 +210,7 @@ export default function AgentDownloadPanel({ onScanLoaded }) {
 
   const handleCopyScript = () => {
     if (!agentToken) return;
-    const script = buildMsiScript(agentToken, callbackUrl);
+    const script = buildInstallerScript(agentToken, callbackUrl);
     navigator.clipboard.writeText(script);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
