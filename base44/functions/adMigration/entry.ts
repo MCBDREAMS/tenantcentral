@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 // ── Auth helpers ────────────────────────────────────────────────────────────
 async function getToken(tenantId, clientId, clientSecret) {
@@ -115,6 +116,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id } = body;
+
+    // ── Authorization: high-privilege migration operations require admin or scoped role ──
+    const denied = await authorizeAdminAction(base44, user, [
+      azure_tenant_id,
+      body.source_tenant_id,
+      body.target_tenant_id,
+    ]);
+    if (denied) return denied;
 
     // ── PHASE 1: Scan AD-synced users from source tenant ──────────────────────
     if (action === "scan_ad_users") {

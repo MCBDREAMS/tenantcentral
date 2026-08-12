@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 import { format, startOfDay } from 'npm:date-fns@3.6.0';
 
@@ -66,6 +67,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id, top = 50 } = body;
+
+    // ── Authorization: privileged portal operations require admin or scoped role ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id]);
+    if (denied) return denied;
 
     // ── Validate azure_tenant_id is a proper GUID ─────────────────────────────
     const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

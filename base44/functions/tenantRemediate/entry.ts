@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -144,6 +145,10 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { remediation_action, azure_tenant_id, finding_id } = await req.json();
+
+    // ── Authorization: CA policy / security remediation requires admin or security role ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id]);
+    if (denied) return denied;
 
     if (!remediation_action) {
       return Response.json({ error: "remediation_action is required" }, { status: 400 });
