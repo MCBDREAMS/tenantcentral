@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +67,7 @@ const navSections = [
       { name: "Sophos Report", icon: ShieldCheck, page: "SophosReport" },
       { name: "Adidy → Intune Migration", icon: GitBranch, page: "IntuneAdiMigration" },
       { name: "AD → Entra ID Migration", icon: GitMerge, page: "AdUserMigration" },
+      { name: "AI Assistant", icon: Bot, page: "IntuneAssistant" },
     ]
   },
   {

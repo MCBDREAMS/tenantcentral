@@ -11,6 +11,7 @@ import IntuneStarterKit from './pages/IntuneStarterKit';
 import IntuneAdiMigration from './pages/IntuneAdiMigration';
 import AppHealthCheck from './pages/AppHealthCheck';
 import AdUserMigration from './pages/AdUserMigration';
+import IntuneAssistant from './pages/IntuneAssistant';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { Suspense } from 'react';
@@ -70,6 +71,7 @@ const AnimatedRoutes = () => {
             <Route path="/IntuneAdiMigration" element={<LayoutWrapper currentPageName="IntuneAdiMigration"><IntuneAdiMigration /></LayoutWrapper>} />
             <Route path="/AppHealthCheck" element={<LayoutWrapper currentPageName="AppHealthCheck"><AppHealthCheck /></LayoutWrapper>} />
             <Route path="/AdUserMigration" element={<LayoutWrapper currentPageName="AdUserMigration"><AdUserMigration /></LayoutWrapper>} />
+            <Route path="/IntuneAssistant" element={<LayoutWrapper currentPageName="IntuneAssistant"><IntuneAssistant /></LayoutWrapper>} />
             <Route path="/register" element={<ClientRegister />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
