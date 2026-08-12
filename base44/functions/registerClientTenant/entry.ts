@@ -12,6 +12,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Self-registration only: the role must be assigned to the caller's own account.
+    // Reject any payload where admin_email does not match the authenticated user.
+    if (admin_email.trim().toLowerCase() !== (user.email || '').toLowerCase()) {
+      return Response.json({ error: 'You may only register your own account.' }, { status: 403 });
+    }
+
     // Validate Azure Tenant ID format (GUID)
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!guidRegex.test(tenant_id.trim())) {
