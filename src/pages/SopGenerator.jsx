@@ -7,11 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import PageHeader from "@/components/shared/PageHeader";
 import ReactMarkdown from "react-markdown";
+import { exportSop, EXPORT_FORMATS } from "@/utils/sopExport";
 
 export default function SopGenerator({ selectedTenant, tenants }) {
   const [chosenTenantId, setChosenTenantId] = useState(selectedTenant?.id || "");
   const [sop, setSop] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState("pdf");
   const [expanded, setExpanded] = useState({});
 
   const { data: allTenants = [] } = useQuery({
@@ -132,15 +135,16 @@ Generate the full SOP document now.
     }
   };
 
-  const downloadSOP = () => {
+  const downloadSOP = async () => {
     if (!sop) return;
-    const blob = new Blob([sop], { type: "text/markdown;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `SOP_${chosenTenant?.name?.replace(/\s+/g, "_") || "tenant"}_${new Date().toISOString().split("T")[0]}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setExporting(true);
+    try {
+      await exportSop(sop, chosenTenant?.name || "tenant", exportFormat);
+    } catch (e) {
+      console.error("SOP export failed", e);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -184,9 +188,22 @@ Generate the full SOP document now.
 
         <div className="flex gap-2 ml-auto">
           {sop && (
-            <Button variant="outline" onClick={downloadSOP} className="gap-2">
-              <Download className="h-4 w-4" /> Download .md
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={exportFormat} onValueChange={setExportFormat}>
+                <SelectTrigger className="h-10 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPORT_FORMATS.map(f => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={downloadSOP} disabled={exporting} className="gap-2">
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {exporting ? "Exporting..." : "Download"}
+              </Button>
+            </div>
           )}
           <Button
             className="bg-slate-900 hover:bg-slate-800 gap-2"
@@ -237,9 +254,22 @@ Generate the full SOP document now.
                 {new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
               </Badge>
             </div>
-            <Button variant="outline" size="sm" onClick={downloadSOP} className="gap-2">
-              <Download className="h-3.5 w-3.5" /> Download
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={exportFormat} onValueChange={setExportFormat}>
+                <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPORT_FORMATS.map(f => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={downloadSOP} disabled={exporting} className="gap-2">
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exporting ? "Exporting..." : "Download"}
+              </Button>
+            </div>
           </div>
           <div className="p-6 sm:p-10 prose prose-sm prose-slate max-w-none overflow-auto max-h-[75vh]">
             <ReactMarkdown
