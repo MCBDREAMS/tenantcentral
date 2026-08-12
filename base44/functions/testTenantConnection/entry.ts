@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -11,6 +12,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, tenant_id, client_id, client_secret, link_user_email, tenant_record_id } = body;
+
+    // ── Authorization: connection tests reveal org/tenant info — require admin/scoped role ──
+    const denied = await authorizeAdminAction(base44, user, [tenant_id]);
+    if (denied) return denied;
 
     const effectiveClientId = client_id || GLOBAL_CLIENT_ID;
     const effectiveClientSecret = client_secret || GLOBAL_CLIENT_SECRET;

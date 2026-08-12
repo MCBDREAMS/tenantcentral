@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 // Shared secret to authenticate incoming agent payloads
 // The agent includes this in the Authorization header: Bearer <AGENT_SECRET>
@@ -84,6 +85,9 @@ Deno.serve(async (req) => {
     if (action === "list_scans") {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      // AD scan dumps are sensitive — require an admin/privileged role
+      const denied = await authorizeAdminAction(base44, user, []);
+      if (denied) return denied;
       const scans = await base44.asServiceRole.entities.AdAgentScan.list("-scan_time", 20);
       return Response.json({ success: true, scans });
     }
@@ -92,6 +96,9 @@ Deno.serve(async (req) => {
     if (action === "get_scan_users") {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+      // AD user payloads are sensitive — require an admin/privileged role
+      const denied = await authorizeAdminAction(base44, user, []);
+      if (denied) return denied;
       const { scan_id } = body;
       const scans = await base44.asServiceRole.entities.AdAgentScan.filter({ id: scan_id });
       if (!scans.length) return Response.json({ error: "Scan not found" }, { status: 404 });

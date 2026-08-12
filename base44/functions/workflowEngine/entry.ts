@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -289,6 +290,10 @@ Deno.serve(async (req) => {
       const tenant = tenants[0];
       if (!tenant) return Response.json({ error: "Tenant not found" }, { status: 404 });
 
+      // ── Authorization: caller must be cleared for the rule's tenant before any destructive action ──
+      const denied = await authorizeAdminAction(base44, user, [tenant.tenant_id]);
+      if (denied) return denied;
+
       const clientId = tenant.azure_client_id || GLOBAL_CLIENT_ID;
       const clientSecret = tenant.azure_client_secret || GLOBAL_CLIENT_SECRET;
 
@@ -415,6 +420,10 @@ Deno.serve(async (req) => {
       const tenants = await base44.asServiceRole.entities.Tenant.filter({ id: tenant_id });
       const tenant = tenants[0];
       if (!tenant) return Response.json({ error: "Tenant not found" }, { status: 404 });
+
+      // ── Authorization: caller must be cleared for this tenant ──
+      const denied = await authorizeAdminAction(base44, user, [tenant.tenant_id]);
+      if (denied) return denied;
 
       const clientId = tenant.azure_client_id || GLOBAL_CLIENT_ID;
       const clientSecret = tenant.azure_client_secret || GLOBAL_CLIENT_SECRET;

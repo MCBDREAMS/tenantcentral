@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 async function getToken(tenantId, clientId, clientSecret) {
   const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
@@ -45,6 +46,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id } = body;
+
+    // ── Authorization: hybrid analysis reads tenant-scoped Graph data — require admin/scoped role ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id]);
+    if (denied) return denied;
 
     // Resolve credentials
     const GLOBAL_ID = Deno.env.get("AZURE_CLIENT_ID");

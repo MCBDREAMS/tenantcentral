@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -53,6 +54,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, azure_tenant_id } = body;
+
+    // ── Authorization: app registration secrets are tenant-scoped admin data ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id]);
+    if (denied) return denied;
 
     // Look up per-tenant credentials
     let clientId = GLOBAL_CLIENT_ID;

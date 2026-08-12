@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -53,6 +54,10 @@ Deno.serve(async (req) => {
     if (!azure_tenant_id) {
       return Response.json({ error: "azure_tenant_id is required" }, { status: 400 });
     }
+
+    // ── Authorization: Graph sync mutates tenant-scoped entities — require admin/scoped role ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id, tenant_id]);
+    if (denied) return denied;
 
     // ── Look up per-tenant credentials (fall back to global) ─────────────────
     let clientId = GLOBAL_CLIENT_ID;
