@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
@@ -522,6 +523,11 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { action, azure_tenant_id } = await req.json();
+
+    // ── Authorization: analysis reads tenant-scoped Graph data — require platform admin or tenant-scoped AdminRole ──
+    const denied = await authorizeAdminAction(base44, user, [azure_tenant_id]);
+    if (denied) return denied;
+
     const token = await getAccessToken(azure_tenant_id);
 
     if (action === "analyze") {
