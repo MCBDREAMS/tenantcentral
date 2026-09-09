@@ -216,6 +216,49 @@ async function executeDefederation(token, federatedDomains, tempPassword) {
   };
 }
 
+// ── Scan federated users (no reset) ───────────────────────────────────────
+async function scanUsers(token, federatedDomains) {
+  const fedNames = federatedDomains.map((f) => f.domain.toLowerCase());
+  const users = await graphGetAll(token, "/users?$select=id,userPrincipalName,accountEnabled,onPremisesImmutableId,onPremisesSyncEnabled&$top=999");
+  const fedUsers = users.filter((u) =>
+    fedNames.some((d) => (u.userPrincipalName || "").toLowerCase().endsWith("@" + d))
+  );
+  return {
+    count: fedUsers.length,
+    users: fedUsers.map((u) => ({
+      upn: u.userPrincipalName,
+      immutableId: !!u.onPremisesImmutableId,
+      onPremSync: !!u.onPremisesSyncEnabled,
+      enabled: u.accountEnabled
+    }))
+  };
+}
+
+// ── Check live DNS / MX via DNS-over-HTTPS ────────────────────────────────
+async function dohResolve(name, type) {
+  try {
+    const url = `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`;
+    const res = await fetch(url, { headers: { Accept: "application/dns-json" } });
+    const data = await res.json();
+    return (data.Answer || []).map((a) => ({ name: a.name, type: a.type, data: a.data }));
+  } catch (e) {
+    return [{ error: e.message }];
+  }
+}
+
+async function checkDns(federatedDomains) {
+  const results = [];
+  for (const f of federatedDomains) {
+    results.push({
+      domain: f.domain,
+      mx: await dohResolve(f.domain, "MX"),
+      txt: await dohResolve(f.domain, "TXT"),
+      autodiscover: await dohResolve(`autodiscover.${f.domain}`, "CNAME")
+    });
+  }
+  return { dns: results };
+}
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -264,6 +307,28 @@ export default async function(req) {
     if (!job) return Response.json({ error: "Run 'Check Federation' (detect) first" }, { status: 400 });
     const federatedDomains = JSON.parse(job.federated_domains || "[]");
     if (!federatedDomains.length) return Response.json({ error: "No federated domains detected for this tenant" }, { status: 400 });
+
+    // ── scan_users (Step 1: list federated users, no reset) ───────────
+    if (action === "scan_users") {
+      const result = await scanUsers(token, federatedDomains);
+      await saveJob(base44, tenant_id, {
+        status: "analyzed",
+        federated_user_count: result.count,
+        analysis_report: JSON.stringify(result),
+        current_step: "scan_users"
+      });
+      return Response.json({ success: true, action, ...result });
+    }
+
+    // ── check_dns (Step 2: live MX / DNS records) ─────────────────────
+    if (action === "check_dns") {
+      const result = await checkDns(federatedDomains);
+      await saveJob(base44, tenant_id, {
+        current_step: "check_dns",
+        dry_run_report: JSON.stringify(result)
+      });
+      return Response.json({ success: true, action, ...result });
+    }
 
     // ── analyze ────────────────────────────────────────────────────────
     if (action === "analyze") {

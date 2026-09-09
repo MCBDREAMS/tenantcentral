@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { exportToCSV } from "@/components/shared/exportUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, Unlink, ShieldCheck, FileSearch, FlaskConical,
-  RefreshCw, Rocket, AlertTriangle, ChevronDown, ChevronRight, Lock, CheckCircle2
+  Loader2, Unlink, ShieldCheck, Users, Globe, Download,
+  ChevronDown, ChevronRight
 } from "lucide-react";
 
 const safeParse = (s, fallback) => {
@@ -12,31 +13,49 @@ const safeParse = (s, fallback) => {
 };
 
 const STATUS_LABEL = {
-  not_scanned: "Not Scanned",
-  detected: "Detected",
-  analyzing: "Analyzing…",
-  analyzed: "Analyzed",
-  dry_run: "Dry Run",
-  issues_pending: "Issues Pending",
-  ready: "Ready to Execute",
-  executing: "Executing…",
-  completed: "Completed",
-  failed: "Failed",
+  not_scanned: "Not Scanned", detected: "Federated", analyzing: "Analyzing…",
+  analyzed: "Users Scanned", dry_run: "DNS Checked", issues_pending: "Issues Pending",
+  ready: "Ready", executing: "Executing…", completed: "Completed", failed: "Failed",
   not_federated: "Not Federated"
 };
 
+// 8 chars, 1 uppercase, 1 special, rest lowercase + digits
+function genPassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const special = "!@#$%^*-_=";
+  const rest = lower + digits;
+  const pick = (s) => s[Math.floor(Math.random() * s.length)];
+  let pwd = [pick(upper), pick(special)];
+  for (let i = 0; i < 6; i++) pwd.push(pick(rest));
+  for (let i = pwd.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+  }
+  return pwd.join("");
+}
+
 export default function DefederationCard({ tenant, job, onRefresh }) {
   const [busy, setBusy] = useState(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [showDryRun, setShowDryRun] = useState(false);
-  const [showLog, setShowLog] = useState(false);
+  const [users, setUsers] = useState(null);
+  const [dns, setDns] = useState(null);
+  const [showUsers, setShowUsers] = useState(true);
+  const [showDns, setShowDns] = useState(true);
 
   const run = async (action, extra = {}) => {
     setBusy(action);
     try {
-      await base44.functions.invoke("godaddyDefederation", {
+      const res = await base44.functions.invoke("godaddyDefederation", {
         action, tenant_id: tenant.id, azure_tenant_id: tenant.tenant_id, ...extra
       });
+      const data = res?.data || {};
+      if (action === "scan_users" && data.users) {
+        setUsers(data.users.map((u) => ({ ...u, password: u.onPremSync ? "" : genPassword() })));
+      }
+      if (action === "check_dns" && data.dns) {
+        setDns(data.dns);
+      }
       await onRefresh();
     } catch (e) {
       const detail = e?.response?.data?.error || e?.message || String(e);
@@ -49,11 +68,21 @@ export default function DefederationCard({ tenant, job, onRefresh }) {
   const status = job?.status || "not_scanned";
   const linked = job?.is_godaddy_linked;
   const fedDomains = safeParse(job?.federated_domains, []);
-  const analysis = safeParse(job?.analysis_report, null);
-  const dryRun = safeParse(job?.dry_run_report, null);
-  const execLog = safeParse(job?.execution_log, null);
-  const failurePoints = safeParse(job?.failure_points, []);
-  const blockingCount = failurePoints.filter(f => f.severity === "critical").length;
+  const isFederated = fedDomains.length > 0;
+
+  const exportCsv = () => {
+    if (!users) return;
+    exportToCSV(
+      users.map((u) => ({
+        userPrincipalName: u.upn,
+        generatedPassword: u.password,
+        hasImmutableId: u.immutableId ? "yes" : "no",
+        onPremSync: u.onPremSync ? "yes" : "no",
+        accountEnabled: u.enabled ? "yes" : "no"
+      })),
+      `defederation_passwords_${tenant.domain}`
+    );
+  };
 
   const fedBadge = status === "not_scanned" ? "secondary"
     : linked ? "destructive"
@@ -65,8 +94,8 @@ export default function DefederationCard({ tenant, job, onRefresh }) {
       {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-slate-100">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${linked ? "bg-rose-50" : "bg-slate-100"}`}>
-            {linked ? <Unlink className="h-4 w-4 text-rose-600" /> : <ShieldCheck className="h-4 w-4 text-slate-500" />}
+          <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isFederated ? "bg-rose-50" : "bg-slate-100"}`}>
+            {isFederated ? <Unlink className="h-4 w-4 text-rose-600" /> : <ShieldCheck className="h-4 w-4 text-slate-500" />}
           </div>
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 text-sm truncate">{tenant.name}</div>
@@ -75,7 +104,7 @@ export default function DefederationCard({ tenant, job, onRefresh }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant={fedBadge} className="text-[10px]">
-            {linked ? "GoDaddy Federated" : status === "not_federated" ? "Not Federated" : status === "not_scanned" ? "Unknown" : "Third-Party Federated"}
+            {linked ? "GoDaddy Federated" : status === "not_federated" ? "Not Federated" : status === "not_scanned" ? "Unknown" : "Federated"}
           </Badge>
           <Badge variant="outline" className="text-[10px]">{STATUS_LABEL[status] || status}</Badge>
         </div>
@@ -88,113 +117,131 @@ export default function DefederationCard({ tenant, job, onRefresh }) {
             <div key={i} className="text-xs bg-white border border-slate-200 rounded-md px-2 py-1">
               <span className="font-medium text-slate-700">{f.domain}</span>
               {f.isGodaddy && <span className="ml-2 text-rose-600">GoDaddy</span>}
-              <span className="ml-2 text-slate-400">{f.issuerUri || "no issuer"}</span>
+              <span className="ml-2 text-slate-400 truncate">{f.issuerUri || "no issuer"}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Failure points summary */}
-      {failurePoints.length > 0 && (
-        <div className={`px-5 py-3 border-b border-slate-100 ${blockingCount > 0 ? "bg-rose-50" : "bg-amber-50"}`}>
-          <div className="flex items-center gap-2 text-xs">
-            <AlertTriangle className={`h-3.5 w-3.5 ${blockingCount > 0 ? "text-rose-600" : "text-amber-600"}`} />
-            <span className={blockingCount > 0 ? "text-rose-700 font-medium" : "text-amber-700 font-medium"}>
-              {blockingCount > 0 ? `${blockingCount} blocking issue(s) — must resolve before execute` : `${failurePoints.length} warning(s) from dry run`}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Actions */}
+      {/* Detect */}
       <div className="px-5 py-3 flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={() => run("detect")} disabled={busy !== null} className="gap-1.5">
           {busy === "detect" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
           Check Federation
         </Button>
-        {linked !== false && status !== "not_federated" && (
-          <>
-            <Button size="sm" variant="outline" onClick={() => run("analyze")} disabled={busy !== null || !fedDomains.length} className="gap-1.5">
-              {busy === "analyze" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-              Analyze
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => run("dry_run")} disabled={busy !== null || !analysis} className="gap-1.5">
-              {busy === "dry_run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
-              Dry Run
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => run("reanalyze")} disabled={busy !== null || !analysis} className="gap-1.5">
-              {busy === "reanalyze" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Re-analyze
-            </Button>
-            {status !== "ready" && (
-              <Button size="sm" variant="outline" onClick={() => run("mark_resolved")} disabled={busy !== null} className="gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Mark Issues Resolved
-              </Button>
-            )}
-            <Button size="sm" onClick={() => {
-              if (!confirm("This will convert federated domains to managed and reset passwords. Continue?")) return;
-              run("execute");
-            }} disabled={busy !== null || status !== "ready"} className="gap-1.5 bg-rose-600 hover:bg-rose-700">
-              {busy === "execute" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-              Execute Defederation
-            </Button>
-          </>
-        )}
       </div>
 
-      {/* Reports */}
-      {analysis && (
-        <div className="border-t border-slate-100">
-          <button onClick={() => setShowAnalysis(!showAnalysis)} className="w-full px-5 py-2 flex items-center gap-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            {showAnalysis ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            Analysis Report ({analysis.federated_user_count || 0} federated users, {analysis.globalAdmins || 0} global admins)
-          </button>
-          {showAnalysis && (
-            <div className="px-5 py-3 text-xs text-slate-600 bg-slate-50 space-y-1">
-              <div>.onmicrosoft.com admins: <span className="font-medium">{(analysis.onMicrosoftAdmins || []).join(", ") || "none found"}</span></div>
-              <div>On-prem synced users: {analysis.syncedUsers || 0} · App registrations: {analysis.appRegistrations || 0}</div>
-              {(analysis.flags || []).map((f, i) => (
-                <div key={i} className={`mt-1 p-2 rounded ${f.severity === "critical" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
-                  <span className="font-medium">{f.area}:</span> {f.detail} — <em>{f.recommendation}</em>
-                </div>
-              ))}
+      {/* Defederation steps (any federated tenant) */}
+      {isFederated && (
+        <div className="border-t border-slate-100 divide-y divide-slate-100">
+          {/* Step 1 — Users & passwords */}
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center">1</span>
+                <Users className="h-4 w-4 text-blue-600" />
+                Scan User Accounts & Generate Passwords
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => run("scan_users")} disabled={busy !== null} className="gap-1.5">
+                  {busy === "scan_users" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
+                  Scan Users
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportCsv} disabled={!users || users.length === 0} className="gap-1.5">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </Button>
+              </div>
             </div>
-          )}
+            <p className="text-xs text-slate-400 mb-2">
+              Generates an 8-character password (1 uppercase, 1 special) per federated user. Passwords are NOT reset — generated for documentation only.
+            </p>
+            {users && (
+              <div>
+                <button onClick={() => setShowUsers(!showUsers)} className="flex items-center gap-1 text-xs text-slate-500 mb-1">
+                  {showUsers ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {users.length} user(s) · {users.filter((u) => u.password).length} passwords generated
+                </button>
+                {showUsers && (
+                  <div className="overflow-auto max-h-64 border border-slate-200 rounded-md">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                        <tr>
+                          <th className="text-left px-2 py-1 font-medium">User Principal Name</th>
+                          <th className="text-left px-2 py-1 font-medium">Generated Password</th>
+                          <th className="text-left px-2 py-1 font-medium">ImmutableId</th>
+                          <th className="text-left px-2 py-1 font-medium">On-Prem Sync</th>
+                          <th className="text-left px-2 py-1 font-medium">Enabled</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((u, i) => (
+                          <tr key={i} className="border-t border-slate-100">
+                            <td className="px-2 py-1 text-slate-700">{u.upn}</td>
+                            <td className="px-2 py-1 font-mono text-slate-900">{u.password || "— (synced)"}</td>
+                            <td className="px-2 py-1">{u.immutableId ? "yes" : "no"}</td>
+                            <td className="px-2 py-1">{u.onPremSync ? "yes" : "no"}</td>
+                            <td className="px-2 py-1">{u.enabled ? "yes" : "no"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Step 2 — DNS / MX */}
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center">2</span>
+                <Globe className="h-4 w-4 text-blue-600" />
+                Check MX / DNS Records
+              </div>
+              <Button size="sm" variant="outline" onClick={() => run("check_dns")} disabled={busy !== null} className="gap-1.5">
+                {busy === "check_dns" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                Check DNS
+              </Button>
+            </div>
+            {dns && (
+              <div className="space-y-3">
+                <button onClick={() => setShowDns(!showDns)} className="flex items-center gap-1 text-xs text-slate-500">
+                  {showDns ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {dns.length} domain(s)
+                </button>
+                {showDns && dns.map((d, i) => (
+                  <div key={i} className="border border-slate-200 rounded-md p-3 bg-slate-50">
+                    <div className="font-medium text-sm text-slate-700 mb-2">{d.domain}</div>
+                    <DnsSection title="MX Records" records={d.mx} />
+                    <DnsSection title="TXT Records" records={d.txt} />
+                    <DnsSection title="Autodiscover CNAME" records={d.autodiscover} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {dryRun && (
-        <div className="border-t border-slate-100">
-          <button onClick={() => setShowDryRun(!showDryRun)} className="w-full px-5 py-2 flex items-center gap-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            {showDryRun ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            Dry Run Report — {(dryRun.failure_points || []).length} failure points · {dryRun.canProceed ? "ready" : "blocking"}
-          </button>
-          {showDryRun && (
-            <div className="px-5 py-3 text-xs bg-slate-50 space-y-1">
-              {(dryRun.failure_points || []).map((f, i) => (
-                <div key={i} className={`p-2 rounded ${f.severity === "critical" ? "bg-rose-100 text-rose-700" : f.severity === "high" ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-700"}`}>
-                  <span className="font-medium">{f.severity.toUpperCase()} · {f.area}:</span> {f.detail} — <em>{f.recommendation}</em>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {execLog && (
-        <div className="border-t border-slate-100">
-          <button onClick={() => setShowLog(!showLog)} className="w-full px-5 py-2 flex items-center gap-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            {showLog ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            <Lock className="h-3.5 w-3.5" /> Execution Log ({(execLog.log || []).length} entries)
-          </button>
-          {showLog && (
-            <div className="px-5 py-3 text-xs bg-slate-50 max-h-64 overflow-auto">
-              <div className="mb-2 text-slate-500">Domains: {JSON.stringify(execLog.verify || [])}</div>
-              <div className="mb-2 text-slate-500">pwd set {execLog.pwdSet} fail {execLog.pwdFail} · domains ok {execLog.domOk} fail {execLog.domFail} · immutable cleared {execLog.immCleared} fail {execLog.immFail}</div>
-              <pre className="whitespace-pre-wrap text-[10px] text-slate-600">{JSON.stringify(execLog.log || [], null, 0)}</pre>
-            </div>
-          )}
+function DnsSection({ title, records }) {
+  const list = (records || []).filter((r) => !r.error);
+  const err = (records || []).find((r) => r.error);
+  return (
+    <div className="mb-2">
+      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{title}</div>
+      {err ? (
+        <div className="text-xs text-rose-600">{err.error}</div>
+      ) : list.length === 0 ? (
+        <div className="text-xs text-slate-400">none found</div>
+      ) : (
+        <div className="text-xs text-slate-600 space-y-0.5">
+          {list.map((r, i) => (
+            <div key={i} className="font-mono break-all">{r.data}</div>
+          ))}
         </div>
       )}
     </div>
