@@ -31,44 +31,55 @@ const navSections = [
     ]
   },
   {
-    label: "Entra AD",
+    label: "Microsoft Entra ID",
     section: "entra",
     items: [
-      { name: "Users", icon: Users, page: "EntraUsers" },
-      { name: "Groups", icon: UserCheck, page: "EntraGroups" },
-      { name: "Devices", icon: MonitorSmartphone, page: "EntraDevices" },
-      { name: "Compliance", icon: ShieldCheck, page: "EntraCompliance" },
-      { name: "MFA & Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
-      { name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
-      { name: "Directory Roles", icon: ShieldAlert, page: "EntraRoles" },
-      { name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
-      { name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
+      { group: "Identity", name: "Users", icon: Users, page: "EntraUsers" },
+      { group: "Identity", name: "Groups", icon: UserCheck, page: "EntraGroups" },
+      { group: "Identity", name: "Devices", icon: MonitorSmartphone, page: "EntraDevices" },
+      { group: "Applications", name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
+      { group: "Protection", name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
+      { group: "Protection", name: "MFA & Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
+      { group: "Protection", name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
+      { group: "Protection", name: "Directory Roles", icon: ShieldAlert, page: "EntraRoles" },
+      { group: "Monitoring", name: "Compliance", icon: ShieldCheck, page: "EntraCompliance" },
+      { group: "Hybrid Management", name: "Hybrid Setup Analyzer", icon: GitMerge, page: "HybridSetupAnalyzer" },
+      { group: "Hybrid Management", name: "AD → Entra ID Migration", icon: GitMerge, page: "AdUserMigration" },
     ]
   },
   {
-    label: "Intune",
+    label: "Microsoft Intune",
     section: "intune",
     items: [
-      { name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
-      { name: "Starter Kit", icon: Rocket, page: "IntuneStarterKit" },
-      { name: "Company Portal", icon: AppWindow, page: "CompanyPortal" },
-      { name: "Remote PS Console", icon: Terminal, page: "RemotePSConsole" },
-      { name: "Deployment Plans", icon: GitBranch, page: "DeploymentPlans" },
-      { name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
-      { name: "Windows Updates", icon: ShieldCheck, page: "WindowsUpdates" },
-      { name: "Threat Insights", icon: ShieldAlert, page: "ThreatInsights" },
-      { name: "Mobile Devices", icon: Smartphone, page: "MobileDevices" },
-      { name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
-      { name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },
-      { name: "Device Scripts", icon: Terminal, page: "DeviceScripts" },
-      { name: "Apps & Packages", icon: AppWindow, page: "IntuneApps" },
-      { name: "Autopilot", icon: Rocket, page: "IntuneAutopilot" },
-      { name: "Filters", icon: Filter, page: "IntuneFilters" },
-      { name: "Reports", icon: BarChart2, page: "IntuneReports" },
-      { name: "Sophos Report", icon: ShieldCheck, page: "SophosReport" },
-      { name: "Adidy → Intune Migration", icon: GitBranch, page: "IntuneAdiMigration" },
-      { name: "AD → Entra ID Migration", icon: GitMerge, page: "AdUserMigration" },
-      { name: "AI Assistant", icon: Bot, page: "IntuneAssistant" },
+      { group: "Devices", name: "Devices", icon: MonitorSmartphone, page: "IntuneDevices" },
+      { group: "Devices", name: "Mobile Devices", icon: Smartphone, page: "MobileDevices" },
+      { group: "Devices", name: "Compliance & Config", icon: FolderCog, page: "IntuneProfiles" },
+      { group: "Devices", name: "Security Baselines", icon: ShieldCheck, page: "SecurityBaselines" },
+      { group: "Devices", name: "Device Scripts", icon: Terminal, page: "DeviceScripts" },
+      { group: "Devices", name: "Autopilot", icon: Rocket, page: "IntuneAutopilot" },
+      { group: "Apps", name: "Apps & Packages", icon: AppWindow, page: "IntuneApps" },
+      { group: "Apps", name: "Company Portal", icon: AppWindow, page: "CompanyPortal" },
+      { group: "Apps", name: "App Monitor", icon: Activity, page: "DeviceAppMonitor" },
+      { group: "Updates", name: "Windows Updates", icon: ShieldCheck, page: "WindowsUpdates" },
+      { group: "Reports", name: "Reports", icon: BarChart2, page: "IntuneReports" },
+      { group: "Reports", name: "Sophos Report", icon: ShieldCheck, page: "SophosReport" },
+      { group: "Reports", name: "Threat Insights", icon: ShieldAlert, page: "ThreatInsights" },
+      { group: "Reports", name: "Filters", icon: Filter, page: "IntuneFilters" },
+      { group: "Deploy", name: "Deployment Plans", icon: GitBranch, page: "DeploymentPlans" },
+      { group: "Deploy", name: "Starter Kit", icon: Rocket, page: "IntuneStarterKit" },
+      { group: "Deploy", name: "Remote PS Console", icon: Terminal, page: "RemotePSConsole" },
+      { group: "Migrate", name: "Adidy → Intune Migration", icon: GitBranch, page: "IntuneAdiMigration" },
+      { group: "Assist", name: "AI Assistant", icon: Bot, page: "IntuneAssistant" },
+    ]
+  },
+  {
+    label: "Security (Defender)",
+    section: null,
+    items: [
+      { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
+      { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
+      { name: "Workflow Engine", icon: Zap, page: "WorkflowEngine" },
+      { name: "GoDaddy Defederation", icon: Unlink, page: "GoDaddyDefederation" },
     ]
   },
   {
@@ -77,21 +88,11 @@ const navSections = [
     items: [
       { name: "MDM Solutions", icon: Layers, page: "MdmSolutions" },
       { name: "On-Prem Sync", icon: Server, page: "OnPremSync" },
+      { name: "Network Map", icon: Globe, page: "NetworkMap" },
     ]
   },
   {
-    label: "Security",
-    section: null,
-    items: [
-      { name: "Tenant Analyser", icon: ShieldCheck, page: "TenantAnalyzer" },
-      { name: "Compliance Reporting", icon: BarChart2, page: "ComplianceReporting" },
-      { name: "Workflow Engine", icon: Zap, page: "WorkflowEngine" },
-      { name: "Hybrid Setup Analyzer", icon: GitMerge, page: "HybridSetupAnalyzer" },
-      { name: "GoDaddy Defederation", icon: Unlink, page: "GoDaddyDefederation" },
-    ]
-  },
-  {
-    label: "Portals",
+    label: "Microsoft 365 Portals",
     section: "entra",
     items: [
       { name: "Exchange", icon: Mail, page: "PortalExchange" },
@@ -102,21 +103,7 @@ const navSections = [
     ]
   },
   {
-    label: "About",
-    section: null,
-    items: [
-      { name: "About & License", icon: Layers, page: "About" },
-    ]
-  },
-  {
-    label: "Network",
-    section: null,
-    items: [
-      { name: "Network Map", icon: Globe, page: "NetworkMap" },
-    ]
-  },
-  {
-    label: "Admin",
+    label: "Administration",
     section: "admin",
     items: [
       { name: "Approval Queue", icon: Shield, page: "ApprovalQueue", badgeKey: "approvals" },
@@ -127,6 +114,13 @@ const navSections = [
       { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
       { name: "SOP Generator", icon: FileText, page: "SopGenerator" },
       { name: "App Health Check", icon: Activity, page: "AppHealthCheck" },
+    ]
+  },
+  {
+    label: "About",
+    section: null,
+    items: [
+      { name: "About & License", icon: Layers, page: "About" },
     ]
   }
 ];
@@ -236,28 +230,34 @@ export default function Layout({ children, currentPageName }) {
             )}
             {(expandedSections[sIndex] || (!sidebarOpen && !mobile)) && (
               <div className="space-y-0.5">
-                {section.items.map(item => {
+                {section.items.map((item, i) => {
                   const isActive = currentPageName === item.page;
+                  const prevGroup = i > 0 ? section.items[i - 1].group : null;
+                  const showGroup = (sidebarOpen || mobile) && item.group && item.group !== prevGroup;
                   return (
-                    <Link
-                      key={item.page}
-                      to={createPageUrl(item.page)}
-                      onClick={() => mobile && setMobileSidebarOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
-                        ${isActive
-                          ? 'bg-blue-600/20 text-blue-400 font-medium'
-                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                        }
-                        ${!sidebarOpen && !mobile ? 'justify-center' : ''}
-                      `}
-                      title={item.name}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {(sidebarOpen || mobile) && <span className="flex-1">{item.name}</span>}
-                      {(sidebarOpen || mobile) && item.badgeKey === "approvals" && pendingApprovals > 0 && (
-                        <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">{pendingApprovals}</span>
+                    <div key={item.page}>
+                      {showGroup && (
+                        <div className="px-3 pt-2 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-600">{item.group}</div>
                       )}
-                    </Link>
+                      <Link
+                        to={createPageUrl(item.page)}
+                        onClick={() => mobile && setMobileSidebarOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
+                          ${isActive
+                            ? 'bg-blue-600/20 text-blue-400 font-medium'
+                            : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                          }
+                          ${!sidebarOpen && !mobile ? 'justify-center' : ''}
+                        `}
+                        title={item.name}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {(sidebarOpen || mobile) && <span className="flex-1">{item.name}</span>}
+                        {(sidebarOpen || mobile) && item.badgeKey === "approvals" && pendingApprovals > 0 && (
+                          <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">{pendingApprovals}</span>
+                        )}
+                      </Link>
+                    </div>
                   );
                 })}
               </div>
