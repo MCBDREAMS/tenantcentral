@@ -1,63 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
+import { getAccessToken, graphGet, graphGetBeta, graphGetAll } from '../../shared/graphClient.ts';
 
 import { format, startOfDay } from 'npm:date-fns@3.6.0';
 
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
-async function getAccessToken(tenantId, clientId, clientSecret) {
-  const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: "https://graph.microsoft.com/.default"
-  });
-  const res = await fetch(url, { method: "POST", body });
-  const data = await res.json();
-  if (!data.access_token) throw new Error(`Token error: ${JSON.stringify(data)}`);
-  return data.access_token;
-}
-
-async function graphGet(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph ${path} failed ${res.status}: ${err}`);
-  }
-  return res.json();
-}
-
-async function graphGetBeta(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/beta${path}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph beta ${path} failed ${res.status}: ${err}`);
-  }
-  return res.json();
-}
-
-// Fetches ALL pages from a Graph endpoint by following @odata.nextLink
-async function graphGetAll(token, initialUrl) {
-  let url = initialUrl;
-  const allValues = [];
-  while (url) {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Graph paginated fetch failed ${res.status}: ${err}`);
-    }
-    const data = await res.json();
-    allValues.push(...(data.value || []));
-    url = data["@odata.nextLink"] || null;
-  }
-  return allValues;
-}
+// Graph helpers (getAccessToken, graphGet, graphGetBeta, graphGetAll) imported from shared/graphClient.ts
 
 Deno.serve(async (req) => {
   try {

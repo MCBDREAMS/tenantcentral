@@ -1,0 +1,94 @@
+{
+  "name": "DefederationJob",
+  "type": "object",
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "description": "Base44 Tenant record id this job belongs to"
+    },
+    "azure_tenant_id": {
+      "type": "string",
+      "description": "Azure tenant GUID"
+    },
+    "tenant_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "detected",
+        "analyzing",
+        "analyzed",
+        "dry_run",
+        "issues_pending",
+        "ready",
+        "executing",
+        "completed",
+        "failed",
+        "not_federated",
+        "not_scanned"
+      ],
+      "default": "not_scanned",
+      "description": "Current phase of the defederation workflow"
+    },
+    "is_godaddy_linked": {
+      "type": "boolean",
+      "default": false
+    },
+    "federation_type": {
+      "type": "string",
+      "enum": [
+        "godaddy",
+        "third_party",
+        "none"
+      ],
+      "default": "none"
+    },
+    "federated_domains": {
+      "type": "string",
+      "description": "JSON array of {domain, issuerUri, passiveSignInUri, displayName, isGodaddy}"
+    },
+    "federated_user_count": {
+      "type": "number",
+      "default": 0
+    },
+    "analysis_report": {
+      "type": "string",
+      "description": "JSON analysis report (users, admins, flags)"
+    },
+    "dry_run_report": {
+      "type": "string",
+      "description": "JSON dry-run results with failure points"
+    },
+    "failure_points": {
+      "type": "string",
+      "description": "JSON array of {severity, area, detail, recommendation}"
+    },
+    "issues_resolved": {
+      "type": "boolean",
+      "default": false
+    },
+    "execution_log": {
+      "type": "string",
+      "description": "JSON array of per-step execution results (no secrets)"
+    },
+    "current_step": {
+      "type": "string"
+    },
+    "started_by": {
+      "type": "string",
+      "description": "Email of user who initiated actions"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error_message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "azure_tenant_id"
+  ]
+}
