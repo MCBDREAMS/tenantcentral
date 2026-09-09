@@ -39,7 +39,8 @@ export default function DefederationCard({ tenant, job, onRefresh }) {
       });
       await onRefresh();
     } catch (e) {
-      alert(`${action} failed: ${e.message}`);
+      const detail = e?.response?.data?.error || e?.message || String(e);
+      alert(`${action} failed: ${detail}`);
     } finally {
       setBusy(null);
     }

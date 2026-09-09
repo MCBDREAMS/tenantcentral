@@ -41,7 +41,7 @@ async function saveJob(base44, tenantId, patch) {
 
 // ── Phase 1: Detect federation ──────────────────────────────────────────
 async function detectFederation(token) {
-  const domains = await graphGetAll(token, "/domains?$select=id,displayName,authenticationType,isVerified,availabilityStatus&$top=999");
+  const domains = await graphGetAll(token, "/domains?$select=id,authenticationType,isVerified,availabilityStatus&$top=999");
   const federated = [];
   for (const d of domains) {
     if (d.authenticationType !== "Federated") continue;
