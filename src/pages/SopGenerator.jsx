@@ -77,10 +77,58 @@ export default function SopGenerator({ selectedTenant, tenants }) {
       ? Math.round((devices.filter(d => d.compliance_state === "compliant").length / devices.length) * 100)
       : 0;
 
+    // Pull live Azure tenant inventory (SharePoint, billing/licenses, Exchange, Teams, OneDrive)
+    let inv = null;
+    let invWarnings = [];
+    try {
+      const res = await base44.functions.invoke("tenantInventory", {
+        action: "full_inventory",
+        azure_tenant_id: chosenTenant.tenant_id,
+        top: 50,
+      });
+      inv = res.data?.inventory || null;
+      invWarnings = inv?.warnings || [];
+    } catch (e) {
+      invWarnings.push(`Inventory fetch failed: ${e.message}`);
+    }
+
+    const licenseSummary = inv?.subscribedSkus?.length
+      ? inv.subscribedSkus.map(s => `- ${s.skuPartNumber}: ${s.consumedUnits}/${s.prepaidEnabled} consumed`).join("\n")
+      : "- Not available";
+
+    const sitesSummary = inv?.sharepoint?.sites?.length
+      ? inv.sharepoint.sites.slice(0, 15).map(s => `- ${s.displayName} — ${s.webUrl}`).join("\n")
+      : "- Not available";
+
+    const teamsSummary = inv?.teams?.teams?.length
+      ? inv.teams.teams.slice(0, 15).map(t => `- ${t.displayName} [${t.visibility || "private"}]`).join("\n")
+      : "- Not available";
+
+    const mailboxSummary = inv?.exchange?.mailboxes?.length
+      ? `- Total mail-enabled users: ${inv.exchange.mailboxes.length}
+- Licensed mailboxes: ${inv.exchange.mailboxes.filter(m => m.licensed).length}
+- Disabled with mailbox: ${inv.exchange.mailboxes.filter(m => !m.accountEnabled).length}`
+      : "- Not available";
+
+    const domainsSummary = inv?.domains?.length
+      ? inv.domains.map(d => `- ${d.id} [${d.authenticationType || "managed"}${d.isDefault ? ", default" : ""}${d.isVerified ? ", verified" : ", unverified"}]`).join("\n")
+      : "- Not available";
+
+    const oneDriveSummary = inv?.oneDrive?.driveSamples?.length
+      ? `- Provisioned sample: ${inv.oneDrive.driveSamples.length} drives
+- Avg used (GB): ${inv.oneDrive.avgUsedGb}`
+      : "- Not available";
+
+    const orgSummary = inv?.organization
+      ? `- Display name: ${inv.organization.displayName}
+- Country: ${inv.organization.country || "—"}
+- On-prem sync: ${inv.organization.onPremisesSyncEnabled ? "Enabled (last: " + (inv.organization.onPremisesLastSyncDateTime || "unknown") + ")" : "Not enabled (cloud-only)"}`
+      : "- Not available";
+
     const prompt = `
 You are a senior Microsoft 365 and Azure IT consultant. Generate a comprehensive, professional Service Operations Procedure (SOP) document for the following tenant configuration.
 
-The SOP should cover: Executive Summary, Tenant Overview, Identity & Access Management (Entra ID), Device Management (Intune), Security Baseline & Policies, Operational Procedures (daily/weekly/monthly tasks), Incident Response, Escalation Matrix, and a Compliance Summary.
+The SOP must cover: Executive Summary, Azure Tenant & Organisation Details, Billing & Licensing (M365 admin), Identity & Access Management (Entra ID), Device Management (Intune), Security Baseline & Policies, Microsoft 365 Workloads (Exchange, SharePoint, Teams, OneDrive), Operational Procedures (daily/weekly/monthly tasks), Incident Response, Escalation Matrix, and a Compliance Summary.
 
 Format using Markdown with clear headings (##, ###), bullet points, and tables where appropriate. Be thorough and professional.
 
@@ -92,6 +140,15 @@ TENANT DATA:
 - Subscription Type: ${chosenTenant.subscription_type || "Not specified"}
 - Status: ${chosenTenant.status}
 - Notes: ${chosenTenant.notes || "None"}
+
+AZURE ORGANISATION (from Azure itself):
+${orgSummary}
+
+BILLING & LICENSING (M365 admin — subscribedSkus):
+${licenseSummary}
+
+ACCEPTED DOMAINS:
+${domainsSummary}
 
 IDENTITY (Entra ID):
 - Total Users: ${users.length}
@@ -117,6 +174,20 @@ ${baselines.length > 0 ? baselines.map(b => `- ${b.baseline_name} [${b.state}]: 
 
 MDM SOLUTIONS:
 ${mdmSolutions.length > 0 ? mdmSolutions.map(m => `- ${m.solution_name} [${m.connection_status}] covering ${m.platform_scope}`).join("\n") : "- Intune (primary MDM)"}
+
+EXCHANGE ONLINE (mailboxes, settings, config):
+${mailboxSummary}
+
+SHAREPOINT ONLINE (sites & users):
+${sitesSummary}
+
+MICROSOFT TEAMS (setup & config):
+${teamsSummary}
+
+ONEDRIVE (config & set details):
+${oneDriveSummary}
+
+${invWarnings.length > 0 ? `INVENTORY NOTES (partial data — some sections could not be read):\n${invWarnings.slice(0, 8).map(w => "- " + w).join("\n")}` : ""}
 ---
 
 Generate the full SOP document now.

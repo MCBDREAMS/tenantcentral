@@ -114,6 +114,7 @@ const navSections = [
       { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
       { name: "SOP Generator", icon: FileText, page: "SopGenerator" },
       { name: "App Health Check", icon: Activity, page: "AppHealthCheck" },
+      { name: "Tenant-to-Tenant Migration", icon: GitMerge, page: "TenantMigration" },
     ]
   },
   {
