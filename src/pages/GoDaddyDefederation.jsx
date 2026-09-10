@@ -13,6 +13,8 @@ export default function GoDaddyDefederation({ selectedTenant, tenants }) {
   const [query, setQuery] = useState("");
 
   const list = tenants || [];
+  // When a specific tenant is selected in the sidebar, `tenants` is already scoped to
+  // just that one (see Layout), so all scans/actions here target it only.
 
   const loadJobs = useCallback(async () => {
     try {
@@ -43,6 +45,10 @@ export default function GoDaddyDefederation({ selectedTenant, tenants }) {
     loadJobs();
   };
 
+  const scanLabel = selectedTenant
+    ? `Scan ${selectedTenant.name}`
+    : (scanningAll ? "Scanning all tenants…" : "Scan All Tenants");
+
   const filtered = list.filter(t =>
     !query ||
     (t.name || "").toLowerCase().includes(query.toLowerCase()) ||
@@ -69,7 +75,7 @@ export default function GoDaddyDefederation({ selectedTenant, tenants }) {
         </div>
         <Button onClick={scanAll} disabled={scanningAll || list.length === 0} className="gap-2">
           {scanningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
-          {scanningAll ? "Scanning all tenants…" : "Scan All Tenants"}
+          {scanningAll ? "Scanning…" : scanLabel}
         </Button>
       </div>
 

@@ -145,6 +145,11 @@ export default function Layout({ children, currentPageName }) {
   const [navSearch, setNavSearch] = useState("");
   const { rbac, canAccess, filterTenants } = useRbac();
 
+  // Central tenant scoping: once a specific tenant is selected in the sidebar, every
+  // page receives only that tenant in its `tenants` prop so all reports, tasks and
+  // selections apply solely to it. "All Tenants" (admin) passes the full list.
+  const scopedTenants = selectedTenant ? [selectedTenant] : tenants;
+
   const navQuery = navSearch.trim().toLowerCase();
   const filteredNav = navSections
     .filter(s => !s.section || canAccess(s.section))
@@ -369,12 +374,12 @@ export default function Layout({ children, currentPageName }) {
         {isMobile ? (
           <PullToRefresh onRefresh={() => queryClient.invalidateQueries()}>
             <div className="h-14" />
-            {React.cloneElement(children, { selectedTenant, tenants })}
+            {React.cloneElement(children, { selectedTenant, tenants: scopedTenants })}
             <div className="h-16" />
           </PullToRefresh>
         ) : (
           <main className="flex-1 overflow-auto h-full">
-            {React.cloneElement(children, { selectedTenant, tenants })}
+            {React.cloneElement(children, { selectedTenant, tenants: scopedTenants })}
           </main>
         )}
       </div>
