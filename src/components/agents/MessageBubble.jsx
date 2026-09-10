@@ -97,8 +97,8 @@ export default function MessageBubble({ message, isStreaming }) {
               <p className="whitespace-pre-wrap">{message.content}</p>
             </div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm">
-              <div className="prose prose-sm prose-slate max-w-none [&_p]:my-1.5 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:rounded-md [&_pre]:p-2 [&_pre]:text-xs [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_a]:text-blue-600">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-700 shadow-sm">
+              <div className="max-w-none [&_p]:my-1.5 [&_p]:text-slate-700 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-slate-800 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-800 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_strong]:text-slate-800 [&_a]:text-blue-600 [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-xs [&_pre]:overflow-auto [&_pre_code]:bg-transparent [&_pre_code]:text-slate-100 [&_pre_code]:p-0 [&_pre_code]:text-xs [&_code]:bg-slate-100 [&_code]:text-slate-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs">
                 <ReactMarkdown>{message.content}</ReactMarkdown>
               </div>
             </div>
