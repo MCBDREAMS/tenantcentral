@@ -1,6 +1,7 @@
 import React from "react";
 import {
   CheckCircle2, AlertTriangle, XCircle, Info, Download, ShieldCheck, Gauge, FileWarning,
+  ArrowRight, MinusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,19 @@ const STATUS_STYLE = {
   insufficient_data: { icon: Info, color: "text-slate-600", bg: "bg-slate-50 border-slate-200", badge: "bg-slate-200 text-slate-700" },
 };
 
+function gapTone(gap) {
+  if (gap === null || gap === undefined) return "text-slate-400";
+  if (gap > 0) return "text-red-600 font-semibold";
+  if (gap < 0) return "text-emerald-600 font-semibold";
+  return "text-slate-500";
+}
+function gapLabel(gap) {
+  if (gap === null || gap === undefined) return "—";
+  if (gap > 0) return `${gap} short`;
+  if (gap < 0) return `${Math.abs(gap)} surplus`;
+  return "Balanced";
+}
+
 export default function FeasibilityReport({ report }) {
   const style = STATUS_STYLE[report.overallStatus] || STATUS_STYLE.insufficient_data;
   const sorted = [...report.findings].sort((a, b) => {
@@ -26,9 +40,19 @@ export default function FeasibilityReport({ report }) {
     return order[a.severity] - order[b.severity];
   });
 
+  const c = report.counts || { source: {}, target: {} };
+  const gapRows = [
+    { label: "Users", src: c.source.users, tgt: c.target.users, gap: (c.source.users ?? 0) - (c.target.users ?? 0) },
+    { label: "Mailboxes (source to move)", src: c.source.mailboxes, tgt: c.target.availableLicenses, gap: (c.source.mailboxes ?? 0) - (c.target.availableLicenses ?? 0) },
+    { label: "Teams", src: c.source.teams, tgt: c.target.teams, gap: null },
+    { label: "SharePoint sites", src: c.source.sharepointSites, tgt: c.target.sharepointSites, gap: null },
+    { label: "Guest users (source)", src: c.source.guests, tgt: 0, gap: c.source.guests ?? 0 },
+    { label: "Available licenses (target)", src: c.target.availableLicenses, tgt: c.target.availableLicenses, gap: report.licenseGap ?? 0 },
+  ];
+
   const downloadMd = () => {
     const lines = [];
-    lines.push(`# Tenant-to-Tenant Migration Feasibility Report`);
+    lines.push(`# Tenant-to-Tenant Migration Feasibility / Gap Report`);
     lines.push(`**Source:** ${report.sourceTenant}  •  **Target:** ${report.targetTenant}`);
     lines.push(`**Workloads:** ${report.workloads.join(", ")}  •  **Generated:** ${new Date(report.generatedAt).toLocaleString()}`);
     lines.push("");
@@ -38,16 +62,21 @@ export default function FeasibilityReport({ report }) {
     lines.push(`### Recommendation`);
     lines.push(report.recommendation);
     lines.push("");
-    lines.push(`## Inventory counts`);
-    lines.push(`| Metric | Source | Target |`);
-    lines.push(`|---|---|---|`);
-    lines.push(`| Users | ${report.counts.source.users} | ${report.counts.target.users} |`);
-    lines.push(`| Mailboxes | ${report.counts.source.mailboxes} | — |`);
-    lines.push(`| Teams | ${report.counts.source.teams} | — |`);
-    lines.push(`| SharePoint sites | ${report.counts.source.sharepointSites} | — |`);
-    lines.push(`| Available licenses | — | ${report.counts.target.availableLicenses} |`);
-    lines.push(`| License gap | ${report.licenseGap > 0 ? report.licenseGap + " short" : "none"} | — |`);
+    lines.push(`## Gap analysis (source vs target)`);
+    lines.push(`| Metric | Source | Target | Gap |`);
+    lines.push(`|---|---|---|---|`);
+    gapRows.forEach(r => {
+      lines.push(`| ${r.label} | ${r.src ?? "—"} | ${r.tgt ?? "—"} | ${gapLabel(r.gap)} |`);
+    });
     lines.push("");
+    if (report.sourceSkus?.length || report.targetSkus?.length) {
+      lines.push(`## License / SKU comparison`);
+      lines.push(`| Tenant | SKU | Consumed | Enabled |`);
+      lines.push(`|---|---|---|---|`);
+      (report.sourceSkus || []).forEach(s => lines.push(`| Source | ${s.sku} | ${s.consumed} | ${s.enabled} |`));
+      (report.targetSkus || []).forEach(s => lines.push(`| Target | ${s.sku} | ${s.consumed} | ${s.enabled} |`));
+      lines.push("");
+    }
     lines.push(`## Findings`);
     sorted.forEach(f => {
       lines.push(`### [${SEVERITY[f.severity].label}] ${f.area}`);
@@ -55,11 +84,16 @@ export default function FeasibilityReport({ report }) {
       lines.push(`- **Recommendation:** ${f.recommendation}`);
       lines.push("");
     });
+    if (report.warnings?.length) {
+      lines.push(`## Inventory warnings`);
+      report.warnings.forEach(w => lines.push(`- ${w}`));
+      lines.push("");
+    }
     const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `FeasibilityReport_${report.sourceTenant}_to_${report.targetTenant}.md`.replace(/\s+/g, "_");
+    a.download = `GapReport_${report.sourceTenant}_to_${report.targetTenant}.md`.replace(/\s+/g, "_");
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -84,7 +118,7 @@ export default function FeasibilityReport({ report }) {
             <span className="text-sm text-slate-400">/100</span>
           </div>
           <Button variant="outline" size="sm" onClick={downloadMd} className="gap-2 bg-white">
-            <Download className="h-3.5 w-3.5" /> Report (.md)
+            <Download className="h-3.5 w-3.5" /> Gap report (.md)
           </Button>
         </div>
       </div>
@@ -97,17 +131,58 @@ export default function FeasibilityReport({ report }) {
         <p className="text-sm text-slate-700">{report.recommendation}</p>
       </div>
 
-      {/* Counts */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <CountCard label="Source users" value={report.counts.source.users} />
-        <CountCard label="Source mailboxes" value={report.counts.source.mailboxes} />
-        <CountCard label="Source teams" value={report.counts.source.teams} />
-        <CountCard label="Source SP sites" value={report.counts.source.sharepointSites} />
-        <CountCard label="Target users" value={report.counts.target.users} />
-        <CountCard label="Target avail. licenses" value={report.counts.target.availableLicenses} />
-        <CountCard label="License gap" value={report.licenseGap > 0 ? `${report.licenseGap} short` : "None"} highlight={report.licenseGap > 0 ? "bad" : "good"} />
-        <CountCard label="Source guest users" value={report.counts.source.guests} />
+      {/* Gap analysis table */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-slate-400" />
+          <h4 className="font-semibold text-slate-700">Gap analysis — source vs target</h4>
+        </div>
+        <div className="grid grid-cols-4 px-5 py-2 bg-slate-50/50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+          <div>Metric</div>
+          <div className="text-center">Source</div>
+          <div className="text-center">Target</div>
+          <div className="text-right pr-2">Gap</div>
+        </div>
+        {gapRows.map((r, i) => (
+          <div key={r.label} className={`grid grid-cols-4 px-5 py-2.5 items-center text-sm ${i % 2 ? "bg-slate-50/40" : ""}`}>
+            <div className="text-slate-700 font-medium">{r.label}</div>
+            <div className="text-center text-slate-800 font-semibold">{r.src ?? "—"}</div>
+            <div className="text-center text-slate-800 font-semibold">{r.tgt ?? "—"}</div>
+            <div className={`text-right pr-2 ${gapTone(r.gap)}`}>
+              {r.gap === null || r.gap === undefined ? <MinusCircle className="h-3.5 w-3.5 inline text-slate-300" /> : gapLabel(r.gap)}
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* SKU comparison */}
+      {(report.sourceSkus?.length > 0 || report.targetSkus?.length > 0) && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-slate-400" />
+            <h4 className="font-semibold text-slate-700">License / SKU comparison</h4>
+          </div>
+          <div className="grid grid-cols-4 px-5 py-2 bg-slate-50/50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+            <div>Tenant</div><div>SKU</div><div className="text-center">Consumed</div><div className="text-center">Enabled</div>
+          </div>
+          {(report.sourceSkus || []).map((s, i) => (
+            <div key={`s${i}`} className="grid grid-cols-4 px-5 py-2 items-center text-sm">
+              <div className="text-blue-600 font-medium">Source</div>
+              <div className="text-slate-700 font-mono text-xs">{s.sku}</div>
+              <div className="text-center text-slate-700">{s.consumed}</div>
+              <div className="text-center text-slate-700">{s.enabled}</div>
+            </div>
+          ))}
+          {(report.targetSkus || []).map((s, i) => (
+            <div key={`t${i}`} className="grid grid-cols-4 px-5 py-2 items-center text-sm bg-slate-50/40">
+              <div className="text-emerald-600 font-medium">Target</div>
+              <div className="text-slate-700 font-mono text-xs">{s.sku}</div>
+              <div className="text-center text-slate-700">{s.consumed}</div>
+              <div className="text-center text-slate-700">{s.enabled}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Findings */}
       <div>
@@ -131,16 +206,12 @@ export default function FeasibilityReport({ report }) {
           })}
         </div>
       </div>
-    </div>
-  );
-}
 
-function CountCard({ label, value, highlight }) {
-  const tone = highlight === "bad" ? "text-red-600" : highlight === "good" ? "text-emerald-600" : "text-slate-800";
-  return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3">
-      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-bold ${tone} mt-0.5`}>{value}</p>
+      {report.warnings?.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+          <span className="font-semibold">Inventory warnings ({report.warnings.length}):</span> {report.warnings.join("; ")}
+        </div>
+      )}
     </div>
   );
 }

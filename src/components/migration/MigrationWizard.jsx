@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRightLeft, Loader2, Building2, ShieldCheck, RefreshCw, Save, ChevronRight,
-  Mail, HardDrive, FileStack, UsersRound, ClipboardCheck,
+  Mail, HardDrive, FileStack, UsersRound, ClipboardCheck, Lock, LockOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,7 +20,7 @@ const WORKLOADS = [
   { key: "teams", label: "Microsoft Teams", icon: UsersRound },
 ];
 
-const STEPS = ["Configure", "Assess", "Plan", "Save"];
+const STEPS = ["Configure", "Gap Report", "Plan", "Save"];
 
 export default function MigrationWizard({ tenants: initialTenants }) {
   const { toast } = useToast();
@@ -42,28 +42,47 @@ export default function MigrationWizard({ tenants: initialTenants }) {
   const [inv, setInv] = useState(null);
   const [plan, setPlan] = useState(null);
   const [feasibility, setFeasibility] = useState(null);
-  const [feasLoading, setFeasLoading] = useState(false);
 
   const sourceTenant = allTenants.find(t => t.id === sourceId);
   const targetTenant = allTenants.find(t => t.id === targetId);
   const workloadList = WORKLOADS.filter(w => workloads[w.key]).map(w => w.key);
 
-  const runAssessment = async () => {
+  // Feasibility is the gate: run inventory on both tenants, then build the gap report.
+  const runFeasibility = async () => {
     if (!sourceTenant?.tenant_id || !targetTenant?.tenant_id) return;
     setAssessing(true);
     setInv(null);
+    setFeasibility(null);
     setPlan(null);
     try {
-      const res = await base44.functions.invoke("tenantMigration", {
+      const invRes = await base44.functions.invoke("tenantMigration", {
         action: "inventory_both",
         source_azure_tenant_id: sourceTenant.tenant_id,
         target_azure_tenant_id: targetTenant.tenant_id,
         top: 50,
       });
-      if (!res.data?.success) throw new Error(res.data?.error || "Assessment failed");
-      setInv({ source: res.data.source, target: res.data.target });
+      if (!invRes.data?.success) throw new Error(invRes.data?.error || "Inventory failed");
+      const source = invRes.data.source;
+      const target = invRes.data.target;
+      setInv({ source, target });
+
+      const feasRes = await base44.functions.invoke("tenantMigration", {
+        action: "generate_feasibility",
+        source_azure_tenant_id: sourceTenant.tenant_id,
+        target_azure_tenant_id: targetTenant.tenant_id,
+        source_name: sourceTenant.name,
+        target_name: targetTenant.name,
+        workloads: workloadList,
+        inventory_source: source,
+        inventory_target: target,
+      });
+      if (!feasRes.data?.success) throw new Error(feasRes.data?.error || "Feasibility assessment failed");
+      setFeasibility(feasRes.data.report);
       setStep(1);
-      toast({ title: "Assessment complete", description: "Both tenants inventoried." });
+      toast({
+        title: "Gap report ready",
+        description: `${feasRes.data.report.statusLabel} (score ${feasRes.data.report.readinessScore}/100).`,
+      });
     } catch (e) {
       toast({ variant: "destructive", title: "Assessment failed", description: e.message });
     } finally {
@@ -95,30 +114,6 @@ export default function MigrationWizard({ tenants: initialTenants }) {
     }
   };
 
-  const generateFeasibility = async () => {
-    setFeasLoading(true);
-    setFeasibility(null);
-    try {
-      const res = await base44.functions.invoke("tenantMigration", {
-        action: "generate_feasibility",
-        source_azure_tenant_id: sourceTenant.tenant_id,
-        target_azure_tenant_id: targetTenant.tenant_id,
-        source_name: sourceTenant.name,
-        target_name: targetTenant.name,
-        workloads: workloadList,
-        inventory_source: inv.source,
-        inventory_target: inv.target,
-      });
-      if (!res.data?.success) throw new Error(res.data?.error || "Feasibility assessment failed");
-      setFeasibility(res.data.report);
-      toast({ title: "Feasibility report ready", description: res.data.report.statusLabel });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Feasibility failed", description: e.message });
-    } finally {
-      setFeasLoading(false);
-    }
-  };
-
   const saveJob = async () => {
     setSaving(true);
     try {
@@ -144,12 +139,14 @@ export default function MigrationWizard({ tenants: initialTenants }) {
     }
   };
 
+  const canPlan = feasibility && feasibility.overallStatus !== "insufficient_data";
+
   return (
     <div className="space-y-6">
       {/* Stepper */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {STEPS.map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
+          <div key={s} className="flex items-center gap-2 shrink-0">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${i <= step ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-400"}`}>
               {i + 1}. {s}
             </div>
@@ -161,8 +158,12 @@ export default function MigrationWizard({ tenants: initialTenants }) {
       {/* Step 0 — Configure */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
         <div className="flex items-center gap-2 text-slate-700 font-semibold">
-          <ArrowRightLeft className="h-4 w-4 text-blue-500" /> Migration configuration
+          <ArrowRightLeft className="h-4 w-4 text-blue-500" /> Feasibility assessment configuration
         </div>
+        <p className="text-sm text-slate-500 -mt-2">
+          Select the source (from) and target (to) tenants. The assessment inventories both tenants and produces a
+          gap report <span className="font-medium text-slate-700">before</span> any migration plan is generated.
+        </p>
         <div>
           <p className="text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Job name</p>
           <input
@@ -212,29 +213,37 @@ export default function MigrationWizard({ tenants: initialTenants }) {
           </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={runAssessment} disabled={!sourceTenant?.tenant_id || !targetTenant?.tenant_id || assessing || workloadList.length === 0} className="gap-2">
-            {assessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            {assessing ? "Assessing..." : "Run assessment"}
+          <Button onClick={runFeasibility} disabled={!sourceTenant?.tenant_id || !targetTenant?.tenant_id || assessing || workloadList.length === 0} className="gap-2">
+            {assessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+            {assessing ? "Assessing tenants..." : "Run feasibility assessment"}
           </Button>
         </div>
       </div>
 
-      {/* Step 1 — Assess */}
+      {/* Step 1 — Gap report */}
       {inv && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold text-slate-800">Assessment — {sourceTenant.name} → {targetTenant.name}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={generateFeasibility} disabled={feasLoading} variant="default" className="gap-2">
-                {feasLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
-                {feasLoading ? "Assessing..." : "Generate feasibility report"}
+            <h3 className="font-semibold text-slate-800">Gap report — {sourceTenant.name} → {targetTenant.name}</h3>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Button onClick={runFeasibility} variant="ghost" size="sm" disabled={assessing} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" /> Re-assess
               </Button>
-              <Button onClick={generatePlan} disabled={planning} variant="outline" className="gap-2">
-                {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {planning ? "Generating plan..." : "Generate migration plan"}
+              <Button onClick={generatePlan} disabled={planning || !canPlan} variant="default" className="gap-2">
+                {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : canPlan ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {planning ? "Generating plan..." : "Proceed to migration plan"}
               </Button>
             </div>
           </div>
+          {!canPlan && feasibility && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+              <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Migration planning is locked until the gap report has enough data. Resolve the findings above and
+                re-assess, or grant the required Graph permissions in both tenants.
+              </span>
+            </div>
+          )}
           <InventoryCompare source={inv.source} target={inv.target} />
           {feasibility && (
             <div className="pt-2">
@@ -262,7 +271,7 @@ export default function MigrationWizard({ tenants: initialTenants }) {
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
           <ShieldCheck className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
           <p className="font-semibold text-emerald-800">Migration job saved</p>
-          <p className="text-sm text-emerald-600 mt-1">The phased plan and both tenant inventories are stored as a MigrationJob record.</p>
+          <p className="text-sm text-emerald-600 mt-1">The gap report and phased plan are stored as a MigrationJob record.</p>
           <Badge className="mt-3 bg-emerald-100 text-emerald-700 border-0">Status: planned</Badge>
         </div>
       )}

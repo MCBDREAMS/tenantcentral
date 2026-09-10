@@ -12,9 +12,11 @@ export default function TenantMigration({ selectedTenant, tenants }) {
         icon={ArrowRightLeft}
       />
       <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-        This wizard inventories the source and target tenants, compares them, and generates a phased migration plan
-        (Exchange cross-tenant mailbox migration, OneDrive, SharePoint, Teams) following Microsoft Learn's
-        cross-tenant migration guidance. Actual content moves use Microsoft Migration Manager or an approved ISV tool.
+        This tool runs a feasibility assessment against both the source and target tenants first, producing a gap
+        report (users, mailboxes, teams, sites, licensing). Only once the gap report passes does it unlock the phased
+        migration plan (Exchange cross-tenant mailbox migration, OneDrive, SharePoint, Teams) following Microsoft
+        Learn's cross-tenant migration guidance. Actual content moves use Microsoft Migration Manager or an approved
+        ISV tool.
       </div>
       <MigrationWizard tenants={tenants} />
     </div>
