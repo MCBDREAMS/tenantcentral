@@ -161,14 +161,66 @@ Deno.serve(async (req) => {
       return Response.json({ success: true });
     }
 
-    // ── Intune Profile: update description / display name ────────────────────
+    // ── Intune Profile: update name/description + assignments + scope tags + OMA settings
     if (action === "update_intune_profile") {
-      const { graph_profile_id, profile_type, display_name, description } = body;
-      const endpoint = profile_type === "compliance_policy"
+      const { graph_profile_id, profile_type, display_name, description, assignments, scope_tag_ids, oma_settings } = body;
+      const isCompliance = profile_type === "compliance_policy";
+      const endpoint = isCompliance
         ? `/deviceManagement/deviceCompliancePolicies/${graph_profile_id}`
         : `/deviceManagement/deviceConfigurations/${graph_profile_id}`;
-      await graphPatch(token, endpoint, { displayName: display_name, description });
+      const patchBody = { displayName: display_name, description };
+      if (Array.isArray(scope_tag_ids)) patchBody.roleScopeTagIds = scope_tag_ids;
+      if (Array.isArray(oma_settings) && oma_settings.length > 0 && !isCompliance) {
+        patchBody.omaSettings = oma_settings.map(o => {
+          const typeMap = { string: "#microsoft.graph.omaSettingString", integer: "#microsoft.graph.omaSettingInteger", boolean: "#microsoft.graph.omaSettingBoolean", datetime: "#microsoft.graph.omaSettingDateTime", stringxml: "#microsoft.graph.omaSettingStringXml" };
+          return {
+            "@odata.type": typeMap[o.dataType] || typeMap.string,
+            displayName: o.displayName || o.omaUri,
+            description: o.description || "",
+            omaUri: o.omaUri,
+            value: o.value,
+            isEncrypted: false,
+          };
+        });
+      }
+      await graphPatch(token, endpoint, patchBody);
+
+      // Assignments (include/exclude groups) — POST .../assign
+      if (Array.isArray(assignments)) {
+        const assignPath = isCompliance
+          ? `/deviceManagement/deviceCompliancePolicies/${graph_profile_id}/assign`
+          : `/deviceManagement/deviceConfigurations/${graph_profile_id}/assign`;
+        const assignBody = {
+          assignments: assignments.filter(a => a.groupId).map(a => ({
+            target: a.intent === "exclude"
+              ? { "@odata.type": "#microsoft.graph.exclusionGroupAssignmentTarget", groupId: a.groupId }
+              : { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: a.groupId },
+          })),
+        };
+        const aRes = await fetch(`https://graph.microsoft.com/v1.0${assignPath}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(assignBody),
+        });
+        if (!aRes.ok && aRes.status !== 204) {
+          const err = await aRes.text();
+          throw new Error(`Assign failed ${aRes.status}: ${err}`);
+        }
+      }
       return Response.json({ success: true });
+    }
+
+    // ── Intune editing options: groups + scope tags for the selected tenant ──
+    if (action === "list_intune_options") {
+      const [groups, scopeTags] = await Promise.all([
+        graphGetPage(token, "/groups?$select=id,displayName,groupTypes,securityEnabled,mailEnabled,description&$top=200"),
+        graphGetPage(token, "/deviceManagement/roleScopeTags?$select=id,displayName,description,isBuiltIn&$top=100"),
+      ]);
+      return Response.json({
+        success: true,
+        groups: groups.map(g => ({ id: g.id, displayName: g.displayName, securityEnabled: g.securityEnabled, mailEnabled: g.mailEnabled, description: g.description })),
+        scopeTags: scopeTags.map(t => ({ id: t.id, displayName: t.displayName, description: t.description, isBuiltIn: t.isBuiltIn })),
+      });
     }
 
     // ── Compliance report ────────────────────────────────────────────────────
