@@ -223,7 +223,7 @@ export default function Layout({ children, currentPageName }) {
             {(sidebarOpen || mobile) && (
               <button
                 onClick={() => toggleSection(sIndex)}
-                className="flex items-center justify-between w-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-400 transition-colors"
+                className="flex items-center justify-between w-full px-2 py-1.5 text-[13px] font-semibold uppercase tracking-widest text-slate-400 hover:text-slate-300 transition-colors"
               >
                 {section.label}
                 {expandedSections[sIndex] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -238,12 +238,12 @@ export default function Layout({ children, currentPageName }) {
                   return (
                     <div key={item.page}>
                       {showGroup && (
-                        <div className="px-3 pt-2 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-600">{item.group}</div>
+                        <div className="px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{item.group}</div>
                       )}
                       <Link
                         to={createPageUrl(item.page)}
                         onClick={() => mobile && setMobileSidebarOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[15px] transition-all duration-150
                           ${isActive
                             ? 'bg-blue-600/20 text-blue-400 font-medium'
                             : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
