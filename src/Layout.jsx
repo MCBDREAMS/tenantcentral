@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot, HeartPulse, Unlink
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot, HeartPulse, Unlink, Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -142,7 +142,14 @@ export default function Layout({ children, currentPageName }) {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [navSearch, setNavSearch] = useState("");
   const { rbac, canAccess, filterTenants } = useRbac();
+
+  const navQuery = navSearch.trim().toLowerCase();
+  const filteredNav = navSections
+    .filter(s => !s.section || canAccess(s.section))
+    .map(s => ({ ...s, items: s.items.filter(it => !navQuery || it.name.toLowerCase().includes(navQuery)) }))
+    .filter(s => !navQuery || s.items.length > 0 || s.label.toLowerCase().includes(navQuery));
 
   useEffect(() => {
     if (!rbac) return;
@@ -218,7 +225,21 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
-        {navSections.filter(s => !s.section || canAccess(s.section)).map((section, sIndex) => (
+        {(sidebarOpen || mobile) && (
+          <div className="px-1 pb-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+              <input
+                type="text"
+                value={navSearch}
+                onChange={(e) => setNavSearch(e.target.value)}
+                placeholder="Search menu..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-md pl-8 pr-2 py-1.5 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        )}
+        {filteredNav.map((section, sIndex) => (
           <div key={section.label} className="mb-1">
             {(sidebarOpen || mobile) && (
               <button
@@ -229,12 +250,12 @@ export default function Layout({ children, currentPageName }) {
                 {expandedSections[sIndex] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               </button>
             )}
-            {(expandedSections[sIndex] || (!sidebarOpen && !mobile)) && (
+            {(navQuery || expandedSections[sIndex] || (!sidebarOpen && !mobile)) && (
               <div className="space-y-0.5">
                 {section.items.map((item, i) => {
                   const isActive = currentPageName === item.page;
                   const prevGroup = i > 0 ? section.items[i - 1].group : null;
-                  const showGroup = (sidebarOpen || mobile) && item.group && item.group !== prevGroup;
+                  const showGroup = !navQuery && (sidebarOpen || mobile) && item.group && item.group !== prevGroup;
                   return (
                     <div key={item.page}>
                       {showGroup && (
