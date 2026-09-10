@@ -132,6 +132,11 @@ The SOP must cover: Executive Summary, Azure Tenant & Organisation Details, Bill
 
 Format using Markdown with clear headings (##, ###), bullet points, and tables where appropriate. Be thorough and professional.
 
+IMPORTANT FORMATTING RULES:
+- The "## Key Observations" section MUST list each observation as its own separate bullet point. Put a blank line between each bullet so they are spaced out and easy to read. Never bunch multiple observations into a single dense paragraph or a tight run-on list.
+- Each bullet should start with a short bolded label (e.g. **Label:**) followed by the detail.
+- Include a dedicated "## Reference Table" section near the end. Render it as a single Markdown table with columns: Area | Current State / Value | Status | Notes. Populate one row per major configuration area covered in this SOP (Tenant, Licensing, Identity/MFA, Conditional Access, Intune/Devices, Security Baselines, Exchange, SharePoint, Teams, OneDrive). Keep Status as one of: OK / Warning / Action Required / N/A.
+
 ---
 TENANT DATA:
 - Name: ${chosenTenant.name}
@@ -345,14 +350,17 @@ Generate the full SOP document now.
           <div className="p-6 sm:p-10 prose prose-sm prose-slate max-w-none overflow-auto max-h-[75vh]">
             <ReactMarkdown
               components={{
-                h1: ({ children }) => <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-3 border-b border-slate-200 pb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-xl font-bold text-slate-800 mt-6 mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-700 mt-4 mb-1.5">{children}</h3>,
-                table: ({ children }) => <div className="overflow-x-auto my-4"><table className="w-full border border-slate-200 rounded-lg text-xs">{children}</table></div>,
-                th: ({ children }) => <th className="bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600 border-b border-slate-200">{children}</th>,
-                td: ({ children }) => <td className="px-3 py-2 text-slate-600 border-b border-slate-100">{children}</td>,
-                li: ({ children }) => <li className="text-slate-600 my-0.5">{children}</li>,
-                p: ({ children }) => <p className="text-slate-600 my-2 leading-relaxed">{children}</p>,
+                h1: ({ children }) => <h1 className="text-2xl font-bold text-slate-900 mt-8 mb-4 border-b border-slate-200 pb-2">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-xl font-bold text-slate-800 mt-8 mb-3">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-700 mt-5 mb-2">{children}</h3>,
+                ul: ({ children }) => <ul className="list-disc pl-6 my-3 space-y-2.5 text-slate-600 leading-relaxed">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 my-3 space-y-2.5 text-slate-600 leading-relaxed">{children}</ol>,
+                table: ({ children }) => <div className="overflow-x-auto my-5"><table className="w-full border border-slate-300 rounded-lg text-xs border-collapse">{children}</table></div>,
+                thead: ({ children }) => <thead className="bg-slate-100">{children}</thead>,
+                th: ({ children }) => <th className="px-3 py-2.5 text-left font-semibold text-slate-700 border border-slate-300">{children}</th>,
+                td: ({ children }) => <td className="px-3 py-2 text-slate-600 border border-slate-200">{children}</td>,
+                li: ({ children }) => <li className="text-slate-600">{children}</li>,
+                p: ({ children }) => <p className="text-slate-600 my-2.5 leading-relaxed">{children}</p>,
                 code: ({ children }) => <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>,
               }}
             >
