@@ -82,6 +82,17 @@ export default function WindowsVersionReport({ selectedTenant }) {
         </Button>
       </div>
 
+      {isFetched && data?.error && !isLoading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 text-sm">
+          <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-red-700">Could not load devices from Microsoft Graph</p>
+            <p className="text-red-600 text-xs mt-1 font-mono break-all">{data.error}</p>
+            <p className="text-red-500 text-xs mt-2">Ensure the tenant is connected and the Azure app has <code>DeviceManagementManagedDevices.Read.All</code> (application) permission with admin consent.</p>
+          </div>
+        </div>
+      )}
+
       {!isFetched && !isLoading && (
         <div className="text-center py-20 border border-dashed border-slate-200 rounded-xl">
           <Monitor className="h-12 w-12 text-slate-200 mx-auto mb-3" />

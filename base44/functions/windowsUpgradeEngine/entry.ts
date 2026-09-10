@@ -38,6 +38,28 @@ async function graphGetPage(token, path) {
   return data.value || [];
 }
 
+// Paginated Graph GET that follows @odata.nextLink and surfaces the real error
+// (instead of silently returning [] so reports don't show a misleading "no devices").
+async function graphGetAll(token, path) {
+  let url = `https://graph.microsoft.com/v1.0${path}`;
+  const all = [];
+  let page = 0;
+  while (url) {
+    page++;
+    if (page > 30) break; // hard cap to avoid runaway loops
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = JSON.stringify(await res.json()); } catch { try { detail = await res.text(); } catch {} }
+      throw new Error(`Graph ${res.status} (${path.split("?")[0]}): ${detail.slice(0, 600)}`);
+    }
+    const data = await res.json();
+    all.push(...(data.value || []));
+    url = data["@odata.nextLink"] || null;
+  }
+  return all;
+}
+
 // Parse Windows version string into major build numbers
 function parseWinVersion(osVersion) {
   if (!osVersion) return null;
@@ -97,9 +119,14 @@ Deno.serve(async (req) => {
     // ── Windows Version & Upgrade Readiness Report ──────────────────────────
     if (action === "windows_version_report") {
       const token = await getAccessToken(azure_tenant_id);
-      const devices = await graphGetPage(token,
-        "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,model,manufacturer,processorArchitecture,totalStorageSpaceInBytes,freeStorageSpaceInBytes&$top=200"
-      );
+      let devices;
+      try {
+        devices = await graphGetAll(token,
+          "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,model,manufacturer,totalStorageSpaceInBytes,freeStorageSpaceInBytes&$top=200"
+        );
+      } catch (e) {
+        return Response.json({ success: false, error: e.message });
+      }
 
       const windowsDevices = devices.filter(d => d.operatingSystem === "Windows");
       const versionMap = {};
@@ -154,9 +181,14 @@ Deno.serve(async (req) => {
     // ── Device Inventory Report (rich fields for detail/check-in/hardware) ───
     if (action === "device_inventory_report") {
       const token = await getAccessToken(azure_tenant_id);
-      const devices = await graphGetPage(token,
-        "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,enrolledDateTime,model,manufacturer,serialNumber,imei,managedDeviceOwnerType,azureADDeviceId,wiFiMacAddress,processorArchitecture,totalStorageSpaceInBytes,freeStorageSpaceInBytes&$top=200"
-      );
+      let devices;
+      try {
+        devices = await graphGetAll(token,
+          "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,enrolledDateTime,model,manufacturer,serialNumber,imei,managedDeviceOwnerType,azureADDeviceId,wiFiMacAddress,totalStorageSpaceInBytes,freeStorageSpaceInBytes&$top=200"
+        );
+      } catch (e) {
+        return Response.json({ success: false, error: e.message });
+      }
       const enriched = devices.map(d => ({
         id: d.id,
         deviceName: d.deviceName,

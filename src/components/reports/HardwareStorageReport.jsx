@@ -86,7 +86,13 @@ export default function HardwareStorageReport({ selectedTenant }) {
       )}
 
       {isLoading && <div className="text-center py-12"><Loader2 className="h-7 w-7 animate-spin text-slate-400 mx-auto mb-2" /><p className="text-sm text-slate-400">Loading hardware data…</p></div>}
-      {isFetched && !isLoading && !withStorage.length && <div className="text-center py-12 text-sm text-slate-400">No storage data available.</div>}
+      {isFetched && !isLoading && data?.error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          <p className="font-semibold mb-1">Could not load devices from Microsoft Graph</p>
+          <p className="text-red-600 text-xs font-mono break-all">{data.error}</p>
+        </div>
+      )}
+      {isFetched && !isLoading && !data?.error && !withStorage.length && <div className="text-center py-12 text-sm text-slate-400">No storage data available.</div>}
 
       {withStorage.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">

@@ -51,7 +51,15 @@ export default function DeviceDetailReport({ selectedTenant }) {
           <p className="text-sm text-slate-400">Loading device inventory from Microsoft Graph…</p></div>
       )}
 
-      {isFetched && !isLoading && !devices.length && (
+      {isFetched && !isLoading && data?.error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          <p className="font-semibold mb-1">Could not load devices from Microsoft Graph</p>
+          <p className="text-red-600 text-xs font-mono break-all">{data.error}</p>
+          <p className="text-red-500 text-xs mt-2">Check the tenant connection and that the Azure app has <code>DeviceManagementManagedDevices.Read.All</code> application permission with admin consent.</p>
+        </div>
+      )}
+
+      {isFetched && !isLoading && !data?.error && !devices.length && (
         <div className="text-center py-16 text-sm text-slate-400">No devices found in this tenant.</div>
       )}
 
