@@ -148,6 +148,7 @@ export default function Layout({ children, currentPageName }) {
   // Central tenant scoping: once a specific tenant is selected in the sidebar, every
   // page receives only that tenant in its `tenants` prop so all reports, tasks and
   // selections apply solely to it. "All Tenants" (admin) passes the full list.
+  // `selectedTenant` itself is always forwarded so pages that key off it stay bound.
   const scopedTenants = selectedTenant ? [selectedTenant] : tenants;
 
   const navQuery = navSearch.trim().toLowerCase();
