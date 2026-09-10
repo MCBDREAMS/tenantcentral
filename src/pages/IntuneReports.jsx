@@ -1,12 +1,15 @@
 import React, { useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart2, MonitorSmartphone, AppWindow, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, Layers, ArrowUp } from "lucide-react";
+import { BarChart2, MonitorSmartphone, AppWindow, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, Layers, ArrowUp, Cpu, Clock, HardDrive } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useChartColors } from "@/hooks/useChartColors";
 import WindowsVersionReport from "@/components/windows/WindowsVersionReport";
+import DeviceDetailReport from "@/components/reports/DeviceDetailReport";
+import LastCheckinReport from "@/components/reports/LastCheckinReport";
+import HardwareStorageReport from "@/components/reports/HardwareStorageReport";
 
 export default function IntuneReports({ selectedTenant, tenants }) {
   const chartColors = useChartColors();
@@ -58,9 +61,12 @@ export default function IntuneReports({ selectedTenant, tenants }) {
       />
 
       <Tabs defaultValue="overview" className="mb-6">
-        <TabsList className="bg-slate-100 mb-6">
+        <TabsList className="bg-slate-100 mb-6 flex flex-wrap">
           <TabsTrigger value="overview" className="gap-1.5"><BarChart2 className="h-3.5 w-3.5" /> Overview</TabsTrigger>
           <TabsTrigger value="windows" className="gap-1.5" disabled={!selectedTenant?.tenant_id}><Layers className="h-3.5 w-3.5" /> Windows Versions</TabsTrigger>
+          <TabsTrigger value="devices" className="gap-1.5" disabled={!selectedTenant?.tenant_id}><MonitorSmartphone className="h-3.5 w-3.5" /> Device Details</TabsTrigger>
+          <TabsTrigger value="checkin" className="gap-1.5" disabled={!selectedTenant?.tenant_id}><Clock className="h-3.5 w-3.5" /> Last Check-in</TabsTrigger>
+          <TabsTrigger value="hardware" className="gap-1.5" disabled={!selectedTenant?.tenant_id}><HardDrive className="h-3.5 w-3.5" /> Hardware & Disk</TabsTrigger>
         </TabsList>
 
         <TabsContent value="windows">
@@ -69,6 +75,18 @@ export default function IntuneReports({ selectedTenant, tenants }) {
           ) : (
             <div className="text-center py-20 text-slate-400 text-sm">Select a specific tenant to view Windows version data.</div>
           )}
+        </TabsContent>
+
+        <TabsContent value="devices">
+          {selectedTenant?.tenant_id ? <DeviceDetailReport selectedTenant={selectedTenant} /> : <div className="text-center py-20 text-slate-400 text-sm">Select a specific tenant to view device details.</div>}
+        </TabsContent>
+
+        <TabsContent value="checkin">
+          {selectedTenant?.tenant_id ? <LastCheckinReport selectedTenant={selectedTenant} /> : <div className="text-center py-20 text-slate-400 text-sm">Select a specific tenant to view check-in data.</div>}
+        </TabsContent>
+
+        <TabsContent value="hardware">
+          {selectedTenant?.tenant_id ? <HardwareStorageReport selectedTenant={selectedTenant} /> : <div className="text-center py-20 text-slate-400 text-sm">Select a specific tenant to view hardware data.</div>}
         </TabsContent>
 
         <TabsContent value="overview">

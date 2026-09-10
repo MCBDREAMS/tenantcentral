@@ -151,6 +151,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Device Inventory Report (rich fields for detail/check-in/hardware) ───
+    if (action === "device_inventory_report") {
+      const token = await getAccessToken(azure_tenant_id);
+      const devices = await graphGetPage(token,
+        "/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,enrolledDateTime,model,manufacturer,serialNumber,imei,managedDeviceOwnerType,azureADDeviceId,wiFiMacAddress,processorArchitecture,totalStorageSpaceInBytes,freeStorageSpaceInBytes&$top=200"
+      );
+      const enriched = devices.map(d => ({
+        id: d.id,
+        deviceName: d.deviceName,
+        operatingSystem: d.operatingSystem,
+        osVersion: d.osVersion,
+        complianceState: d.complianceState,
+        userPrincipalName: d.userPrincipalName,
+        contactEmail: d.userPrincipalName,
+        lastSyncDateTime: d.lastSyncDateTime,
+        enrolledDateTime: d.enrolledDateTime,
+        model: d.model,
+        manufacturer: d.manufacturer,
+        serialNumber: d.serialNumber,
+        imei: d.imei,
+        ownership: d.managedDeviceOwnerType,
+        entraDeviceId: d.azureADDeviceId,
+        wiFiMacAddress: d.wiFiMacAddress,
+        processorArchitecture: d.processorArchitecture,
+        totalStorageGB: Math.round((d.totalStorageSpaceInBytes || 0) / 1073741824),
+        freeStorageGB: Math.round((d.freeStorageSpaceInBytes || 0) / 1073741824),
+      }));
+      return Response.json({ success: true, devices: enriched, count: enriched.length });
+    }
+
     // ── Deploy Windows 11 Upgrade via Intune PowerShell Script ─────────────
     if (action === "deploy_win11_upgrade") {
       const { target_device_ids, script_name, group_name } = body;

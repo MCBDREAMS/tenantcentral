@@ -50,7 +50,7 @@ export default function WindowsVersionReport({ selectedTenant }) {
 
   const { data, isLoading, refetch, isFetched } = useQuery({
     queryKey: ["win-version-report", selectedTenant?.tenant_id],
-    enabled: false,
+    enabled: !!selectedTenant?.tenant_id,
     queryFn: () =>
       base44.functions.invoke("windowsUpgradeEngine", {
         action: "windows_version_report",
