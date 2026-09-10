@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRightLeft, Loader2, Building2, ShieldCheck, RefreshCw, Save, ChevronRight,
-  Mail, HardDrive, FileStack, UsersRound, ClipboardCheck, Lock, LockOpen,
+  Mail, HardDrive, FileStack, UsersRound, ClipboardCheck, Lock, LockOpen, Pin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +22,7 @@ const WORKLOADS = [
 
 const STEPS = ["Configure", "Gap Report", "Plan", "Save"];
 
-export default function MigrationWizard({ tenants: initialTenants }) {
+export default function MigrationWizard({ tenants: initialTenants, selectedTenant }) {
   const { toast } = useToast();
   const { data: allTenants = [] } = useQuery({
     queryKey: ["tenants"],
@@ -33,6 +33,16 @@ export default function MigrationWizard({ tenants: initialTenants }) {
   const [name, setName] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [targetId, setTargetId] = useState("");
+
+  // Bind the migration source to the sidebar-selected tenant so every subsequent
+  // report, task and selection in this wizard applies only to that tenant.
+  const lockedSource = !!selectedTenant?.id;
+  useEffect(() => {
+    if (selectedTenant?.id) {
+      setSourceId(selectedTenant.id);
+      if (targetId === selectedTenant.id) setTargetId("");
+    }
+  }, [selectedTenant?.id]);
   const [workloads, setWorkloads] = useState({ exchange: true, onedrive: true, sharepoint: true, teams: true });
   const [step, setStep] = useState(0);
 
@@ -173,10 +183,22 @@ export default function MigrationWizard({ tenants: initialTenants }) {
             className="w-full h-10 px-3 rounded-md border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        {lockedSource && (
+          <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+            <Pin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-500" />
+            <span>
+              Source tenant is pinned to the sidebar selection (<span className="font-semibold text-slate-800">{selectedTenant.name}</span>).
+              All reports and tasks in this wizard apply only to this tenant as the source.
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <p className="text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Source tenant (from)</p>
-            <Select value={sourceId} onValueChange={setSourceId}>
+            <p className="text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
+              Source tenant (from)
+              {lockedSource && <Lock className="h-3 w-3 text-blue-500" />}
+            </p>
+            <Select value={sourceId} onValueChange={setSourceId} disabled={lockedSource}>
               <SelectTrigger className="h-10"><SelectValue placeholder="Select source..." /></SelectTrigger>
               <SelectContent>
                 {allTenants.map(t => <SelectItem key={t.id} value={t.id} disabled={t.id === targetId}>

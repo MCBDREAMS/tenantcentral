@@ -18,7 +18,7 @@ export default function TenantMigration({ selectedTenant, tenants }) {
         Learn's cross-tenant migration guidance. Actual content moves use Microsoft Migration Manager or an approved
         ISV tool.
       </div>
-      <MigrationWizard tenants={tenants} />
+      <MigrationWizard tenants={tenants} selectedTenant={selectedTenant} />
     </div>
   );
 }
