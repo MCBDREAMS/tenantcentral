@@ -183,6 +183,107 @@ Get-MoveRequest | Get-MoveRequestStatistics` : "",
   };
 }
 
+// Build a feasibility / readiness report comparing source vs target tenant.
+// Returns an overall status, readiness score, findings (risk-based), license-gap
+// analysis and a recommendation — without producing the full phased plan.
+function buildFeasibilityReport(srcName, tgtName, src, tgt, workloads) {
+  const srcUsers = src?.users?.total ?? 0;
+  const tgtUsers = tgt?.users?.total ?? 0;
+  const srcMailboxes = src?.exchange?.mailboxes?.length ?? 0;
+  const srcTeams = src?.teams?.teamCount ?? 0;
+  const srcSites = src?.sharepoint?.siteCount ?? 0;
+  const srcGuests = src?.users?.guests ?? 0;
+  const srcWarnings = src?.warnings || [];
+  const tgtWarnings = tgt?.warnings || [];
+
+  const srcSkus = src?.subscribedSkus || [];
+  const tgtSkus = tgt?.subscribedSkus || [];
+  const tgtAvailable = tgtSkus.reduce((sum, s) => sum + Math.max(0, (s.prepaidEnabled || 0) - (s.consumedUnits || 0)), 0);
+  const licenseGap = srcUsers - tgtAvailable;
+
+  const findings = [];
+  let score = 100;
+  const add = (severity, area, detail, recommendation, penalty) => {
+    findings.push({ severity, area, detail, recommendation });
+    score -= penalty;
+  };
+
+  if (licenseGap > 0) {
+    add("high", "Licensing", `Target has ~${tgtAvailable} available license seats but ${srcUsers} source users need licenses (${licenseGap} short).`, "Procure additional target licenses before cutover to cover every migrating user.", 20);
+  } else {
+    add("info", "Licensing", `Target has ~${tgtAvailable} available seats for ${srcUsers} source users — sufficient.`, "Confirm SKU equivalence (e.g. Exchange Online Plan matches source) before migration.", 0);
+  }
+
+  if (src?.organization?.onPremisesSyncEnabled) {
+    add("medium", "Hybrid Identity", `Source tenant has on-premises directory sync enabled (last sync ${src.organization.onPremisesLastSyncDateTime || "unknown"}).`, "Plan to disconnect Azure AD Connect and convert synced users to cloud-only; preserve onPremisesImmutableId mapping.", 10);
+  }
+
+  if (srcGuests > 0) {
+    add("info", "Guest Users", `${srcGuests} guest users in source tenant.`, "Guest accounts are typically NOT migrated; recreate B2B invitations in the target where needed.", 0);
+  }
+
+  if (workloads.includes("exchange")) {
+    if (srcMailboxes === 0) {
+      add("low", "Exchange", "No mail-enabled mailboxes detected in the source inventory.", "Verify with a fresh Graph query; if truly none, Exchange migration can be skipped.", 5);
+    } else {
+      add("info", "Exchange", `${srcMailboxes} mail-enabled mailboxes to migrate via cross-tenant mailbox migration (ExchangeRemoteMove).`, "Follow Microsoft Learn 'Set up your tenants for cross-tenant mailbox migration'.", 0);
+    }
+  }
+  if (workloads.includes("teams")) {
+    add("medium", "Teams", "Teams 1:1/group chat history is not migratable natively via Graph.", "Use a Microsoft-supported ISV migration tool for Teams chat; channels/files follow SharePoint.", 10);
+  }
+  if (workloads.includes("sharepoint") && srcSites > 0) {
+    add("info", "SharePoint", `${srcSites} SharePoint sites to migrate via Microsoft Migration Manager / SPMT.`, "Map site permissions and external sharing settings to the target.", 0);
+  }
+
+  const allWarnings = [...srcWarnings, ...tgtWarnings.map(w => "Target: " + w)];
+  if (allWarnings.length > 0) {
+    add("medium", "Data Coverage", `Inventory incomplete: ${allWarnings.length} section(s) could not be read (Graph permissions or API limits).`, "Grant Sites.Read.All, Team.ReadBasic.All, MailboxSettings.Read, Organization.Read.All in both tenants and re-run assessment for an accurate report.", 10);
+  }
+
+  score = Math.max(0, Math.min(100, score));
+  let overallStatus;
+  if (allWarnings.length > 4 || srcUsers === 0) overallStatus = "insufficient_data";
+  else if (score >= 75) overallStatus = "feasible";
+  else if (score >= 50) overallStatus = "feasible_with_conditions";
+  else overallStatus = "not_recommended";
+
+  const statusLabel = {
+    feasible: "Feasible — proceed to planning",
+    feasible_with_conditions: "Feasible with conditions — address findings first",
+    not_recommended: "Not recommended — high risk",
+    insufficient_data: "Insufficient data — re-run with full Graph access",
+  }[overallStatus];
+
+  const recommendation = overallStatus === "feasible"
+    ? "The source tenant can be migrated to the target. Proceed to generate the full phased migration plan."
+    : overallStatus === "feasible_with_conditions"
+    ? "Migration is possible but the findings below must be resolved before planning. Re-assess after remediation."
+    : overallStatus === "not_recommended"
+    ? "Current state presents high risk. Resolve critical findings and re-run the feasibility assessment before planning."
+    : "Inventory data is incomplete. Grant the required Graph permissions in both tenants and re-run the assessment.";
+
+  return {
+    sourceTenant: srcName,
+    targetTenant: tgtName,
+    workloads,
+    generatedAt: new Date().toISOString(),
+    overallStatus,
+    statusLabel,
+    readinessScore: score,
+    counts: {
+      source: { users: srcUsers, mailboxes: srcMailboxes, teams: srcTeams, sharepointSites: srcSites, guests: srcGuests, subscribedSkus: srcSkus.length },
+      target: { users: tgtUsers, availableLicenses: tgtAvailable, subscribedSkus: tgtSkus.length },
+    },
+    licenseGap,
+    findings,
+    recommendation,
+    sourceSkus: srcSkus.map(s => ({ sku: s.skuPartNumber, consumed: s.consumedUnits, enabled: s.prepaidEnabled })),
+    targetSkus: tgtSkus.map(s => ({ sku: s.skuPartNumber, consumed: s.consumedUnits, enabled: s.prepaidEnabled })),
+    warnings: allWarnings,
+  };
+}
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -250,6 +351,43 @@ export default async function(req) {
         source, target, workloads,
       );
       return Response.json({ success: true, plan, source, target });
+    }
+
+    // ── Generate a feasibility / readiness report (source vs target) ────────
+    if (action === "generate_feasibility") {
+      const {
+        source_azure_tenant_id, target_azure_tenant_id,
+        source_name, target_name,
+        workloads = ["exchange", "onedrive", "sharepoint", "teams"],
+        inventory_source, inventory_target,
+      } = body;
+
+      const denied = await authorizeAdminAction(base44, user, [source_azure_tenant_id, target_azure_tenant_id]);
+      if (denied) return denied;
+
+      let source = inventory_source;
+      let target = inventory_target;
+      if (!source || !target) {
+        for (const id of [source_azure_tenant_id, target_azure_tenant_id]) {
+          if (!id || !GUID.test(id)) return Response.json({ error: "Invalid tenant id (must be a GUID): " + id }, { status: 400 });
+        }
+        const [srcCreds, tgtCreds] = await Promise.all([
+          getTenantCreds(base44, source_azure_tenant_id),
+          getTenantCreds(base44, target_azure_tenant_id),
+        ]);
+        const [srcToken, tgtToken] = await Promise.all([
+          getAccessToken(source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret),
+          getAccessToken(target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret),
+        ]);
+        [source, target] = await Promise.all([buildInventory(srcToken, 50), buildInventory(tgtToken, 50)]);
+      }
+
+      const report = buildFeasibilityReport(
+        source_name || source?.organization?.displayName || source_azure_tenant_id,
+        target_name || target?.organization?.displayName || target_azure_tenant_id,
+        source, target, workloads,
+      );
+      return Response.json({ success: true, report, source, target });
     }
 
     return Response.json({ error: "Unknown action: " + action }, { status: 400 });

@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRightLeft, Loader2, Building2, ShieldCheck, RefreshCw, Save, ChevronRight,
-  Mail, HardDrive, FileStack, UsersRound,
+  Mail, HardDrive, FileStack, UsersRound, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import InventoryCompare from "./InventoryCompare";
 import MigrationPlan from "./MigrationPlan";
+import FeasibilityReport from "./FeasibilityReport";
 
 const WORKLOADS = [
   { key: "exchange", label: "Exchange Mailboxes", icon: Mail },
@@ -40,6 +41,8 @@ export default function MigrationWizard({ tenants: initialTenants }) {
   const [saving, setSaving] = useState(false);
   const [inv, setInv] = useState(null);
   const [plan, setPlan] = useState(null);
+  const [feasibility, setFeasibility] = useState(null);
+  const [feasLoading, setFeasLoading] = useState(false);
 
   const sourceTenant = allTenants.find(t => t.id === sourceId);
   const targetTenant = allTenants.find(t => t.id === targetId);
@@ -89,6 +92,30 @@ export default function MigrationWizard({ tenants: initialTenants }) {
       toast({ variant: "destructive", title: "Plan failed", description: e.message });
     } finally {
       setPlanning(false);
+    }
+  };
+
+  const generateFeasibility = async () => {
+    setFeasLoading(true);
+    setFeasibility(null);
+    try {
+      const res = await base44.functions.invoke("tenantMigration", {
+        action: "generate_feasibility",
+        source_azure_tenant_id: sourceTenant.tenant_id,
+        target_azure_tenant_id: targetTenant.tenant_id,
+        source_name: sourceTenant.name,
+        target_name: targetTenant.name,
+        workloads: workloadList,
+        inventory_source: inv.source,
+        inventory_target: inv.target,
+      });
+      if (!res.data?.success) throw new Error(res.data?.error || "Feasibility assessment failed");
+      setFeasibility(res.data.report);
+      toast({ title: "Feasibility report ready", description: res.data.report.statusLabel });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Feasibility failed", description: e.message });
+    } finally {
+      setFeasLoading(false);
     }
   };
 
@@ -195,14 +222,25 @@ export default function MigrationWizard({ tenants: initialTenants }) {
       {/* Step 1 — Assess */}
       {inv && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold text-slate-800">Assessment — {sourceTenant.name} → {targetTenant.name}</h3>
-            <Button onClick={generatePlan} disabled={planning} className="gap-2">
-              {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {planning ? "Generating plan..." : "Generate migration plan"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={generateFeasibility} disabled={feasLoading} variant="default" className="gap-2">
+                {feasLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+                {feasLoading ? "Assessing..." : "Generate feasibility report"}
+              </Button>
+              <Button onClick={generatePlan} disabled={planning} variant="outline" className="gap-2">
+                {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {planning ? "Generating plan..." : "Generate migration plan"}
+              </Button>
+            </div>
           </div>
           <InventoryCompare source={inv.source} target={inv.target} />
+          {feasibility && (
+            <div className="pt-2">
+              <FeasibilityReport report={feasibility} />
+            </div>
+          )}
         </div>
       )}
 
