@@ -1,0 +1,101 @@
+{
+  "name": "MigrationJob",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Migration job name"
+    },
+    "source_azure_tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant GUID being migrated FROM"
+    },
+    "source_tenant_name": {
+      "type": "string"
+    },
+    "target_azure_tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant GUID being migrated TO"
+    },
+    "target_tenant_name": {
+      "type": "string"
+    },
+    "workloads": {
+      "type": "string",
+      "description": "Comma-separated workloads in scope: exchange,onedrive,sharepoint,teams"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "assessing",
+        "preparing_source",
+        "preparing_target",
+        "migrating",
+        "completing",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "default": "planned",
+      "description": "Current phase of the tenant-to-tenant migration"
+    },
+    "current_phase": {
+      "type": "string",
+      "description": "Label of the currently active migration phase"
+    },
+    "plan_payload": {
+      "type": "string",
+      "description": "JSON of the Microsoft-aligned phased migration plan"
+    },
+    "inventory_source": {
+      "type": "string",
+      "description": "JSON inventory snapshot of the source tenant"
+    },
+    "inventory_target": {
+      "type": "string",
+      "description": "JSON inventory snapshot of the target tenant"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Email of the user who created the migration job"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "source_azure_tenant_id",
+    "target_azure_tenant_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
