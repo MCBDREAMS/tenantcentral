@@ -196,9 +196,9 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const Sidebar = ({ mobile = false }) => (
-    <div className={`flex flex-col h-full bg-slate-950 text-white ${mobile ? 'w-72' : sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300`}>
+    <div className={`flex flex-col h-full bg-sidebar text-sidebar-foreground ${mobile ? 'w-72' : sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300`}>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-slate-800 shrink-0">
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border shrink-0">
         <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shrink-0">
           <Layers className="h-4 w-4 text-white" />
         </div>
@@ -209,7 +209,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Tenant Selector */}
       {(sidebarOpen || mobile) && (
-        <div className="px-3 py-3 border-b border-slate-800">
+        <div className="px-3 py-3 border-b border-sidebar-border">
           <Select
             value={selectedTenant?.id || ""}
             onValueChange={(val) => {
@@ -218,10 +218,10 @@ export default function Layout({ children, currentPageName }) {
               try { sessionStorage.setItem("selected_tenant_id", val); } catch {}
             }}
           >
-            <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-slate-200 text-sm focus:ring-blue-500 min-h-[44px]">
+            <SelectTrigger className="w-full bg-sidebar-accent border-sidebar-border text-sidebar-foreground text-sm focus:ring-sidebar-ring min-h-[44px]">
               <SelectValue placeholder="All Tenants" />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+            <SelectContent className="bg-sidebar-accent border-sidebar-border text-sidebar-foreground">
               {rbac?.role === "global_admin" && <SelectItem value={null}>All Tenants</SelectItem>}
               {tenants.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -236,13 +236,13 @@ export default function Layout({ children, currentPageName }) {
         {(sidebarOpen || mobile) && (
           <div className="px-1 pb-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-foreground/60" />
               <input
                 type="text"
                 value={navSearch}
                 onChange={(e) => setNavSearch(e.target.value)}
                 placeholder="Search menu..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-md pl-8 pr-2 py-1.5 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-sidebar-accent border border-sidebar-border rounded-md pl-8 pr-2 py-1.5 text-[13px] text-sidebar-foreground placeholder-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
               />
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function Layout({ children, currentPageName }) {
             {(sidebarOpen || mobile) && (
               <button
                 onClick={() => toggleSection(sIndex)}
-                className="flex items-center justify-between w-full px-2 py-1.5 text-[13px] font-semibold uppercase tracking-widest text-slate-400 hover:text-slate-300 transition-colors"
+                className="flex items-center justify-between w-full px-2 py-1.5 text-[13px] font-semibold uppercase tracking-widest text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
               >
                 {section.label}
                 {expandedSections[sIndex] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -267,15 +267,15 @@ export default function Layout({ children, currentPageName }) {
                   return (
                     <div key={item.page}>
                       {showGroup && (
-                        <div className="px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{item.group}</div>
+                        <div className="px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60">{item.group}</div>
                       )}
                       <Link
                         to={createPageUrl(item.page)}
                         onClick={() => mobile && setMobileSidebarOpen(false)}
                         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[15px] transition-all duration-150
                           ${isActive
-                            ? 'bg-blue-600/20 text-blue-400 font-medium'
-                            : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                            ? 'bg-sidebar-primary/20 text-sidebar-primary font-medium'
+                            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                           }
                           ${!sidebarOpen && !mobile ? 'justify-center' : ''}
                         `}
@@ -298,17 +298,17 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Footer */}
       {(sidebarOpen || mobile) && (
-        <div className="p-3 border-t border-slate-800 shrink-0 space-y-1">
+        <div className="p-3 border-t border-sidebar-border shrink-0 space-y-1">
           {rbac && (
-            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/60">
-              <Lock className="h-3 w-3 text-slate-500" />
-              <span className="text-xs text-slate-400 truncate">{rbac.email}</span>
-              <Badge className={`ml-auto text-[9px] px-1.5 py-0 border-0 shrink-0 ${rbac.role === "local_admin" ? "bg-purple-600 text-white" : rbac.role === "tenant_admin" ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300"}`}>
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-sidebar-accent/60">
+              <Lock className="h-3 w-3 text-sidebar-foreground/60" />
+              <span className="text-xs text-sidebar-foreground/70 truncate">{rbac.email}</span>
+              <Badge className={`ml-auto text-[9px] px-1.5 py-0 border-0 shrink-0 ${rbac.role === "local_admin" ? "bg-purple-600 text-white" : rbac.role === "tenant_admin" ? "bg-sidebar-primary text-sidebar-primary-foreground" : "bg-sidebar-accent text-sidebar-foreground"}`}>
                 {rbac.role === "local_admin" ? "Local Admin" : rbac.role?.replace(/_/g, " ")}
               </Badge>
             </div>
           )}
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500">
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-sidebar-foreground/60">
             <Globe className="h-3 w-3" />
             <span>Multi-Tenant Admin v1.0</span>
           </div>
@@ -318,7 +318,7 @@ export default function Layout({ children, currentPageName }) {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex">
         <Sidebar />
@@ -337,7 +337,7 @@ export default function Layout({ children, currentPageName }) {
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar — desktop only */}
-        <header className="hidden md:flex h-14 bg-white border-b border-slate-200 items-center justify-between px-4 shrink-0">
+        <header className="hidden md:flex h-14 bg-card border-b border-border items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -353,22 +353,22 @@ export default function Layout({ children, currentPageName }) {
               className="hidden md:flex"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
-              <Menu className="h-4 w-4 text-slate-500" />
+              <Menu className="h-4 w-4 text-muted-foreground" />
             </Button>
             {selectedTenant && (
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${selectedTenant.status === 'connected' ? 'bg-emerald-500' : selectedTenant.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'}`} />
-                <span className="text-sm font-medium text-slate-700">{selectedTenant.name}</span>
-                <span className="text-xs text-slate-400">({selectedTenant.domain})</span>
+                <span className="text-sm font-medium text-foreground">{selectedTenant.name}</span>
+                <span className="text-xs text-muted-foreground">({selectedTenant.domain})</span>
               </div>
             )}
             {!selectedTenant && (
-              <span className="text-sm text-slate-500">All Tenants</span>
+              <span className="text-sm text-muted-foreground">All Tenants</span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => base44.auth.logout()}>
-              <LogOut className="h-4 w-4 text-slate-500" />
+              <LogOut className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
         </header>
