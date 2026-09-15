@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import PageHeader from "@/components/shared/PageHeader";
-import ReactMarkdown from "react-markdown";
+import SopRenderer from "@/components/sop/SopRenderer";
 import { exportSop, EXPORT_FORMATS } from "@/utils/sopExport";
 
 export default function SopGenerator({ selectedTenant, tenants }) {
@@ -596,24 +596,7 @@ Generate the full SOP document now. Include every inventory table above verbatim
             </div>
           </div>
           <div className="p-6 sm:p-10 prose prose-sm prose-slate max-w-none overflow-auto max-h-[75vh]">
-            <ReactMarkdown
-              components={{
-                h1: ({ children }) => <h1 className="text-2xl font-bold text-slate-900 mt-10 mb-5 border-b border-slate-200 pb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-xl font-bold text-slate-800 mt-10 mb-4">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-700 mt-6 mb-3">{children}</h3>,
-                ul: ({ children }) => <ul className="list-disc pl-6 my-4 space-y-3 text-slate-600 leading-relaxed">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-6 my-4 space-y-3 text-slate-600 leading-relaxed">{children}</ol>,
-                table: ({ children }) => <div className="overflow-x-auto my-6"><table className="w-full border border-slate-300 rounded-lg text-xs border-collapse">{children}</table></div>,
-                thead: ({ children }) => <thead className="bg-slate-100">{children}</thead>,
-                th: ({ children }) => <th className="px-3 py-2.5 text-left font-semibold text-slate-700 border border-slate-300">{children}</th>,
-                td: ({ children }) => <td className="px-3 py-2.5 text-slate-600 border border-slate-200">{children}</td>,
-                li: ({ children }) => <li className="text-slate-600 leading-relaxed">{children}</li>,
-                p: ({ children }) => <p className="text-slate-600 my-3 leading-relaxed">{children}</p>,
-                code: ({ children }) => <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>,
-              }}
-            >
-              {sop}
-            </ReactMarkdown>
+            <SopRenderer content={sop} />
           </div>
         </div>
       )}
