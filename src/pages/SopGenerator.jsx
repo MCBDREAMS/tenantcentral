@@ -68,6 +68,17 @@ export default function SopGenerator({ selectedTenant, tenants }) {
     queryFn: () => base44.entities.MdmSolution.filter({ tenant_id: effectiveTenantId }),
   });
 
+  const mdTable = (columns, rows) => {
+    if (!rows || rows.length === 0) return "_None._";
+    const esc = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ").trim() || "—";
+    const header = `| ${columns.map((c) => c.label).join(" | ")} |`;
+    const sep = `| ${columns.map(() => "---").join(" | ")} |`;
+    const body = rows
+      .map((r) => `| ${columns.map((c) => esc(typeof c.value === "function" ? c.value(r) : r[c.value])).join(" | ")} |`)
+      .join("\n");
+    return `${header}\n${sep}\n${body}`;
+  };
+
   const generateSOP = async () => {
     if (!chosenTenant) return;
     setGenerating(true);
@@ -77,68 +88,218 @@ export default function SopGenerator({ selectedTenant, tenants }) {
       ? Math.round((devices.filter(d => d.compliance_state === "compliant").length / devices.length) * 100)
       : 0;
 
-    // Pull live Azure tenant inventory (SharePoint, billing/licenses, Exchange, Teams, OneDrive)
-    let inv = null;
-    let invWarnings = [];
+    // Pull live Graph inventory in parallel: org profile, enterprise apps,
+    // Intune config breakdown, Entra directory (users + devices), plus M365
+    // workloads (SharePoint/Teams/Exchange/OneDrive) from tenantInventory.
+    let org = null, enterpriseApps = [], intuneCfg = null, entraInv = null;
+    let inv = null, invWarnings = [];
     try {
-      const res = await base44.functions.invoke("tenantInventory", {
-        action: "full_inventory",
-        azure_tenant_id: chosenTenant.tenant_id,
-        top: 50,
-      });
-      inv = res.data?.inventory || null;
+      const [orgRes, appsRes, cfgRes, invRes, tenantInvRes] = await Promise.all([
+        base44.functions.invoke("organizationData", { action: "org_profile", azure_tenant_id: chosenTenant.tenant_id }),
+        base44.functions.invoke("organizationData", { action: "enterprise_apps", azure_tenant_id: chosenTenant.tenant_id }),
+        base44.functions.invoke("organizationData", { action: "intune_config", azure_tenant_id: chosenTenant.tenant_id }),
+        base44.functions.invoke("organizationData", { action: "entra_inventory", azure_tenant_id: chosenTenant.tenant_id }),
+        base44.functions.invoke("tenantInventory", { action: "full_inventory", azure_tenant_id: chosenTenant.tenant_id, top: 50 }),
+      ]);
+      org = orgRes.data;
+      enterpriseApps = appsRes.data?.servicePrincipals || [];
+      intuneCfg = cfgRes.data;
+      entraInv = invRes.data;
+      inv = tenantInvRes.data?.inventory || null;
       invWarnings = inv?.warnings || [];
     } catch (e) {
-      invWarnings.push(`Inventory fetch failed: ${e.message}`);
+      invWarnings.push(`Live inventory fetch failed: ${e.message}`);
     }
 
-    const licenseSummary = inv?.subscribedSkus?.length
-      ? inv.subscribedSkus.map(s => `- ${s.skuPartNumber}: ${s.consumedUnits}/${s.prepaidEnabled} consumed`).join("\n")
-      : "- Not available";
+    // ── Build Markdown tables for every inventory section ──
+    const o = org?.organization || {};
+    const orgTable = org?.success ? mdTable(
+      [{ label: "Field", value: "k" }, { label: "Value", value: "v" }],
+      [
+        { k: "Display Name", v: o.displayName },
+        { k: "Tenant Type", v: o.tenantType },
+        { k: "Object ID", v: o.id },
+        { k: "Created", v: o.createdDateTime },
+        { k: "Country", v: o.countryLetterCode },
+        { k: "City / State", v: [o.city, o.state].filter(Boolean).join(", ") },
+        { k: "Street", v: o.street },
+        { k: "Postal Code", v: o.postalCode },
+        { k: "Business Phones", v: (o.businessPhones || []).join(", ") },
+        { k: "Preferred Language", v: o.preferredLanguage },
+        { k: "On-Prem Sync", v: o.onPremisesSyncEnabled ? "Enabled" : "Not enabled" },
+        { k: "Preferred Data Location", v: o.preferredDataLocation },
+        { k: "Multi-Geo Enabled", v: o.isMultipleDataLocationsForServicesEnabled ? "Yes" : "No" },
+        { k: "Technical Emails", v: (o.technicalNotificationMails || []).join(", ") },
+      ]
+    ) : "_Not available._";
 
+    const subsTable = org?.subscriptions?.length
+      ? mdTable(
+          [
+            { label: "Subscription ID", value: "id" },
+            { label: "SKU", value: "skuPartNumber" },
+            { label: "Friendly Name", value: "friendlyName" },
+            { label: "Status", value: "status" },
+            { label: "Units", value: "totalUnits" },
+            { label: "Trial", value: (s) => (s.isTrial ? "Yes" : "No") },
+            { label: "Next Lifecycle", value: "nextLifecycleDateTime" },
+          ],
+          org.subscriptions
+        )
+      : (org?.subscriptionError ? `_Not available via Graph: ${org.subscriptionError}_` : "_None._");
+
+    const licensesTable = org?.licenses?.length
+      ? mdTable(
+          [
+            { label: "SKU", value: "skuPartNumber" },
+            { label: "Consumed", value: "consumedUnits" },
+            { label: "Enabled", value: (l) => l.prepaidUnits?.enabled ?? 0 },
+            { label: "Available", value: (l) => Math.max((l.prepaidUnits?.enabled ?? 0) - (l.consumedUnits || 0), 0) },
+            { label: "Status", value: "capabilityStatus" },
+            { label: "Applies To", value: "appliesTo" },
+          ],
+          org.licenses
+        )
+      : "_None._";
+
+    const domainsTable = org?.domains?.length
+      ? mdTable(
+          [
+            { label: "Domain", value: "displayName" },
+            { label: "Verified", value: (d) => (d.isVerified ? "Yes" : "No") },
+            { label: "Default", value: (d) => (d.isDefault ? "Yes" : "No") },
+            { label: "Initial", value: (d) => (d.isInitial ? "Yes" : "No") },
+            { label: "Auth Type", value: "authenticationType" },
+            { label: "Services", value: (d) => (d.supportedServices || []).join(", ") },
+          ],
+          org.domains
+        )
+      : "_None._";
+
+    const entAppsTable = enterpriseApps.length
+      ? mdTable(
+          [
+            { label: "Application", value: "displayName" },
+            { label: "App ID", value: "appId" },
+            { label: "Type", value: "servicePrincipalType" },
+            { label: "Publisher", value: "publisherName" },
+            { label: "First-Party", value: (a) => (a.isFirstParty ? "Yes" : "No") },
+            { label: "Audience", value: "signInAudience" },
+            { label: "Enabled", value: (a) => (a.accountEnabled ? "Yes" : "No") },
+            { label: "SSO", value: "preferredSingleSignOnMode" },
+          ],
+          enterpriseApps.slice(0, 150)
+        )
+      : "_None._";
+
+    const entUsers = entraInv?.users?.items || [];
+    const entUsersTable = entUsers.length
+      ? mdTable(
+          [
+            { label: "Display Name", value: "displayName" },
+            { label: "UPN", value: "userPrincipalName" },
+            { label: "Job Title", value: "jobTitle" },
+            { label: "Department", value: "department" },
+            { label: "Type", value: "userType" },
+            { label: "Enabled", value: (u) => (u.accountEnabled ? "Yes" : "No") },
+          ],
+          entUsers
+        )
+      : (entraInv?.users?.error ? `_Not available: ${entraInv.users.error}_` : "_None._");
+
+    const entDevices = entraInv?.entraDevices?.items || [];
+    const entDevicesTable = entDevices.length
+      ? mdTable(
+          [
+            { label: "Device", value: "displayName" },
+            { label: "OS", value: "operatingSystem" },
+            { label: "OS Version", value: "operatingSystemVersion" },
+            { label: "Trust Type", value: "trustType" },
+            { label: "Managed", value: (d) => (d.isManaged ? "Yes" : "No") },
+            { label: "Compliant", value: (d) => (d.isCompliant ? "Yes" : "No") },
+            { label: "Last Sign-in", value: "approximateLastSignInDateTime" },
+          ],
+          entDevices
+        )
+      : (entraInv?.entraDevices?.error ? `_Not available: ${entraInv.entraDevices.error}_` : "_None._");
+
+    const intDevices = entraInv?.intuneDevices?.items || [];
+    const intDevicesTable = intDevices.length
+      ? mdTable(
+          [
+            { label: "Device", value: "deviceName" },
+            { label: "OS", value: "operatingSystem" },
+            { label: "Version", value: "osVersion" },
+            { label: "Compliance", value: "complianceState" },
+            { label: "User", value: "userPrincipalName" },
+            { label: "Model", value: "model" },
+            { label: "Last Sync", value: "lastSyncDateTime" },
+          ],
+          intDevices
+        )
+      : (entraInv?.intuneDevices?.error ? `_Not available: ${entraInv.intuneDevices.error}_` : "_None._");
+
+    const cfg = intuneCfg || {};
+    const cfgTable = (section, cols) => {
+      const s = cfg[section];
+      if (!s) return "_Not available._";
+      if (s.error && (!s.items || s.items.length === 0)) return `_Not available: ${s.error}_`;
+      return mdTable(cols, s.items);
+    };
+    const configProfilesTable = cfgTable("configProfiles", [
+      { label: "Name", value: "displayName" }, { label: "Type", value: "type" },
+      { label: "Description", value: "description" }, { label: "Created", value: "createdDateTime" }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+    const compliancePoliciesTable = cfgTable("compliancePolicies", [
+      { label: "Name", value: "displayName" }, { label: "Type", value: "type" },
+      { label: "Description", value: "description" }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+    const endpointSecurityTable = cfgTable("endpointSecurity", [
+      { label: "Name", value: "displayName" }, { label: "Template ID", value: "templateId" },
+      { label: "Description", value: "description" }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+    const appProtectionTable = cfgTable("appProtectionPolicies", [
+      { label: "Name", value: "displayName" }, { label: "Type", value: "type" },
+      { label: "Assigned", value: (a) => (a.isAssigned ? "Yes" : "No") }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+    const applicationsTable = cfgTable("applications", [
+      { label: "Name", value: "displayName" }, { label: "Type", value: "type" },
+      { label: "Description", value: "description" }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+    const autopilotTable = cfgTable("autopilotProfiles", [
+      { label: "Name", value: "displayName" }, { label: "Description", value: "description" }, { label: "Modified", value: "lastModifiedDateTime" },
+    ]);
+
+    // M365 workload summaries (from tenantInventory)
     const sitesSummary = inv?.sharepoint?.sites?.length
       ? inv.sharepoint.sites.slice(0, 15).map(s => `- ${s.displayName} — ${s.webUrl}`).join("\n")
       : "- Not available";
-
     const teamsSummary = inv?.teams?.teams?.length
       ? inv.teams.teams.slice(0, 15).map(t => `- ${t.displayName} [${t.visibility || "private"}]`).join("\n")
       : "- Not available";
-
     const mailboxSummary = inv?.exchange?.mailboxes?.length
-      ? `- Total mail-enabled users: ${inv.exchange.mailboxes.length}
-- Licensed mailboxes: ${inv.exchange.mailboxes.filter(m => m.licensed).length}
-- Disabled with mailbox: ${inv.exchange.mailboxes.filter(m => !m.accountEnabled).length}`
+      ? `- Total mail-enabled users: ${inv.exchange.mailboxes.length}\n- Licensed mailboxes: ${inv.exchange.mailboxes.filter(m => m.licensed).length}\n- Disabled with mailbox: ${inv.exchange.mailboxes.filter(m => !m.accountEnabled).length}`
       : "- Not available";
-
-    const domainsSummary = inv?.domains?.length
-      ? inv.domains.map(d => `- ${d.id} [${d.authenticationType || "managed"}${d.isDefault ? ", default" : ""}${d.isVerified ? ", verified" : ", unverified"}]`).join("\n")
-      : "- Not available";
-
     const oneDriveSummary = inv?.oneDrive?.driveSamples?.length
-      ? `- Provisioned sample: ${inv.oneDrive.driveSamples.length} drives
-- Avg used (GB): ${inv.oneDrive.avgUsedGb}`
-      : "- Not available";
-
-    const orgSummary = inv?.organization
-      ? `- Display name: ${inv.organization.displayName}
-- Country: ${inv.organization.country || "—"}
-- On-prem sync: ${inv.organization.onPremisesSyncEnabled ? "Enabled (last: " + (inv.organization.onPremisesLastSyncDateTime || "unknown") + ")" : "Not enabled (cloud-only)"}`
+      ? `- Provisioned sample: ${inv.oneDrive.driveSamples.length} drives\n- Avg used (GB): ${inv.oneDrive.avgUsedGb}`
       : "- Not available";
 
     const prompt = `
-You are a senior Microsoft 365 and Azure IT consultant. Generate a comprehensive, professional Service Operations Procedure (SOP) document for the following tenant configuration.
+You are a senior Microsoft 365 and Azure IT consultant. Generate a comprehensive, professional Service Operations Procedure (SOP) document for the tenant configuration below.
 
-The SOP must cover: Executive Summary, Azure Tenant & Organisation Details, Billing & Licensing (M365 admin), Identity & Access Management (Entra ID), Device Management (Intune), Security Baseline & Policies, Microsoft 365 Workloads (Exchange, SharePoint, Teams, OneDrive), Operational Procedures (daily/weekly/monthly tasks), Incident Response, Escalation Matrix, and a Compliance Summary.
+The SOP MUST include these sections (use ## headings): Executive Summary, Azure Tenant & Organisation Details, Billing & Licensing, Identity & Access Management (Entra ID), Enterprise Applications, Entra ID Devices, Device Management (Intune), Intune Configuration Breakdown, Security Baseline & Policies, Microsoft 365 Workloads (Exchange, SharePoint, Teams, OneDrive), Key Observations, Operational Procedures (daily/weekly/monthly), Incident Response, Escalation Matrix, Compliance Summary, Reference Table.
 
-Format using Markdown with clear headings (##, ###), bullet points, and tables where appropriate. Be thorough and professional.
-
-IMPORTANT FORMATTING RULES:
-- The "## Key Observations" section MUST list each observation as its own separate bullet point. Put a blank line between each bullet so they are spaced out and easy to read. Never bunch multiple observations into a single dense paragraph or a tight run-on list.
-- Each bullet should start with a short bolded label (e.g. **Label:**) followed by the detail.
-- Include a dedicated "## Reference Table" section near the end. Render it as a single Markdown table with columns: Area | Current State / Value | Status | Notes. Populate one row per major configuration area covered in this SOP (Tenant, Licensing, Identity/MFA, Conditional Access, Intune/Devices, Security Baselines, Exchange, SharePoint, Teams, OneDrive). Keep Status as one of: OK / Warning / Action Required / N/A.
+STRICT FORMATTING RULES:
+- Use Markdown throughout. ## for sections, ### for sub-sections.
+- NEVER compress details into inline pipe-delimited text such as "Name | Status | Value". Render ALL structured/tabular data as proper Markdown tables (a header row followed by a "---" separator row). Use bulleted lists only for narrative observations.
+- Reproduce the inventory tables provided below VERBATIM inside the relevant sections — the user wants the COMPLETE inventory, not a truncated summary. If a table is large, include the full table.
+- Insert a blank line before and after every heading and every table so the document is airy and well spaced.
+- In "## Key Observations", list each observation as its own bullet starting with a short bolded label (e.g. **Label:** detail). Put a blank line between each bullet.
+- "## Reference Table" must be a single Markdown table with columns: Area | Current State / Value | Status | Notes. One row per major area: Tenant, Geo/Data Residency, Licensing, Identity/MFA, Conditional Access, Enterprise Apps, Entra Devices, Intune Devices, Configuration Profiles, Compliance Policies, Endpoint Security, App Protection, Applications, Autopilot, Exchange, SharePoint, Teams, OneDrive. Status: OK / Warning / Action Required / N/A.
+- "## Intune Configuration Breakdown" must contain one ### sub-section per category, each with its full table and a short configuration-analysis paragraph: ### Configuration Profiles, ### Compliance Policies, ### Endpoint Security Policies, ### App Protection Policies, ### Applications, ### Autopilot Profiles.
 
 ---
-TENANT DATA:
+TENANT:
 - Name: ${chosenTenant.name}
 - Azure Tenant ID: ${chosenTenant.tenant_id}
 - Domain: ${chosenTenant.domain}
@@ -146,56 +307,72 @@ TENANT DATA:
 - Status: ${chosenTenant.status}
 - Notes: ${chosenTenant.notes || "None"}
 
-AZURE ORGANISATION (from Azure itself):
-${orgSummary}
+ORGANISATION (from Microsoft Graph):
+${orgTable}
 
-BILLING & LICENSING (M365 admin — subscribedSkus):
-${licenseSummary}
+SUBSCRIPTIONS (M365 admin):
+${subsTable}
+
+LICENSES (subscribed SKUs):
+${licensesTable}
 
 ACCEPTED DOMAINS:
-${domainsSummary}
+${domainsTable}
 
-IDENTITY (Entra ID):
-- Total Users: ${users.length}
-- MFA Enabled: ${users.filter(u => u.mfa_status === "enabled" || u.mfa_status === "enforced").length}
-- Guest Users: ${users.filter(u => u.user_type === "guest").length}
+ENTERPRISE APPLICATIONS (service principals):
+${entAppsTable}
+
+ENTRA ID USERS:
+${entUsersTable}
+
+ENTRA ID DEVICES:
+${entDevicesTable}
+
+INTUNE MANAGED DEVICES:
+${intDevicesTable}
+
+INTUNE CONFIGURATION PROFILES:
+${configProfilesTable}
+
+INTUNE COMPLIANCE POLICIES:
+${compliancePoliciesTable}
+
+INTUNE ENDPOINT SECURITY POLICIES:
+${endpointSecurityTable}
+
+INTUNE APP PROTECTION POLICIES:
+${appProtectionTable}
+
+INTUNE APPLICATIONS:
+${applicationsTable}
+
+INTUNE AUTOPILOT PROFILES:
+${autopilotTable}
+
+SYNCED TENANT CONTEXT (from app database):
+- Total Users (synced): ${users.length} | MFA Enabled: ${users.filter(u => u.mfa_status === "enabled" || u.mfa_status === "enforced").length} | Guests: ${users.filter(u => u.user_type === "guest").length}
 - Groups: ${groups.length} (Security: ${groups.filter(g => g.group_type === "security").length}, M365: ${groups.filter(g => g.group_type === "microsoft_365").length})
+- Conditional Access Policies: ${policies.length > 0 ? policies.slice(0, 15).map(p => `${p.policy_name} [${p.state}] (${p.policy_type})`).join("; ") : "None configured"}
+- Intune Devices (synced): ${devices.length} | Compliant: ${devices.filter(d => d.compliance_state === "compliant").length} | Compliance Rate: ${complianceRate}%
+- Security Baselines: ${baselines.length > 0 ? baselines.map(b => `${b.baseline_name} [${b.state}]`).join("; ") : "None deployed"}
+- MDM Solutions: ${mdmSolutions.length > 0 ? mdmSolutions.map(m => `${m.solution_name} [${m.connection_status}]`).join("; ") : "Intune (primary MDM)"}
 
-CONDITIONAL ACCESS POLICIES:
-${policies.length > 0 ? policies.slice(0, 15).map(p => `- ${p.policy_name} [${p.state}] (${p.policy_type})`).join("\n") : "- None configured"}
-
-DEVICE MANAGEMENT (Intune):
-- Total Devices: ${devices.length}
-- Compliant: ${devices.filter(d => d.compliance_state === "compliant").length}
-- Non-Compliant: ${devices.filter(d => d.compliance_state === "non_compliant").length}
-- Compliance Rate: ${complianceRate}%
-- OS Breakdown: Windows: ${devices.filter(d => d.os?.includes("Windows")).length}, macOS: ${devices.filter(d => d.os === "macOS").length}, iOS: ${devices.filter(d => d.os === "iOS").length}, Android: ${devices.filter(d => d.os === "Android").length}
-
-CONFIGURATION PROFILES:
-${profiles.length > 0 ? profiles.slice(0, 10).map(p => `- ${p.profile_name} [${p.platform}] (${p.profile_type}) — ${p.state}`).join("\n") : "- None configured"}
-
-SECURITY BASELINES:
-${baselines.length > 0 ? baselines.map(b => `- ${b.baseline_name} [${b.state}]: ${b.compliant_devices || 0} compliant, ${b.non_compliant_devices || 0} non-compliant`).join("\n") : "- None deployed"}
-
-MDM SOLUTIONS:
-${mdmSolutions.length > 0 ? mdmSolutions.map(m => `- ${m.solution_name} [${m.connection_status}] covering ${m.platform_scope}`).join("\n") : "- Intune (primary MDM)"}
-
-EXCHANGE ONLINE (mailboxes, settings, config):
+EXCHANGE ONLINE:
 ${mailboxSummary}
 
-SHAREPOINT ONLINE (sites & users):
+SHAREPOINT ONLINE:
 ${sitesSummary}
 
-MICROSOFT TEAMS (setup & config):
+MICROSOFT TEAMS:
 ${teamsSummary}
 
-ONEDRIVE (config & set details):
+ONEDRIVE:
 ${oneDriveSummary}
 
 ${invWarnings.length > 0 ? `INVENTORY NOTES (partial data — some sections could not be read):\n${invWarnings.slice(0, 8).map(w => "- " + w).join("\n")}` : ""}
 ---
 
-Generate the full SOP document now.
+Generate the full SOP document now. Include every inventory table above verbatim in the appropriate section.
 `;
 
     try {
@@ -350,17 +527,17 @@ Generate the full SOP document now.
           <div className="p-6 sm:p-10 prose prose-sm prose-slate max-w-none overflow-auto max-h-[75vh]">
             <ReactMarkdown
               components={{
-                h1: ({ children }) => <h1 className="text-2xl font-bold text-slate-900 mt-8 mb-4 border-b border-slate-200 pb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-xl font-bold text-slate-800 mt-8 mb-3">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-700 mt-5 mb-2">{children}</h3>,
-                ul: ({ children }) => <ul className="list-disc pl-6 my-3 space-y-2.5 text-slate-600 leading-relaxed">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-6 my-3 space-y-2.5 text-slate-600 leading-relaxed">{children}</ol>,
-                table: ({ children }) => <div className="overflow-x-auto my-5"><table className="w-full border border-slate-300 rounded-lg text-xs border-collapse">{children}</table></div>,
+                h1: ({ children }) => <h1 className="text-2xl font-bold text-slate-900 mt-10 mb-5 border-b border-slate-200 pb-2">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-xl font-bold text-slate-800 mt-10 mb-4">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-base font-semibold text-slate-700 mt-6 mb-3">{children}</h3>,
+                ul: ({ children }) => <ul className="list-disc pl-6 my-4 space-y-3 text-slate-600 leading-relaxed">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 my-4 space-y-3 text-slate-600 leading-relaxed">{children}</ol>,
+                table: ({ children }) => <div className="overflow-x-auto my-6"><table className="w-full border border-slate-300 rounded-lg text-xs border-collapse">{children}</table></div>,
                 thead: ({ children }) => <thead className="bg-slate-100">{children}</thead>,
                 th: ({ children }) => <th className="px-3 py-2.5 text-left font-semibold text-slate-700 border border-slate-300">{children}</th>,
-                td: ({ children }) => <td className="px-3 py-2 text-slate-600 border border-slate-200">{children}</td>,
-                li: ({ children }) => <li className="text-slate-600">{children}</li>,
-                p: ({ children }) => <p className="text-slate-600 my-2.5 leading-relaxed">{children}</p>,
+                td: ({ children }) => <td className="px-3 py-2.5 text-slate-600 border border-slate-200">{children}</td>,
+                li: ({ children }) => <li className="text-slate-600 leading-relaxed">{children}</li>,
+                p: ({ children }) => <p className="text-slate-600 my-3 leading-relaxed">{children}</p>,
                 code: ({ children }) => <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>,
               }}
             >

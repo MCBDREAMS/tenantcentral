@@ -8,6 +8,32 @@ import {
   getTenantCreds,
 } from '../../shared/graphClient.ts';
 
+// Fetches a single page from Graph, returning { items, error } so one
+// permission gap on a multi-source report doesn't discard the rest.
+async function safeGraphPage(token, path) {
+  try {
+    const data = await graphGet(token, path);
+    return { items: data.value || [], error: null };
+  } catch (e) {
+    console.error('[organizationData] graph fetch failed:', path, e.message);
+    return { items: [], error: e.message };
+  }
+}
+
+async function safeGraphBetaPage(token, path) {
+  try {
+    const data = await graphGetBeta(token, path);
+    return { items: data.value || [], error: null };
+  } catch (e) {
+    console.error('[organizationData] graph beta fetch failed:', path, e.message);
+    return { items: [], error: e.message };
+  }
+}
+
+function cleanType(t) {
+  return t ? t.replace('#microsoft.graph.', '') : null;
+}
+
 export default async function (req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -166,6 +192,118 @@ export default async function (req) {
         success: true,
         servicePrincipals: enriched,
         total: enriched.length,
+      });
+    }
+
+    // ── Entra ID directory inventory (users + Entra devices + Intune managed devices) ──
+    if (action === 'entra_inventory') {
+      const [usersRes, devicesRes, managedRes] = await Promise.all([
+        safeGraphPage(
+          token,
+          '/users?$select=id,displayName,userPrincipalName,jobTitle,department,accountEnabled,userType,createdDateTime&$top=150',
+        ),
+        safeGraphPage(
+          token,
+          '/devices?$select=id,displayName,deviceCategory,operatingSystem,operatingSystemVersion,trustType,isManaged,isCompliant,approximateLastSignInDateTime&$top=150',
+        ),
+        safeGraphPage(
+          token,
+          '/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,lastSyncDateTime,model,manufacturer&$top=150',
+        ),
+      ]);
+
+      return Response.json({
+        success: true,
+        users: {
+          items: (usersRes.items || []).map((u) => ({
+            id: u.id,
+            displayName: u.displayName,
+            userPrincipalName: u.userPrincipalName,
+            jobTitle: u.jobTitle,
+            department: u.department,
+            accountEnabled: u.accountEnabled,
+            userType: u.userType,
+            createdDateTime: u.createdDateTime,
+          })),
+          total: (usersRes.items || []).length,
+          error: usersRes.error,
+        },
+        entraDevices: {
+          items: (devicesRes.items || []).map((d) => ({
+            id: d.id,
+            displayName: d.displayName,
+            operatingSystem: d.operatingSystem,
+            operatingSystemVersion: d.operatingSystemVersion,
+            trustType: d.trustType,
+            isManaged: d.isManaged,
+            isCompliant: d.isCompliant,
+            approximateLastSignInDateTime: d.approximateLastSignInDateTime,
+          })),
+          total: (devicesRes.items || []).length,
+          error: devicesRes.error,
+        },
+        intuneDevices: {
+          items: (managedRes.items || []).map((d) => ({
+            id: d.id,
+            deviceName: d.deviceName,
+            operatingSystem: d.operatingSystem,
+            osVersion: d.osVersion,
+            complianceState: d.complianceState,
+            userPrincipalName: d.userPrincipalName,
+            lastSyncDateTime: d.lastSyncDateTime,
+            model: d.model,
+            manufacturer: d.manufacturer,
+          })),
+          total: (managedRes.items || []).length,
+          error: managedRes.error,
+        },
+      });
+    }
+
+    // ── Intune configuration breakdown (6 policy/app categories) ──
+    if (action === 'intune_config') {
+      const common = 'id,displayName,description,createdDateTime,lastModifiedDateTime';
+      const [cfg, comp, intent, appProt, mobApps, auto] = await Promise.all([
+        safeGraphPage(token, `/deviceManagement/deviceConfigurations?$select=${common}&$top=200`),
+        safeGraphPage(token, `/deviceManagement/deviceCompliancePolicies?$select=${common}&$top=200`),
+        safeGraphBetaPage(
+          token,
+          '/deviceManagement/intents?$select=id,displayName,description,templateId,lastModifiedDateTime&$top=200',
+        ),
+        safeGraphPage(token, `/deviceAppManagement/managedAppPolicies?$select=${common}&$top=200`),
+        safeGraphPage(token, `/deviceAppManagement/mobileApps?$select=${common}&$top=200`),
+        safeGraphBetaPage(
+          token,
+          '/deviceManagement/windowsAutopilotDeploymentProfiles?$select=${common}&$top=200',
+        ),
+      ]);
+
+      const mapCfg = (o) => ({
+        id: o.id,
+        displayName: o.displayName,
+        description: o.description,
+        type: cleanType(o['@odata.type']),
+        createdDateTime: o.createdDateTime,
+        lastModifiedDateTime: o.lastModifiedDateTime,
+      });
+
+      return Response.json({
+        success: true,
+        configProfiles: { items: cfg.items.map(mapCfg), error: cfg.error },
+        compliancePolicies: { items: comp.items.map(mapCfg), error: comp.error },
+        endpointSecurity: {
+          items: intent.items.map((o) => ({
+            ...mapCfg(o),
+            templateId: o.templateId,
+          })),
+          error: intent.error,
+        },
+        appProtectionPolicies: {
+          items: appProt.items.map((o) => ({ ...mapCfg(o), isAssigned: o.isAssigned })),
+          error: appProt.error,
+        },
+        applications: { items: mobApps.items.map(mapCfg), error: mobApps.error },
+        autopilotProfiles: { items: auto.items.map(mapCfg), error: auto.error },
       });
     }
 
