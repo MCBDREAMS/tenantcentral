@@ -203,7 +203,7 @@ export default function Layout({ children, currentPageName }) {
           <Layers className="h-4 w-4 text-white" />
         </div>
         {(sidebarOpen || mobile) &&
-      <span className="font-semibold tracking-wide text-base">Azure Multi-Tenant</span>
+      <span className="font-semibold tracking-wide text-base">CloudCommand</span>
       }
       </div>
 
