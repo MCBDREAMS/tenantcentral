@@ -395,11 +395,27 @@ ${applicationsTable}
 INTUNE AUTOPILOT PROFILES:
 ${autopilotTable}
 
-SYNCED TENANT CONTEXT (from app database):
-- Total Users (synced): ${users.length} | MFA Enabled: ${users.filter(u => u.mfa_status === "enabled" || u.mfa_status === "enforced").length} | Guests: ${users.filter(u => u.user_type === "guest").length}
-- Groups: ${groups.length} (Security: ${groups.filter(g => g.group_type === "security").length}, M365: ${groups.filter(g => g.group_type === "microsoft_365").length})
+SYNCED TENANT CONTEXT — IDENTITY SUMMARY:
+${mdTable(
+  [
+    { label: "Metric", value: "k" },
+    { label: "Value", value: "v" },
+  ],
+  [
+    { k: "Total Users (synced)", v: users.length },
+    { k: "MFA Enabled / Enforced", v: users.filter(u => u.mfa_status === "enabled" || u.mfa_status === "enforced").length },
+    { k: "Guest Users", v: users.filter(u => u.user_type === "guest").length },
+    { k: "Total Groups", v: groups.length },
+    { k: "  - Security Groups", v: groups.filter(g => g.group_type === "security").length },
+    { k: "  - Microsoft 365 Groups", v: groups.filter(g => g.group_type === "microsoft_365").length },
+    { k: "Intune Devices (synced)", v: devices.length },
+    { k: "Compliant Devices", v: devices.filter(d => d.compliance_state === "compliant").length },
+    { k: "Compliance Rate", v: `${complianceRate}%` },
+  ]
+)}
+
+SYNCED TENANT CONTEXT — POLICY & BASELINE SUMMARY:
 - Conditional Access Policies: ${policies.length > 0 ? policies.slice(0, 15).map(p => `${p.policy_name} [${p.state}] (${p.policy_type})`).join("; ") : "None configured"}
-- Intune Devices (synced): ${devices.length} | Compliant: ${devices.filter(d => d.compliance_state === "compliant").length} | Compliance Rate: ${complianceRate}%
 - Security Baselines: ${baselines.length > 0 ? baselines.map(b => `${b.baseline_name} [${b.state}]`).join("; ") : "None deployed"}
 - MDM Solutions: ${mdmSolutions.length > 0 ? mdmSolutions.map(m => `${m.solution_name} [${m.connection_status}]`).join("; ") : "Intune (primary MDM)"}
 
