@@ -270,10 +270,55 @@ export default function SopGenerator({ selectedTenant, tenants }) {
       { label: "Name", value: "displayName" }, { label: "Description", value: "description" }, { label: "Modified", value: "lastModifiedDateTime" },
     ]);
 
-    // M365 workload summaries (from tenantInventory)
-    const sitesSummary = inv?.sharepoint?.sites?.length
-      ? inv.sharepoint.sites.slice(0, 15).map(s => `- ${s.displayName} — ${s.webUrl}`).join("\n")
-      : "- Not available";
+    // SharePoint detailed inventory (from tenantInventory)
+    const sp = inv?.sharepoint || {};
+    const spSitesTable = sp.sites?.length
+      ? mdTable(
+          [
+            { label: "Site", value: "displayName" },
+            { label: "URL", value: "webUrl" },
+            { label: "Description", value: "description" },
+            { label: "Created", value: "createdDateTime" },
+            { label: "Modified", value: "lastModifiedDateTime" },
+            { label: "Personal", value: (s) => (s.isPersonal ? "Yes" : "No") },
+          ],
+          sp.sites
+        )
+      : (sp.warnings?.length ? `_Not available: ${sp.warnings.join("; ")}_` : "_None._");
+    const spLibrariesTable = sp.libraries?.length
+      ? mdTable(
+          [
+            { label: "Site", value: "siteName" },
+            { label: "Library", value: "libraryName" },
+            { label: "Type", value: "driveType" },
+            { label: "Used (GB)", value: "usedGb" },
+            { label: "Quota (GB)", value: "totalGb" },
+            { label: "Used %", value: "usedPct" },
+            { label: "Modified", value: "lastModifiedDateTime" },
+          ],
+          sp.libraries
+        )
+      : "_None._";
+    const spPermissionsTable = sp.permissions?.length
+      ? mdTable(
+          [
+            { label: "Site", value: "siteName" },
+            { label: "Roles", value: "roles" },
+            { label: "Granted To", value: "grantedTo" },
+          ],
+          sp.permissions
+        )
+      : "_Not available (Sites.FullControl.All / Sites.Read.All permission may be required to read site permissions)._";
+    const spStorageTable = sp.storage?.length
+      ? mdTable(
+          [
+            { label: "Site", value: "siteName" },
+            { label: "Libraries", value: "libraryCount" },
+            { label: "Used (GB)", value: "usedGb" },
+          ],
+          sp.storage
+        )
+      : "_None._";
     const teamsSummary = inv?.teams?.teams?.length
       ? inv.teams.teams.slice(0, 15).map(t => `- ${t.displayName} [${t.visibility || "private"}]`).join("\n")
       : "- Not available";
@@ -297,6 +342,7 @@ STRICT FORMATTING RULES:
 - In "## Key Observations", list each observation as its own bullet starting with a short bolded label (e.g. **Label:** detail). Put a blank line between each bullet.
 - "## Reference Table" must be a single Markdown table with columns: Area | Current State / Value | Status | Notes. One row per major area: Tenant, Geo/Data Residency, Licensing, Identity/MFA, Conditional Access, Enterprise Apps, Entra Devices, Intune Devices, Configuration Profiles, Compliance Policies, Endpoint Security, App Protection, Applications, Autopilot, Exchange, SharePoint, Teams, OneDrive. Status: OK / Warning / Action Required / N/A.
 - "## Intune Configuration Breakdown" must contain one ### sub-section per category, each with its full table and a short configuration-analysis paragraph: ### Configuration Profiles, ### Compliance Policies, ### Endpoint Security Policies, ### App Protection Policies, ### Applications, ### Autopilot Profiles.
+- Under the SharePoint part of "## Microsoft 365 Workloads (Exchange, SharePoint, Teams, OneDrive)", include four ### sub-sections, each reproducing the corresponding table verbatim followed by a one-line analysis note: ### SharePoint Sites, ### Document Libraries, ### Site Permissions, ### Storage Utilisation.
 
 ---
 TENANT:
@@ -360,8 +406,17 @@ SYNCED TENANT CONTEXT (from app database):
 EXCHANGE ONLINE:
 ${mailboxSummary}
 
-SHAREPOINT ONLINE:
-${sitesSummary}
+SHAREPOINT ONLINE — SITES:
+${spSitesTable}
+
+SHAREPOINT ONLINE — DOCUMENT LIBRARIES:
+${spLibrariesTable}
+
+SHAREPOINT ONLINE — SITE PERMISSIONS:
+${spPermissionsTable}
+
+SHAREPOINT ONLINE — STORAGE UTILISATION:
+${spStorageTable}
 
 MICROSOFT TEAMS:
 ${teamsSummary}

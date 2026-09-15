@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 import { getAccessToken, graphGet, graphGetBeta, graphGetAll } from '../../shared/graphClient.ts';
+import { buildSharepointInventory } from '../../shared/tenantInventory.ts';
 
 import { format, startOfDay } from 'npm:date-fns@3.6.0';
 
@@ -139,6 +140,12 @@ Deno.serve(async (req) => {
         return Response.json({ success: true, sites: [], warning: "Sites.Read.All permission required in Azure App Registration to list SharePoint sites." });
       }
       return Response.json({ success: true, sites });
+    }
+
+    // ── SharePoint: full inventory (sites, libraries, permissions, storage) ──
+    if (action === "sharepoint_inventory") {
+      const sp = await buildSharepointInventory(token, top);
+      return Response.json({ success: true, sharepoint: sp });
     }
 
     // ── Intune: list devices from Graph (all pages) ──────────────────────────
