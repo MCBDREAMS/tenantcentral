@@ -15,6 +15,8 @@ import IntuneAssistant from './pages/IntuneAssistant';
 import TenantHealthOverview from './pages/TenantHealthOverview';
 import GoDaddyDefederation from './pages/GoDaddyDefederation';
 import TenantMigration from './pages/TenantMigration';
+import OrganizationalProfile from './pages/OrganizationalProfile';
+import EnterpriseApplications from './pages/EnterpriseApplications';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { Suspense } from 'react';
@@ -78,6 +80,8 @@ const AnimatedRoutes = () => {
             <Route path="/TenantHealthOverview" element={<LayoutWrapper currentPageName="TenantHealthOverview"><TenantHealthOverview /></LayoutWrapper>} />
             <Route path="/GoDaddyDefederation" element={<LayoutWrapper currentPageName="GoDaddyDefederation"><GoDaddyDefederation /></LayoutWrapper>} />
             <Route path="/TenantMigration" element={<LayoutWrapper currentPageName="TenantMigration"><TenantMigration /></LayoutWrapper>} />
+            <Route path="/OrganizationalProfile" element={<LayoutWrapper currentPageName="OrganizationalProfile"><OrganizationalProfile /></LayoutWrapper>} />
+            <Route path="/EnterpriseApplications" element={<LayoutWrapper currentPageName="EnterpriseApplications"><EnterpriseApplications /></LayoutWrapper>} />
             <Route path="/register" element={<ClientRegister />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>

@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
   AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
-  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot, HeartPulse, Unlink, Search
+  BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot, HeartPulse, Unlink, Search, Landmark, Boxes
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ const navSections = [
       { name: "Tenant Health Overview", icon: HeartPulse, page: "TenantHealthOverview" },
       { name: "Tenants", icon: Building2, page: "Tenants" },
       { name: "Tenant Settings", icon: Settings, page: "TenantSettings" },
+      { name: "Organizational Profile", icon: Landmark, page: "OrganizationalProfile" },
     ]
   },
   {
@@ -38,6 +39,7 @@ const navSections = [
       { group: "Identity", name: "Groups", icon: UserCheck, page: "EntraGroups" },
       { group: "Identity", name: "Devices", icon: MonitorSmartphone, page: "EntraDevices" },
       { group: "Applications", name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
+      { group: "Applications", name: "Enterprise Applications", icon: Boxes, page: "EnterpriseApplications" },
       { group: "Protection", name: "Conditional Access", icon: Shield, page: "EntraPolicies" },
       { group: "Protection", name: "MFA & Auth Methods", icon: KeyRound, page: "EntraAuthMethods" },
       { group: "Protection", name: "Named Locations", icon: MapPin, page: "EntraNamedLocations" },
