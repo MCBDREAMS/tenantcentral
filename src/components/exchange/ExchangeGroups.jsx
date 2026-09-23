@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Users, RefreshCw, Search, ChevronRight } from "lucide-react";
+import { Users, RefreshCw, Search, ChevronRight, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { exportToCSV } from "@/components/shared/exportUtils";
 
 function getGroupType(g) {
   if (g.groupTypes?.includes("Unified")) return { label: "Microsoft 365", color: "bg-blue-100 text-blue-700" };
@@ -48,6 +49,27 @@ export default function ExchangeGroups({ tenantId }) {
           </div>
           <Button variant="outline" size="sm" onClick={refetch} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filtered.length === 0}
+            onClick={() => exportToCSV(
+              filtered.map(g => {
+                const { label } = getGroupType(g);
+                return {
+                  display_name: g.displayName || "",
+                  email: g.mail || "",
+                  mail_nickname: g.mailNickname || "",
+                  type: label,
+                  description: g.description || "",
+                  created_date: g.createdDateTime ? new Date(g.createdDateTime).toLocaleDateString() : "",
+                };
+              }),
+              "exchange_groups"
+            )}
+          >
+            <Download className="h-4 w-4" />Export CSV
           </Button>
           <span className="text-xs text-slate-400">{filtered.length} groups</span>
         </div>
@@ -110,7 +132,26 @@ export default function ExchangeGroups({ tenantId }) {
             {selectedGroup.description && (
               <p className="text-xs text-slate-500 mb-4 p-3 bg-slate-50 rounded-lg">{selectedGroup.description}</p>
             )}
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Members</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Members</p>
+              {members.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => exportToCSV(
+                    members.map(m => ({
+                      display_name: m.displayName || "",
+                      email: m.mail || m.userPrincipalName || "",
+                      user_principal_name: m.userPrincipalName || "",
+                    })),
+                    `exchange_group_members_${selectedGroup.mailNickname || selectedGroup.id}`
+                  )}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" />Export
+                </Button>
+              )}
+            </div>
             {loadingMembers ? (
               <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-8 bg-slate-100 rounded animate-pulse" />)}</div>
             ) : (

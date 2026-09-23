@@ -323,6 +323,20 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, members: data.value || [] });
     }
 
+    // ── Exchange: list license SKUs (for resolving user.assignedLicenses → products) ──
+    if (action === "list_license_skus") {
+      const data = await graphGet(token, `/subscribedSkus`);
+      const skus = (data.value || []).map(s => ({
+        skuId: s.skuId,
+        skuPartNumber: s.skuPartNumber,
+        servicePlans: (s.servicePlans || []).map(sp => ({
+          servicePlanId: sp.servicePlanId,
+          servicePlanName: sp.servicePlanName,
+        })),
+      }));
+      return Response.json({ success: true, skus });
+    }
+
     // ── Exchange: scan all users' inbox rules ─────────────────────────────────
     if (action === "get_all_mailbox_rules") {
       // Fetch ALL licensed users (following pagination)

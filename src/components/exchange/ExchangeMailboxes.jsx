@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, RefreshCw, User, CheckCircle2, XCircle, Mail, Briefcase, Building } from "lucide-react";
+import { Search, RefreshCw, User, CheckCircle2, XCircle, Mail, Briefcase, Building, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { exportToCSV } from "@/components/shared/exportUtils";
+import { useLicenseSkus } from "@/components/exchange/useLicenseSkus";
 
 function InfoRow({ label, value, mono }) {
   return (
@@ -25,6 +27,8 @@ export default function ExchangeMailboxes({ tenantId }) {
       base44.functions.invoke("portalData", { action: "list_mailboxes", azure_tenant_id: tenantId, top: 200 })
         .then(r => r.data.mailboxes || []),
   });
+
+  const { resolveLicenses, resolveLicenseDetails } = useLicenseSkus(tenantId);
 
   const { data: detail, isLoading: loadingDetail } = useQuery({
     queryKey: ["exchange_mailbox_detail", tenantId, selected?.id],
@@ -53,6 +57,26 @@ export default function ExchangeMailboxes({ tenantId }) {
           <Button variant="outline" size="sm" onClick={refetch} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filtered.length === 0}
+            onClick={() => exportToCSV(
+              filtered.map(m => ({
+                display_name: m.displayName || "",
+                email: m.mail || m.userPrincipalName || "",
+                user_principal_name: m.userPrincipalName || "",
+                department: m.department || "",
+                job_title: m.jobTitle || "",
+                account_enabled: m.accountEnabled ? "Yes" : "No",
+                licenses: resolveLicenses(m.assignedLicenses).join("; "),
+                license_count: m.assignedLicenses?.length || 0,
+              })),
+              "exchange_mailboxes"
+            )}
+          >
+            <Download className="h-4 w-4" />Export CSV
+          </Button>
           <span className="text-xs text-slate-400">{filtered.length} users</span>
         </div>
         {error && <div className="text-sm text-red-500 mb-3">Error: {error.message}</div>}
@@ -64,6 +88,7 @@ export default function ExchangeMailboxes({ tenantId }) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Email</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Department</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Job Title</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden xl:table-cell">Licenses</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
               </tr>
             </thead>
@@ -86,6 +111,22 @@ export default function ExchangeMailboxes({ tenantId }) {
                   <td className="px-4 py-3 text-slate-500 hidden sm:table-cell text-xs">{m.mail || m.userPrincipalName}</td>
                   <td className="px-4 py-3 text-slate-500 hidden md:table-cell text-xs">{m.department || "—"}</td>
                   <td className="px-4 py-3 text-slate-500 hidden lg:table-cell text-xs">{m.jobTitle || "—"}</td>
+                  <td className="px-4 py-3 hidden xl:table-cell">
+                   <div className="flex flex-wrap gap-1 max-w-[260px]">
+                     {(() => {
+                       const prods = resolveLicenses(m.assignedLicenses);
+                       if (prods.length === 0) return <span className="text-xs text-slate-300">—</span>;
+                       return prods.slice(0, 2).map(p => (
+                         <Badge key={p} className="bg-blue-50 text-blue-700 border-blue-100 text-[10px]">{p}</Badge>
+                       ));
+                     })()}
+                     {resolveLicenses(m.assignedLicenses).length > 2 && (
+                       <span className="text-[10px] text-slate-400" title={resolveLicenses(m.assignedLicenses).join(", ")}>
+                         +{resolveLicenses(m.assignedLicenses).length - 2}
+                       </span>
+                     )}
+                   </div>
+                  </td>
                   <td className="px-4 py-3">
                     {m.accountEnabled
                       ? <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">Active</Badge>
@@ -128,6 +169,29 @@ export default function ExchangeMailboxes({ tenantId }) {
                   </dd>
                 </div>
                 <InfoRow label="Licenses Assigned" value={`${detail.details?.assignedLicenses?.length || 0}`} />
+                <div>
+                  <dt className="text-slate-400 uppercase text-[10px] tracking-wide mb-1">License Products</dt>
+                  <dd>
+                    {(() => {
+                      const prods = resolveLicenseDetails(detail.details?.assignedLicenses);
+                      if (prods.length === 0) return <span className="text-xs text-slate-300">—</span>;
+                      return (
+                        <div className="space-y-1.5">
+                          {prods.map(p => (
+                            <div key={p.skuId} className="border border-slate-100 rounded-lg px-2 py-1.5 bg-slate-50/60">
+                              <p className="text-xs font-medium text-slate-700">{p.skuPartNumber}</p>
+                              {p.servicePlans.length > 0 && (
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  {p.servicePlans.map(sp => sp.servicePlanName).join(", ")}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </dd>
+                </div>
                 {detail.mailSettings?.timeZone && <InfoRow label="Timezone" value={detail.mailSettings.timeZone} />}
                 {detail.mailSettings?.language?.displayName && <InfoRow label="Language" value={detail.mailSettings.language.displayName} />}
                 {detail.details?.createdDateTime && <InfoRow label="Account Created" value={new Date(detail.details.createdDateTime).toLocaleDateString()} />}
