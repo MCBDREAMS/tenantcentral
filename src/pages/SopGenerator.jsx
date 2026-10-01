@@ -447,13 +447,12 @@ Generate the full SOP document now. Include every inventory table above verbatim
 `;
 
     try {
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        model: "claude_sonnet_4_6",
-      });
-      setSop(typeof result === "string" ? result : result?.text || JSON.stringify(result));
+      const res = await base44.functions.invoke("sopGenerator", { prompt, model: "claude_sonnet_4_6" });
+      const text = res?.data?.text;
+      if (!text) throw new Error(res?.data?.error || "No SOP content returned.");
+      setSop(text);
     } catch (e) {
-      setSop("Error generating SOP: " + e.message);
+      setSop("Error generating SOP: " + (e?.response?.data?.error || e.message));
     } finally {
       setGenerating(false);
     }
