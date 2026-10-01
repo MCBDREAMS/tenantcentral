@@ -188,7 +188,7 @@ export default function SopGenerator({ selectedTenant, tenants }) {
             { label: "Enabled", value: (a) => (a.accountEnabled ? "Yes" : "No") },
             { label: "SSO", value: "preferredSingleSignOnMode" },
           ],
-          enterpriseApps.slice(0, 150)
+          enterpriseApps.slice(0, 80)
         )
       : "_None._";
 
@@ -203,7 +203,7 @@ export default function SopGenerator({ selectedTenant, tenants }) {
             { label: "Type", value: "userType" },
             { label: "Enabled", value: (u) => (u.accountEnabled ? "Yes" : "No") },
           ],
-          entUsers
+          entUsers.slice(0, 100)
         )
       : (entraInv?.users?.error ? `_Not available: ${entraInv.users.error}_` : "_None._");
 
@@ -337,7 +337,7 @@ The SOP MUST include these sections (use ## headings): Executive Summary, Azure 
 STRICT FORMATTING RULES:
 - Use Markdown throughout. ## for sections, ### for sub-sections.
 - NEVER compress details into inline pipe-delimited text such as "Name | Status | Value". Render ALL structured/tabular data as proper Markdown tables (a header row followed by a "---" separator row). Use bulleted lists only for narrative observations.
-- Reproduce the inventory tables provided below VERBATIM inside the relevant sections — the user wants the COMPLETE inventory, not a truncated summary. If a table is large, include the full table.
+- Reproduce the inventory tables provided below inside the relevant sections. For large tables, include the full table if practical, otherwise include the first rows and a one-line note of the total count. Prioritise completing the whole document within your response length.
 - Insert a blank line before and after every heading and every table so the document is airy and well spaced.
 - In "## Key Observations", list each observation as its own bullet starting with a short bolded label (e.g. **Label:** detail). Put a blank line between each bullet.
 - "## Reference Table" must be a single Markdown table with columns: Area | Current State / Value | Status | Notes. One row per major area: Tenant, Geo/Data Residency, Licensing, Identity/MFA, Conditional Access, Enterprise Apps, Entra Devices, Intune Devices, Configuration Profiles, Compliance Policies, Endpoint Security, App Protection, Applications, Autopilot, Exchange, SharePoint, Teams, OneDrive. Status: OK / Warning / Action Required / N/A.
@@ -447,7 +447,7 @@ Generate the full SOP document now. Include every inventory table above verbatim
 `;
 
     try {
-      const res = await base44.functions.invoke("sopGenerator", { prompt, model: "claude_sonnet_4_6" });
+      const res = await base44.functions.invoke("sopGenerator", { prompt, model: "automatic" });
       const text = res?.data?.text;
       if (!text) throw new Error(res?.data?.error || "No SOP content returned.");
       setSop(text);
@@ -561,8 +561,7 @@ Generate the full SOP document now. Include every inventory table above verbatim
         <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
           <p className="font-semibold text-slate-700">Generating SOP Document...</p>
-          <p className="text-sm text-slate-400 mt-1">Analysing tenant configuration and writing procedures. This may take 30–60 seconds.</p>
-          <p className="text-xs text-amber-600 mt-2">Note: Uses Claude Sonnet — consumes more integration credits.</p>
+          <p className="text-sm text-slate-400 mt-1">Analysing tenant configuration and writing procedures. This may take up to a minute.</p>
         </div>
       )}
 
