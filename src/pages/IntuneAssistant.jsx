@@ -12,10 +12,10 @@ import MessageBubble from "@/components/agents/MessageBubble";
 const AGENT_NAME = "intune_troubleshooter";
 
 const SUGGESTIONS = [
-  "Why are my Intune devices showing as non-compliant?",
-  "Which devices haven't checked in for over 8 hours?",
-  "Check for configuration profile assignment gaps",
-  "Summarise compliance posture for this tenant",
+  "Run a full Intune health check on this tenant",
+  "Which devices are non-compliant, and which settings are failing?",
+  "Which policies aren't being applied to any device?",
+  "Are my Windows devices up to date, and which are past end of support?",
 ];
 
 export default function IntuneAssistant({ selectedTenant }) {
@@ -27,7 +27,9 @@ export default function IntuneAssistant({ selectedTenant }) {
   const [error, setError] = useState("");
   const messagesEndRef = useRef(null);
 
-  const tenantHint = selectedTenant?.name ? `(tenant: ${selectedTenant.name})` : "(no tenant selected)";
+  const tenantHint = selectedTenant
+    ? `tenant "${selectedTenant.name}", tenant_record_id=${selectedTenant.id}, azure_tenant_id=${selectedTenant.tenant_id || "not configured"}`
+    : "no tenant selected - ask the user to choose a tenant in the sidebar before diagnosing";
 
   const loadConversations = useCallback(async () => {
     setLoadingConvos(true);
@@ -107,7 +109,7 @@ export default function IntuneAssistant({ selectedTenant }) {
       <div className="p-4 pb-0 max-w-5xl w-full mx-auto">
         <PageHeader
           title="Intune AI Assistant"
-          subtitle="Diagnose compliance, device sync, and profile issues with the Intune troubleshooter agent"
+          subtitle="Diagnose device compliance, policy delivery, and Windows update issues from live Microsoft Graph data"
           icon={Bot}
           actions={
             <Button variant="outline" onClick={newConversation} className="gap-2">
@@ -125,7 +127,7 @@ export default function IntuneAssistant({ selectedTenant }) {
                 <Sparkles className="h-7 w-7 text-white" />
               </div>
               <p className="font-semibold text-slate-700 mb-1">Ask me anything about your Intune environment</p>
-              <p className="text-sm text-slate-400 mb-5">I can read your devices, profiles, and tenant config to diagnose issues.</p>
+              <p className="text-sm text-slate-400 mb-5">I read your devices, policies and update rings live from Microsoft Graph, then explain what is failing and why.</p>
               <div className="grid sm:grid-cols-2 gap-2 max-w-xl mx-auto">
                 {SUGGESTIONS.map(s => (
                   <button

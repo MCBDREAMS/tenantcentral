@@ -120,6 +120,12 @@ function hoursSince(iso) {
   return Math.round((Date.now() - t) / 3600000);
 }
 
+// Graph returns compliance/state values in inconsistent casing (e.g. "noncompliant"),
+// so every state comparison goes through this normaliser.
+function normState(value) {
+  return String(value || '').toLowerCase();
+}
+
 function toHex(code) {
   const n = Number(code);
   if (!Number.isFinite(n) || n === 0) return null;
@@ -263,7 +269,7 @@ async function fleetDiagnosis(token, tenantId, deviceCap) {
   }
 
   const devices = devicesRes.value || [];
-  const byCompliance = countBy(devices, (d) => String(d.complianceState || 'unknown'));
+  const byCompliance = countBy(devices, (d) => normState(d.complianceState) || 'unknown');
   const byOs = countBy(devices, (d) => String(d.operatingSystem || 'unknown'));
 
   const stale = { under8h: 0, from8to24h: 0, from1to7d: 0, over7days: 0, neverReported: 0 };
@@ -308,12 +314,12 @@ async function fleetDiagnosis(token, tenantId, deviceCap) {
 
   const nonCompliantDevices = devices
     .map(trimDevice)
-    .filter((d) => ['nonCompliant', 'error', 'conflict'].includes(String(d.complianceState)))
+    .filter((d) => ['noncompliant', 'error', 'conflict'].includes(normState(d.complianceState)))
     .slice(0, 12)
     .map((d) => ({ id: d.id, deviceName: d.deviceName, user: d.user, os: d.os, osVersion: d.osVersion, complianceState: d.complianceState, lastSyncHoursAgo: d.lastSyncHoursAgo }));
 
   const findings = [];
-  const nonCompliantCount = (byCompliance.nonCompliant || 0);
+  const nonCompliantCount = (byCompliance.noncompliant || 0);
   if (nonCompliantCount > 0) {
     findings.push(finding(
       nonCompliantCount >= 10 || nonCompliantCount / Math.max(devices.length, 1) > 0.1 ? 'high' : 'medium',
@@ -322,7 +328,7 @@ async function fleetDiagnosis(token, tenantId, deviceCap) {
       'Run compliance_diagnosis to get the exact failing compliance settings and error codes per device.',
     ));
   }
-  const notReporting = (byCompliance.unknown || 0) + (byCompliance.notEvaluated || 0) + (byCompliance.error || 0) + (byCompliance.conflict || 0);
+  const notReporting = (byCompliance.unknown || 0) + (byCompliance.notevaluated || 0) + (byCompliance.error || 0) + (byCompliance.conflict || 0);
   if (notReporting > 0) {
     findings.push(finding('medium', 'Compliance',
       `${notReporting} devices have no clean compliance result (unknown, not evaluated, error or conflict).`,
@@ -389,9 +395,9 @@ async function complianceDiagnosis(token, tenantId, deviceCap, deepLimit) {
     return { success: false, action: 'compliance_diagnosis', error: e.message, hint: GRAPH_HINT };
   }
 
-  const problemStates = ['nonCompliant', 'error', 'conflict'];
-  const problemDevices = devices.filter((d) => problemStates.includes(String(d.complianceState))).slice(0, deepLimit);
-  const notReporting = devices.filter((d) => ['unknown', 'notEvaluated', undefined, null].includes(d.complianceState));
+  const problemStates = ['noncompliant', 'error', 'conflict'];
+  const problemDevices = devices.filter((d) => problemStates.includes(normState(d.complianceState))).slice(0, deepLimit);
+  const notReporting = devices.filter((d) => ['unknown', 'notevaluated', ''].includes(normState(d.complianceState)));
 
   const [policiesRes, summaryRes, settingSummaryRes] = await Promise.allSettled([
     safeGet(token, '/deviceManagement/deviceCompliancePolicies?$select=id,displayName,lastModifiedDateTime,createdDateTime&$top=200', 'v1.0', { value: [] }),
@@ -400,7 +406,7 @@ async function complianceDiagnosis(token, tenantId, deviceCap, deepLimit) {
   ]);
 
   const stateResults = await inBatches(problemDevices, 6, (d) =>
-    safeGet(token, `/deviceManagement/managedDevices/${d.id}/deviceCompliancePolicyStates?$expand=settingStates&$top=50`, 'v1.0', { value: [] }));
+    safeGet(token, `/deviceManagement/managedDevices/${d.id}/deviceCompliancePolicyStates?$expand=settingStates&$top=50`, 'beta', { value: [] }));
 
   const deviceFindings = problemDevices.map((d, i) => {
     const states = listOf(stateResults[i]);
@@ -542,20 +548,42 @@ async function policyDiagnosis(token, tenantId, policyNameFilter) {
     };
   });
 
-  const catalogList = catalog.map((p) => ({
-    source: 'settingsCatalog',
-    name: p.name,
-    id: p.id,
-    lastModified: p.lastModifiedDateTime,
-    platforms: p.platforms,
-    technologies: p.technologies,
-    settingCount: p.settingCount,
-    unassigned: p.isAssigned === false,
-  }));
+  const catalogProbe = catalog.slice(0, 10);
+  const catalogStatusResults = await inBatches(catalogProbe, 6, (p) =>
+    safeGet(token, `/deviceManagement/configurationPolicies/${p.id}/deviceStatuses?$top=25`, 'beta', { value: [] }));
+
+  const catalogList = catalog.map((p) => {
+    const idx = catalogProbe.findIndex((c) => c.id === p.id);
+    const statuses = idx >= 0 ? listOf(catalogStatusResults[idx]) : [];
+    const counts = countBy(statuses, (s) => String(s.status || 'unknown'));
+    return {
+      source: 'settingsCatalog',
+      name: p.name,
+      id: p.id,
+      lastModified: p.lastModifiedDateTime,
+      platforms: p.platforms,
+      technologies: p.technologies,
+      settingCount: p.settingCount,
+      unassigned: p.isAssigned === false,
+      deviceStatusSample: statuses.length ? counts : null,
+      errorDevices: statuses
+        .filter((s) => ['error', 'conflict'].includes(String(s.status)))
+        .slice(0, 5)
+        .map((s) => ({
+          device: s.deviceDisplayName || s.deviceName,
+          user: s.userPrincipalName,
+          status: s.status,
+          errorCode: s.errorCode,
+          errorCodeHex: toHex(s.errorCode),
+          lastReported: s.lastReportedDateTime,
+        })),
+    };
+  });
 
   const unassignedClassic = policyList.filter((p) => p.unassigned);
   const unassignedCatalog = catalogList.filter((p) => p.unassigned);
-  const erroringPolicies = policyList.filter((p) => (p.deviceStatusSample?.error || 0) + (p.deviceStatusSample?.conflict || 0) > 0);
+  const erroringPolicies = policyList.concat(catalogList)
+    .filter((p) => (p.deviceStatusSample?.error || 0) + (p.deviceStatusSample?.conflict || 0) > 0);
 
   const findings = [];
   if (unassignedClassic.length + unassignedCatalog.length > 0) {
@@ -575,6 +603,12 @@ async function policyDiagnosis(token, tenantId, policyNameFilter) {
       `${(summary.errorDeviceCount || 0) + (summary.conflictDeviceCount || 0)} device-policy pairs are in error or conflict across the tenant.`,
       'Drill into the affected devices with device_diagnosis to see which setting is failing.'));
   }
+  const probedWithData = policyList.concat(catalogList).filter((p) => p.deviceStatusSample).length;
+  if (statusProbe.length + catalogProbe.length > 0 && probedWithData === 0) {
+    findings.push(finding('info', 'Policy reporting',
+      'Assignments were confirmed, but Microsoft Graph returned no per-device apply status for the sampled policies, so device-level delivery could not be verified.',
+      'This usually means the app registration lacks DeviceManagementConfiguration.Read.All, or the policies were assigned recently and devices have not reported yet. Use device_diagnosis on a specific device to confirm policy state.'));
+  }
   if (findings.length === 0) {
     findings.push(finding('info', 'Policies',
       nameFilter ? `No unassigned or failing policies matched "${policyNameFilter}".` : 'No unassigned or failing configuration policies detected.',
@@ -588,6 +622,7 @@ async function policyDiagnosis(token, tenantId, policyNameFilter) {
     scope: {
       classicPoliciesScanned: classic.length,
       settingsCatalogPoliciesScanned: catalog.length,
+      policiesStatusProbed: statusProbe.length + catalogProbe.length,
       deviceStatusSampleSize: 25,
       note: 'deviceStatusSample counts come from up to 25 device statuses per policy, so they indicate presence of failures, not exact totals.',
     },
@@ -776,8 +811,8 @@ async function deviceDiagnosis(token, tenantId, body) {
   }
 
   const [compStatesRes, cfgStatesRes, protectionRes] = await Promise.allSettled([
-    safeGet(token, `/deviceManagement/managedDevices/${device.id}/deviceCompliancePolicyStates?$expand=settingStates&$top=50`, 'v1.0', { value: [] }),
-    safeGet(token, `/deviceManagement/managedDevices/${device.id}/deviceConfigurationStates?$expand=settingStates&$top=50`, 'v1.0', { value: [] }),
+    safeGet(token, `/deviceManagement/managedDevices/${device.id}/deviceCompliancePolicyStates?$expand=settingStates&$top=50`, 'beta', { value: [] }),
+    safeGet(token, `/deviceManagement/managedDevices/${device.id}/deviceConfigurationStates?$expand=settingStates&$top=50`, 'beta', { value: [] }),
     safeGet(token, `/deviceManagement/managedDevices/${device.id}/windowsProtectionState`, 'beta', null),
   ]);
 
@@ -800,7 +835,7 @@ async function deviceDiagnosis(token, tenantId, body) {
     findings.push(finding('medium', 'Device check-in', `Last check-in was ${staleHours} hours ago.`,
       'Recent policy changes may not have been applied yet. A manual sync from the Devices page will pull them down.'));
   }
-  if (trimmed.complianceState !== 'compliant') {
+  if (normState(trimmed.complianceState) !== 'compliant') {
     findings.push(finding('high', 'Compliance', `Device compliance state is "${trimmed.complianceState}".`,
       failingCompliance.length
         ? `Failing policies: ${failingCompliance.map((p) => `"${p.policy}"`).join(', ')}. Fix the failing settings listed below (they carry the error codes).`
@@ -814,6 +849,12 @@ async function deviceDiagnosis(token, tenantId, body) {
   if (version && version.support === 'ended') {
     findings.push(finding('high', 'Windows updates', `Device runs ${version.label}, which has passed end of support.`,
       'Plan an upgrade to a supported Windows 11 build via an update ring or upgrade policy.'));
+  }
+  if (compliancePolicies.length === 0 && configurationPolicies.length === 0 &&
+      (normState(trimmed.complianceState) !== 'compliant' || (staleHours !== null && staleHours > 24))) {
+    findings.push(finding('info', 'Policy reporting',
+      'No per-policy state data was returned for this device, so policy-level causes cannot be confirmed from Graph.',
+      'This usually means the device has not evaluated its assigned policies yet, or the app registration lacks DeviceManagementConfiguration.Read.All. Confirm a policy is assigned to a group this device belongs to.'));
   }
   if (device.operatingSystem === 'Windows' && !device.lastSyncDateTime) {
     findings.push(finding('medium', 'Enrolment', 'No last sync timestamp is recorded for this device.',
