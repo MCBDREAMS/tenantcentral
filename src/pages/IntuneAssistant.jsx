@@ -144,7 +144,7 @@ export default function IntuneAssistant({ selectedTenant }) {
 
           {messages.filter(m => m.role === "user" || m.role === "assistant").map((m, idx) => {
             const isLastAssistant = m === lastAssistant;
-            return <MessageBubble key={idx} message={m} isStreaming={isLastAssistant && isStreaming} tenantName={selectedTenant?.name} />;
+            return <MessageBubble key={idx} message={m} isStreaming={isLastAssistant && isStreaming} tenantName={selectedTenant?.name} canExport={isLastAssistant} />;
           })}
 
           {showTyping && (
