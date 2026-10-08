@@ -84,7 +84,7 @@ function FunctionDisplay({ toolCall }) {
   );
 }
 
-export default function MessageBubble({ message, isStreaming, tenantName, canExport }) {
+export default function MessageBubble({ message, isStreaming, tenantName }) {
   const isUser = message.role === "user";
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"} ${isStreaming ? "opacity-90" : ""}`}>
@@ -106,7 +106,7 @@ export default function MessageBubble({ message, isStreaming, tenantName, canExp
           )
         )}
         {message.tool_calls?.map((tc, idx) => <FunctionDisplay key={idx} toolCall={tc} />)}
-        {canExport && !isStreaming && (
+        {!isUser && message.content && (
           <MessageExportButtons content={message.content} tenantName={tenantName} />
         )}
         {isStreaming && !message.content && !message.tool_calls?.length && (
