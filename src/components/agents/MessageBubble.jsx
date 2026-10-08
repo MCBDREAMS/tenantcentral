@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import {
   ChevronDown, Loader2, CheckCircle2, XCircle, Wrench, User, Bot,
 } from "lucide-react";
+import MessageExportButtons from "@/components/agents/MessageExportButtons";
 
 const STATUS_META = {
   pending: { icon: Loader2, cls: "text-slate-400 animate-spin", text: "Preparing..." },
@@ -83,7 +84,7 @@ function FunctionDisplay({ toolCall }) {
   );
 }
 
-export default function MessageBubble({ message, isStreaming }) {
+export default function MessageBubble({ message, isStreaming, tenantName }) {
   const isUser = message.role === "user";
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"} ${isStreaming ? "opacity-90" : ""}`}>
@@ -105,6 +106,9 @@ export default function MessageBubble({ message, isStreaming }) {
           )
         )}
         {message.tool_calls?.map((tc, idx) => <FunctionDisplay key={idx} toolCall={tc} />)}
+        {!isUser && !isStreaming && (
+          <MessageExportButtons content={message.content} tenantName={tenantName} />
+        )}
         {isStreaming && !message.content && !message.tool_calls?.length && (
           <div className="flex items-center gap-1.5 text-slate-400 text-xs px-2">
             <Loader2 className="h-3 w-3 animate-spin" /> thinking...
