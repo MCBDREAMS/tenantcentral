@@ -49,7 +49,7 @@ Connect-ExchangeOnline
 
 # 1. Enable cross-tenant mailbox migration to the target tenant
 New-OrganizationRelationship `
-        + `-Name "MigrationTo_${tgtName.replace(/\\s+/g, "_")}" `
+        + `-Name "MigrationTo_${safeName(tgtName)}" `
         + `-TargetTenantId "<TARGET_TENANT_GUID>" `
         + `-Enabled $true -MailboxMigrationCapable $true
 
@@ -59,7 +59,7 @@ New-DistributionGroup -Name "MigrationScope_<TARGET>" -Type "Security"
 Add-DistributionGroupMember -Identity "MigrationScope_<TARGET>" -Member "user@${"<source_domain>"}"
 
 # 3. Publish the migration scope on the relationship
-Set-OrganizationRelationship -Identity "MigrationTo_${tgtName.replace(/\\s+/g, "_")}" `
+Set-OrganizationRelationship -Identity "MigrationTo_${safeName(tgtName)}" `
         + `-MailboxMovePublishedScopes "MigrationScope_<TARGET>"
 
 # Reference: https://learn.microsoft.com/en-us/exchange/cross-tenant-migration`,
@@ -80,7 +80,7 @@ Connect-ExchangeOnline
 
 # 1. Org relationship back to the source tenant
 New-OrganizationRelationship `
-        + `-Name "MigrationFrom_${srcName.replace(/\\s+/g, "_")}" `
+        + `-Name "MigrationFrom_${safeName(srcName)}" `
         + `-DomainNames "<SOURCE_VERIFIED_DOMAIN>" `
         + `-Enabled $true -MailboxMigrationCapable $true `
         + `-OauthEnabled $true -TargetApplicationId "<SOURCE_MIGRATION_APP_ID>"

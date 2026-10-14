@@ -627,7 +627,8 @@ Deno.serve(async (req) => {
       // Generate a secure temporary password
       const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
       let tempPassword = "";
-      for (let i = 0; i < 12; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
+      const rand = new Uint32Array(1);
+      for (let i = 0; i < 12; i++) { crypto.getRandomValues(rand); tempPassword += chars[rand[0] % chars.length]; }
       // Ensure complexity: uppercase + lowercase + digit + special
       tempPassword = "Tmp!" + tempPassword.slice(4);
 
