@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowRightLeft, Check, ChevronsRight } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import { useRbac } from "@/components/shared/useRbac";
 import PageHeader from "@/components/shared/PageHeader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,16 @@ const WORKLOADS = [
 
 const STEPS = ["Scope", "Select Source", "Map & Replace", "Copy Settings", "Run & Report"];
 
-export default function ShareGateConsole({ tenants }) {
+export default function ShareGateConsole() {
+  const { filterTenants } = useRbac();
+  const [tenants, setTenants] = useState([]);
+
+  // Fetch the user's RBAC-scoped tenant list directly (not the sidebar-scoped prop),
+  // so source AND target can both be chosen from the tenants this user may manage.
+  useEffect(() => {
+    base44.entities.Tenant.list().then((t) => setTenants(filterTenants(t) || [])).catch(() => setTenants([]));
+  }, [filterTenants]);
+
   const [step, setStep] = useState(0);
   const [sourceTenantId, setSourceTenantId] = useState("");
   const [targetTenantId, setTargetTenantId] = useState("");
