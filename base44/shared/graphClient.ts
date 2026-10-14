@@ -73,6 +73,50 @@ export async function graphPatch(token, path, body) {
   return res.status === 204 ? {} : res.json().catch(() => ({}));
 }
 
+export async function graphPost(token, path, body, opts) {
+  const o = opts || {};
+  const headers = { Authorization: `Bearer ${token}` };
+  if (!o.binary) headers["Content-Type"] = o.contentType || "application/json";
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "POST",
+    headers,
+    body: o.binary ? body : JSON.stringify(body),
+    signal: AbortSignal.timeout(60000)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph POST ${path} failed ${res.status}: ${err}`);
+  }
+  if (o.raw) return res;
+  return res.status === 204 ? {} : res.json().catch(() => ({}));
+}
+
+export async function graphPut(token, path, body, contentType) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType || "application/json" },
+    body,
+    signal: AbortSignal.timeout(120000)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph PUT ${path} failed ${res.status}: ${err}`);
+  }
+  return res.status === 204 ? {} : res.json().catch(() => ({}));
+}
+
+export async function graphGetBytes(token, path) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(120000)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph GET ${path} failed ${res.status}: ${err}`);
+  }
+  return await res.arrayBuffer();
+}
+
 // Look up per-tenant Azure app credentials, falling back to the global secret.
 export async function getTenantCreds(base44, azureTenantId) {
   let clientId = GLOBAL_CLIENT_ID;

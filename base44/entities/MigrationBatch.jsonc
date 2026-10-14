@@ -1,0 +1,115 @@
+{
+  "name": "MigrationBatch",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Migration batch name"
+    },
+    "source_azure_tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant GUID being migrated FROM"
+    },
+    "source_tenant_name": {
+      "type": "string"
+    },
+    "target_azure_tenant_id": {
+      "type": "string",
+      "description": "Azure Tenant GUID being migrated TO"
+    },
+    "target_tenant_name": {
+      "type": "string"
+    },
+    "workloads": {
+      "type": "string",
+      "description": "Comma-separated: mailboxes,onedrive,sharepoint,teams,users,groups"
+    },
+    "selection": {
+      "type": "string",
+      "description": "JSON array of migration items {kind, source, target}"
+    },
+    "user_mapping": {
+      "type": "string",
+      "description": "JSON array of user mappings"
+    },
+    "group_mapping": {
+      "type": "string",
+      "description": "JSON array of group mappings"
+    },
+    "principal_replace_rules": {
+      "type": "string",
+      "description": "JSON array of {find, replace} principal replacement rules"
+    },
+    "copy_settings": {
+      "type": "string",
+      "description": "JSON of per-workload copy settings"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "running",
+        "paused",
+        "completed",
+        "failed"
+      ],
+      "default": "planned"
+    },
+    "progress": {
+      "type": "string",
+      "description": "JSON {done, succeeded, failed, skipped, items}"
+    },
+    "cursor": {
+      "type": "number",
+      "default": 0
+    },
+    "incremental": {
+      "type": "boolean",
+      "default": false
+    },
+    "last_run_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error": {
+      "type": "string"
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "source_azure_tenant_id",
+    "target_azure_tenant_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
