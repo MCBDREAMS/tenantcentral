@@ -10,6 +10,8 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // guidance. PowerShell snippets use placeholders — they document the required
 // cmdlets and must be reviewed against the current Microsoft docs before running.
 function buildMigrationPlan(srcName, tgtName, src, tgt, workloads) {
+  // Restrict tenant names to a safe character set before interpolating into PowerShell.
+  const safeName = (s) => String(s || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "Tenant";
   const srcUsers = src?.users?.total ?? 0;
   const tgtUsers = tgt?.users?.total ?? 0;
   const srcMailboxes = src?.exchange?.mailboxes?.length ?? 0;

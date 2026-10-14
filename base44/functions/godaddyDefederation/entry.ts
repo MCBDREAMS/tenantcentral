@@ -15,12 +15,14 @@ function generateTempPassword() {
   const digits = "23456789";
   const sym = "!@#$%^*-_=+";
   const all = upper + lower + digits + sym;
-  const pick = (s) => s[Math.floor(Math.random() * s.length)];
+  const rand = new Uint32Array(1);
+  const pick = (s) => { crypto.getRandomValues(rand); return s[rand[0] % s.length]; };
   let pwd = [pick(upper), pick(lower), pick(digits), pick(sym)];
   for (let i = 0; i < 12; i++) pwd.push(pick(all));
-  // shuffle
+  // Fisher-Yates shuffle with cryptographic randomness
   for (let i = pwd.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    crypto.getRandomValues(rand);
+    const j = rand[0] % (i + 1);
     [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
   }
   return pwd.join("");
@@ -161,7 +163,7 @@ function dryRun(analysis) {
 }
 
 // ── Phase 6: Execute defederation ─────────────────────────────────────────
-async function executeDefederation(token, federatedDomains, tempPassword) {
+async function executeDefederation(token, federatedDomains) {
   const log = [];
   const fedNames = federatedDomains.map((f) => f.domain.toLowerCase());
   const users = await graphGetAll(token, "/users?$select=id,userPrincipalName,accountEnabled,onPremisesImmutableId,onPremisesSyncEnabled&$top=999");
@@ -169,13 +171,17 @@ async function executeDefederation(token, federatedDomains, tempPassword) {
     fedNames.some((d) => (u.userPrincipalName || "").toLowerCase().endsWith("@" + d))
   );
 
-  const pwd = tempPassword || generateTempPassword();
+  // Each user gets a unique cryptographically random password. Passwords are returned
+  // to the operator (so they can hand them out) but are NEVER persisted in the job log.
+  const credentials = [];
   let pwdSet = 0, pwdFail = 0, pwdSkip = 0;
   for (const u of fedUsers) {
     if (u.onPremisesSyncEnabled) { pwdSkip++; log.push({ step: "password", upn: u.userPrincipalName, status: "skipped", reason: "onPremisesSyncEnabled" }); continue; }
+    const pwd = generateTempPassword();
     try {
       await graphPatch(token, `/users/${u.id}`, { passwordProfile: { password: pwd, forceChangePasswordNextSignIn: true } });
       pwdSet++;
+      credentials.push({ upn: u.userPrincipalName, password: pwd });
       log.push({ step: "password", upn: u.userPrincipalName, status: "ok" });
     } catch (e) { pwdFail++; log.push({ step: "password", upn: u.userPrincipalName, status: "fail", error: e.message }); }
   }
@@ -212,7 +218,7 @@ async function executeDefederation(token, federatedDomains, tempPassword) {
     immCleared, immFail, immSkip,
     verify,
     log,
-    tempPassword: tempPassword ? undefined : pwd
+    credentials
   };
 }
 
@@ -396,12 +402,14 @@ export default async function(req) {
       }
       await saveJob(base44, tenant_id, { status: "executing", current_step: "execute", started_by: user.email });
       try {
-        const result = await executeDefederation(token, federatedDomains, temp_password);
+        const result = await executeDefederation(token, federatedDomains);
         const failed = result.domFail + result.pwdFail + result.immFail;
         const status = failed > 0 && result.domOk === 0 ? "failed" : "completed";
+        // Strip per-user credentials before persisting the execution log.
+        const { credentials, ...persistable } = result;
         await saveJob(base44, tenant_id, {
           status,
-          execution_log: JSON.stringify(result),
+          execution_log: JSON.stringify(persistable),
           current_step: "execute",
           completed_at: new Date().toISOString()
         });

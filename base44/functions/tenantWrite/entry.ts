@@ -438,6 +438,14 @@ Deno.serve(async (req) => {
     // ── Migrate: import device inventory into target Base44 tenant ─────────────
     if (action === "import_devices_to_target") {
       const { target_tenant_record_id, devices } = body;
+      // Verify the named target tenant record belongs to the Azure tenant already authorized above,
+      // so a caller cannot write device inventory into a tenant record outside their scope.
+      const tgtRecs = await base44.asServiceRole.entities.Tenant.filter({ id: target_tenant_record_id });
+      const tgtRec = tgtRecs[0];
+      if (!tgtRec) return Response.json({ error: "Target tenant record not found" }, { status: 404 });
+      if (azure_tenant_id && tgtRec.tenant_id !== azure_tenant_id) {
+        return Response.json({ error: "Forbidden: target tenant record does not match the authorized Azure tenant" }, { status: 403 });
+      }
       const osMap = { Windows: "Windows 11", macOS: "macOS", iOS: "iOS", Android: "Android" };
       const compMap = { compliant: "compliant", noncompliant: "non_compliant", inGracePeriod: "in_grace_period" };
       let imported = 0, skipped = 0;

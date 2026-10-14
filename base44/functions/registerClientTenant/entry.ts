@@ -64,33 +64,35 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, user_type: 'standard_user', tenant_record_id: existingTenant.id });
     }
 
-    // New tenant — first registrant becomes Tenant Admin
+    // New tenant — registrant must prove ownership before any elevated role is granted.
+    // Until a platform admin verifies ownership (DNS TXT / Global Admin consent), the
+    // registrant receives only read-only access scoped to the new tenant. This prevents
+    // anyone from claiming tenant_admin over an Azure tenant GUID they do not own.
     const tenant = await base44.asServiceRole.entities.Tenant.create({
       name: company_name,
       tenant_id: tenant_id.trim(),
       domain: tenant_domain.trim(),
       status: 'pending',
       linked_user_email: admin_email,
-      notes: `Registered by: ${admin_username || admin_email}`,
+      notes: `Registered by: ${admin_username || admin_email} — PENDING OWNERSHIP VERIFICATION`,
     });
 
-    // First registrant gets tenant_admin role scoped strictly to their new tenant
     await base44.asServiceRole.entities.AdminRole.create({
       user_email: admin_email,
-      role: 'tenant_admin',
+      role: 'readonly',
       assigned_tenants: tenant.id,
-      allowed_sections: 'entra,intune,security,scripts,export,approval_queue,deployment_plans',
+      allowed_sections: 'entra,intune,security,scripts,export',
       is_active: true,
-      notes: `Tenant Admin — auto-created on registration for ${company_name}`,
+      notes: `Read-only — pending ownership verification for ${company_name}. A platform admin must verify tenant ownership before elevating to tenant_admin.`,
     });
 
     await sendEmail(
       admin_email,
-      `Welcome to Azure Multi-Tenant Admin — ${company_name} Registered`,
-      `Hi ${admin_username || admin_email},\n\nYour organisation "${company_name}" has been successfully registered.\n\nYou have been assigned as Tenant Administrator for this tenant.\n\nAzure Tenant ID: ${tenant_id}\nDomain: ${tenant_domain}\n\nAs Tenant Administrator you can:\n- View and manage all aspects of your tenant\n- Elevate other users' access levels\n- Manage policies, devices, users and scripts\n\nYou can now log in and access your tenant dashboard.\n\nRegards,\nAzure Multi-Tenant Admin Team`
+      `Registration received — ${company_name} (pending verification)`,
+      `Hi ${admin_username || admin_email},\n\nYour organisation "${company_name}" has been registered and is pending ownership verification.\n\nAzure Tenant ID: ${tenant_id}\nDomain: ${tenant_domain}\n\nFor your security, self-registration does not grant administrative rights. A platform administrator must verify that you own this Azure tenant (for example, via a DNS TXT record or a signed-in Global Admin consent) before your access is elevated to Tenant Administrator.\n\nUntil then you can sign in with read-only access scoped to your tenant.\n\nRegards,\nAzure Multi-Tenant Admin Team`
     );
 
-    return Response.json({ success: true, user_type: 'tenant_admin', tenant_record_id: tenant.id });
+    return Response.json({ success: true, user_type: 'pending_verification', tenant_record_id: tenant.id });
   } catch (error) {
     console.error('[registerClientTenant]', error.message);
     return Response.json({ error: error.message }, { status: 500 });

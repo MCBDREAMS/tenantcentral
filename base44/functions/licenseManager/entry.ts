@@ -1,6 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const LICENSE_SECRET = Deno.env.get("LICENSE_SECRET") || "default-secret";
+// Fail closed: never fall back to a baked-in default key (would enable license forgery).
+const LICENSE_SECRET = Deno.env.get("LICENSE_SECRET");
+
+function constTimeEq(a, b) {
+  const sa = String(a), sb = String(b);
+  if (sa.length !== sb.length) return false;
+  let r = 0;
+  for (let i = 0; i < sa.length; i++) r |= sa.charCodeAt(i) ^ sb.charCodeAt(i);
+  return r === 0;
+}
 
 // HMAC-SHA256 using Web Crypto API
 async function hmacSign(data) {
@@ -12,8 +21,8 @@ async function hmacSign(data) {
   // Convert to base36 string, uppercase, trimmed to 16 chars
   const arr = Array.from(new Uint8Array(sig));
   const hex = arr.map(b => b.toString(16).padStart(2, "0")).join("");
-  // Convert first 8 bytes of hex to a readable key segment
-  return hex.slice(0, 16).toUpperCase();
+  // Return the full HMAC output (256-bit); callers truncate for display.
+  return hex.toUpperCase();
 }
 
 // Encode payload to base64url
@@ -39,7 +48,8 @@ async function generateKey(tenantIds, expiryDate, clientName) {
   const sig = await hmacSign(encoded);
   // Format nicely: TC-XXXX-XXXX-XXXX-XXXX-SIG
   const raw = encoded.slice(0, 20).toUpperCase().replace(/[^A-Z0-9]/g, "X");
-  const sigFormatted = sig.slice(0, 16);
+  // 128-bit (32 hex) signature segment for newly issued keys.
+  const sigFormatted = sig.slice(0, 32);
   return `TC-${raw.slice(0,4)}-${raw.slice(4,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${sigFormatted}-${encoded}`;
 }
 
@@ -58,7 +68,8 @@ async function validateKey(licenseKey, azureTenantId) {
     // Verify signature
     const expectedSig = await hmacSign(encoded);
     const providedSig = parts[6].toUpperCase();
-    if (providedSig !== expectedSig) {
+    // Accept newly issued 128-bit signatures, and legacy 64-bit ones, in constant time.
+    if (!constTimeEq(providedSig, expectedSig) && !constTimeEq(providedSig, expectedSig.slice(0, 16))) {
       return { valid: false, reason: "Invalid key signature" };
     }
 
@@ -97,6 +108,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action } = body;
+
+    if (!LICENSE_SECRET) {
+      return Response.json({ error: "License signing secret is not configured. Set the LICENSE_SECRET environment variable." }, { status: 500 });
+    }
 
     // Generate license key — admin only
     if (action === "generate") {

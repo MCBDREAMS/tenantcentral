@@ -3,7 +3,8 @@ import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 // Shared secret to authenticate incoming agent payloads
 // The agent includes this in the Authorization header: Bearer <AGENT_SECRET>
-const AGENT_SECRET = Deno.env.get("LICENSE_SECRET");
+// Dedicated agent shared secret — must NOT reuse the license-signing HMAC key (LICENSE_SECRET).
+const AGENT_SECRET = Deno.env.get("AGENT_SECRET");
 
 Deno.serve(async (req) => {
   try {

@@ -90,7 +90,8 @@ export function useRbac() {
           setRbac(result);
         }
       } catch {
-        setRbac({ role: "local_admin", isReadOnly: false, allowedSections: ROLE_SECTIONS.local_admin, assignedTenants: null, email: "" });
+        // Fail closed: a lookup error must never grant admin capabilities
+        setRbac({ role: "readonly", isReadOnly: true, allowedSections: ROLE_SECTIONS.readonly, assignedTenants: [], email: "" });
       }
     })();
   }, []);
