@@ -5,6 +5,7 @@ import {
   graphGet,
   graphGetAll,
   graphPatch,
+  graphPost,
   graphPostAction,
   getTenantCreds,
 } from '../../shared/graphClient.ts';
@@ -273,6 +274,40 @@ export default async function (req) {
           mismatch: checked.filter((r) => r.status === 'mismatch').length,
           missing: checked.filter((r) => r.status === 'missing').length,
         },
+      });
+    }
+
+    // ── Register a new DNS name (custom domain) on the tenant ──
+    if (action === 'add_domain') {
+      let created;
+      try {
+        created = await graphPost(token, '/domains', { id: domain });
+      } catch (e) {
+        const message = /403|Authorization_RequestDenied/i.test(e.message)
+          ? 'Microsoft Graph refused the registration: the app registration needs the Domain.ReadWrite.All application permission with admin consent.'
+          : /already exists|conflict/i.test(e.message)
+            ? `${domain} is already registered on this tenant.`
+            : e.message;
+        return Response.json({ error: message }, { status: 400 });
+      }
+
+      const verification = await safeGraphList(
+        token,
+        `/domains/${encodeURIComponent(domain)}/verificationDnsRecords`,
+      );
+
+      return Response.json({
+        success: true,
+        domain,
+        is_verified: !!created.isVerified,
+        verification_records: verification.items.map((r) => {
+          const mapped = mapGraphRecord(r, domain, 'verification');
+          return { type: mapped.type, host: mapped.host, value: mapped.value, ttl: mapped.ttl };
+        }),
+        record_sets_available: !verification.denied,
+        note: verification.denied
+          ? 'Publish the MS=ms... ownership TXT record shown in the Microsoft 365 admin center for this domain, then verify it.'
+          : 'Publish the record above at your DNS host, then verify the domain.',
       });
     }
 

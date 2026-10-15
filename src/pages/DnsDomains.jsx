@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Globe, RefreshCw, Loader2, AlertTriangle, CheckCircle2, ShieldX } from "lucide-react";
+import { Globe, RefreshCw, Loader2, AlertTriangle, CheckCircle2, ShieldX, Plus } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import DomainList from "@/components/dns/DomainList";
 import DnsRecordsTable from "@/components/dns/DnsRecordsTable";
 import DnsLookupTool from "@/components/dns/DnsLookupTool";
+import AddDomainDialog from "@/components/dns/AddDomainDialog";
 import { useRbac } from "@/components/shared/useRbac";
 
 function StatCard({ label, value, hint, tone = "default" }) {
@@ -29,6 +30,7 @@ export default function DnsDomains({ selectedTenant }) {
   const azureTenantId = selectedTenant?.tenant_id;
   const { canEdit } = useRbac();
   const [picked, setPicked] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState({ message: "", error: "" });
 
@@ -169,9 +171,16 @@ export default function DnsDomains({ selectedTenant }) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 bg-card border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h3 className="font-semibold text-foreground">DNS names</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Custom domains registered on the tenant</p>
+              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+                <div>
+                  <h3 className="font-semibold text-foreground">DNS names</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Custom domains registered on the tenant</p>
+                </div>
+                {canEdit() && (
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setAddOpen(true)}>
+                    <Plus className="h-3.5 w-3.5" /> Register
+                  </Button>
+                )}
               </div>
               <DomainList
                 domains={domains}
@@ -204,6 +213,13 @@ export default function DnsDomains({ selectedTenant }) {
           </div>
 
           <DnsLookupTool domain={activeDomain} />
+
+          <AddDomainDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            azureTenantId={azureTenantId}
+            onAdded={() => domainsQuery.refetch()}
+          />
         </div>
       )}
     </div>
