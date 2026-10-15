@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Play, Pause, RefreshCw, Loader2, FileDown, CheckCircle2, XCircle, AlertCircle, Rocket } from "lucide-react";
+import { Play, Pause, RefreshCw, Loader2, FileDown, CheckCircle2, XCircle, AlertCircle, Rocket, ShieldCheck } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,8 @@ export default function MigrationRunConsole({
   const [status, setStatus] = useState("planned");
   const [maxItems, setMaxItems] = useState(6);
   const [error, setError] = useState("");
+  const [dryResults, setDryResults] = useState(null);
+  const [dryRunning, setDryRunning] = useState(false);
 
   // Resolve target user ids for OneDrive items by matching target UPN to user mapping (targetId if mapped).
   const resolveTargetUserIds = (selItems) => selItems.map((it) => {
@@ -90,6 +92,22 @@ export default function MigrationRunConsole({
     } catch (e) {
       setError(e.response?.data?.error || e.message); return null;
     }
+  };
+
+  // Validate every selected item against both tenants WITHOUT writing anything to the target.
+  // Creates the (inert) batch record first if needed — that is a Base44 record only, no Graph writes.
+  const dryRun = async () => {
+    setError(""); setDryResults(null); setDryRunning(true);
+    try {
+      const id = batchId || (await createBatch());
+      if (!id) return;
+      const res = await base44.functions.invoke("migrationEngine", { action: "dry_run", batch_id: id });
+      setDryResults(res.data);
+      const s = res.data.summary || {};
+      setLog((l) => [...l, `Dry run — ${s.ready || 0} ready, ${s.warning || 0} warning, ${s.blocked || 0} blocked.`].slice(-20));
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+    } finally { setDryRunning(false); }
   };
 
   const runLoop = async (id) => {
@@ -153,7 +171,11 @@ export default function MigrationRunConsole({
           <Input className="mt-1 max-w-md" value={name} onChange={(e) => setName(e.target.value)} disabled={!!batchId} />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button onClick={start} disabled={running}>
+          <Button variant="outline" onClick={dryRun} disabled={running || dryRunning}>
+            {dryRunning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+            Dry run (validate only)
+          </Button>
+          <Button onClick={start} disabled={running || dryRunning}>
             {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Rocket className="h-4 w-4 mr-2" />}
             {batchId ? "Resume / Run" : "Create & Run batch"}
           </Button>
@@ -183,6 +205,45 @@ export default function MigrationRunConsole({
             <span className="text-emerald-600">✓ {progress?.succeeded || 0}</span>
             <span className="text-destructive">✕ {progress?.failed || 0}</span>
             <span className="text-muted-foreground">skip {progress?.skipped || 0}</span>
+          </div>
+        </div>
+      )}
+
+      {dryResults && (
+        <div className="bg-card border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-medium">Dry run report — nothing was written to the target</h3>
+            <div className="flex gap-3 text-sm">
+              <span className="text-emerald-600">{dryResults.summary?.ready || 0} ready</span>
+              <span className="text-amber-600">{dryResults.summary?.warning || 0} warning</span>
+              <span className="text-destructive">{dryResults.summary?.blocked || 0} blocked</span>
+            </div>
+          </div>
+          {dryResults.summary?.blocked > 0 && (
+            <p className="text-sm text-destructive mb-3">Resolve the blocked items before running — those items will fail as-is.</p>
+          )}
+          <div className="overflow-auto max-h-96 border rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0">
+                <tr><th className="text-left p-2">#</th><th className="text-left p-2">Type</th><th className="text-left p-2">Item</th><th className="text-left p-2">Result</th><th className="text-left p-2">Detail</th></tr>
+              </thead>
+              <tbody>
+                {(dryResults.results || []).map((r) => (
+                  <tr key={r.index} className="border-t">
+                    <td className="p-2">{r.index + 1}</td>
+                    <td className="p-2 capitalize">{r.kind}</td>
+                    <td className="p-2">{r.label}</td>
+                    <td className="p-2">
+                      {r.status === "ready" ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> :
+                       r.status === "warning" ? <AlertCircle className="h-4 w-4 text-amber-500 inline" /> :
+                       <XCircle className="h-4 w-4 text-destructive inline" />}
+                      <span className="ml-1">{r.status}</span>
+                    </td>
+                    <td className="p-2 text-muted-foreground">{r.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

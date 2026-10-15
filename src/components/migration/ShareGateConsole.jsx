@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ArrowRightLeft, Check, ChevronsRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
@@ -22,14 +22,23 @@ const WORKLOADS = [
 const STEPS = ["Scope", "Select Source", "Map & Replace", "Copy Settings", "Run & Report"];
 
 export default function ShareGateConsole() {
-  const { filterTenants } = useRbac();
-  const [tenants, setTenants] = useState([]);
+  const { rbac, filterTenants } = useRbac();
+  const [allTenants, setAllTenants] = useState([]);
 
-  // Fetch the user's RBAC-scoped tenant list directly (not the sidebar-scoped prop),
-  // so source AND target can both be chosen from the tenants this user may manage.
+  // Fetch the tenant list exactly ONCE. RBAC scoping is derived below with useMemo, so a
+  // re-render (or a fresh function identity from useRbac) can never re-trigger the fetch.
+  // Previously the effect depended on `filterTenants`, which is recreated on every render —
+  // that produced an endless list/re-render loop (the constant "refreshing" you saw).
   useEffect(() => {
-    base44.entities.Tenant.list().then((t) => setTenants(filterTenants(t) || [])).catch(() => setTenants([]));
-  }, [filterTenants]);
+    let cancelled = false;
+    base44.entities.Tenant.list()
+      .then((t) => { if (!cancelled) setAllTenants(t || []); })
+      .catch(() => { if (!cancelled) setAllTenants([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // RBAC-scoped tenant list (source AND target are chosen from tenants this user may manage).
+  const tenants = useMemo(() => filterTenants(allTenants) || [], [allTenants, rbac]);
 
   const [step, setStep] = useState(0);
   const [sourceTenantId, setSourceTenantId] = useState("");

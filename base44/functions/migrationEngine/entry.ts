@@ -283,6 +283,100 @@ async function runBatch(base44, user, body) {
   return Response.json({ success: true, status, cursor, total: selection.length, progress: JSON.parse(updated.progress), items: itemsLog });
 }
 
+// ── Dry run: validate every item against both tenants WITHOUT writing ──────
+async function dryRun(base44, user, body) {
+  const batch = await base44.entities.MigrationBatch.get(body.batch_id);
+  if (!batch) return Response.json({ error: 'Batch not found' }, { status: 404 });
+  const denied = await authorizeAdminAction(base44, user, [batch.source_azure_tenant_id, batch.target_azure_tenant_id]);
+  if (denied) return denied;
+  const selection = JSON.parse(batch.selection || '[]');
+
+  const [srcCreds, tgtCreds] = await Promise.all([
+    getTenantCreds(base44, batch.source_azure_tenant_id),
+    getTenantCreds(base44, batch.target_azure_tenant_id),
+  ]);
+  const [srcToken, tgtToken] = await Promise.all([
+    getAccessToken(batch.source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret),
+    getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret),
+  ]);
+
+  const [tgtUsers, tgtGroups, tgtDomains] = await Promise.all([
+    graphGetAll(tgtToken, '/users?$select=id,userPrincipalName,mail,userType&$top=999'),
+    graphGetAll(tgtToken, '/groups?$select=id,displayName,mail&$top=999'),
+    graphGetAll(tgtToken, '/domains?$select=id,isVerified,isDefault&$top=999'),
+  ]);
+  const verifiedDomains = new Set(tgtDomains.filter(d => d.isVerified).map(d => (d.id || '').toLowerCase()));
+  const targetUpns = new Set(tgtUsers.map(u => (u.userPrincipalName || '').toLowerCase()));
+  const targetGroupNames = new Set(tgtGroups.map(g => (g.displayName || '').toLowerCase()));
+  const OD_CHECK_CAP = 50;
+  let odChecked = 0;
+
+  const results = [];
+  for (let i = 0; i < selection.length; i++) {
+    const item = selection[i];
+    let status = 'ready', message = '', label = item.kind;
+    try {
+      if (item.kind === 'user') {
+        const upn = (item.target?.upn || '').trim();
+        label = upn || item.source?.upn || 'user';
+        const domain = upn.includes('@') ? upn.split('@')[1].toLowerCase() : '';
+        if (!upn || !domain) { status = 'blocked'; message = 'No target UPN set for this user.'; }
+        else if (!verifiedDomains.has(domain)) {
+          status = 'blocked';
+          message = `Domain "${domain}" is not verified in the target tenant. Verify it there (or point this UPN at a target domain) before this user can be created — this is the usual blocker when keeping the source UPN.`;
+        } else if (targetUpns.has(upn.toLowerCase())) {
+          status = 'warning';
+          message = `${upn} already exists in the target tenant.`;
+        } else {
+          message = `Ready to create ${upn} in the target tenant.`;
+        }
+      } else if (item.kind === 'group') {
+        const dn = item.target?.displayName || item.source?.displayName || 'group';
+        label = dn;
+        if (targetGroupNames.has(dn.toLowerCase())) { status = 'warning'; message = `A group named "${dn}" already exists in the target.`; }
+        else message = `Ready to create group "${dn}" in the target.`;
+      } else if (item.kind === 'onedrive') {
+        const upn = item.target?.upn || item.source?.upn || '';
+        label = upn || 'OneDrive';
+        const key = item.target?.userId || upn;
+        if (!key) { status = 'blocked'; message = 'No target user resolved for this OneDrive.'; }
+        else if (odChecked >= OD_CHECK_CAP) {
+          status = 'warning';
+          message = 'Not individually validated in this pass (large batch) — re-run the dry run after the first pass.';
+        } else {
+          odChecked++;
+          try {
+            const d = await graphGet(tgtToken, `/users/${encodeURIComponent(key)}/drive?$select=id`);
+            if (d && d.id) message = 'Target OneDrive is provisioned and ready.';
+            else { status = 'blocked'; message = 'Target OneDrive is not provisioned yet.'; }
+          } catch (e) {
+            status = 'blocked';
+            message = 'Target OneDrive not provisioned — the target user must open OneDrive once (or provision via SharePoint admin) before files can be copied.';
+          }
+        }
+      } else if (item.kind === 'sharepoint' || item.kind === 'team') {
+        label = item.target?.displayName || item.source?.displayName || item.kind;
+        message = 'Source is readable; a target container will be created and content copied best-effort.';
+      } else {
+        status = 'warning';
+        message = 'Unknown item kind.';
+      }
+    } catch (e) {
+      status = 'blocked';
+      message = e.message;
+    }
+    results.push({ index: i, kind: item.kind, label, status, message });
+  }
+
+  const summary = { total: results.length, ready: 0, warning: 0, blocked: 0 };
+  for (const r of results) {
+    if (r.status === 'ready') summary.ready++;
+    else if (r.status === 'warning') summary.warning++;
+    else summary.blocked++;
+  }
+  return Response.json({ success: true, dry_run: true, summary, results });
+}
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -341,6 +435,10 @@ export default async function(req) {
 
     if (action === 'run') {
       return await runBatch(base44, user, body);
+    }
+
+    if (action === 'dry_run') {
+      return await dryRun(base44, user, body);
     }
 
     if (action === 'reset') {

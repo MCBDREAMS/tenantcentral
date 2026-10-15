@@ -26,19 +26,24 @@ export default function MigrationSourcePicker({ sourceTenant, workloads, selecti
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  // Cache each workload's scan so switching tabs back and forth never re-queries Graph.
+  const cacheRef = React.useRef({});
+
   const load = async (w) => {
     setActive(w);
-    setObjects([]);
     setError("");
-    if (selection[w] && selection[w].length) { setObjects(selection[w]); return; }
+    if (cacheRef.current[w]) { setObjects(cacheRef.current[w]); return; }
+    if (selection[w] && selection[w].length) { cacheRef.current[w] = selection[w]; setObjects(selection[w]); return; }
     setLoading(true);
+    setObjects([]);
     try {
       const res = await base44.functions.invoke("migrationEngine", {
         action: "list_source",
         source_azure_tenant_id: sourceTenant.tenant_id,
         workload: w,
       });
-      setObjects(res.data.objects || []);
+      cacheRef.current[w] = res.data.objects || [];
+      setObjects(cacheRef.current[w]);
     } catch (e) {
       setError(e.response?.data?.error || e.message);
     } finally {

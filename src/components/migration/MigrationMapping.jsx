@@ -12,6 +12,7 @@ export default function MigrationMapping({
 }) {
   const [autoLoading, setAutoLoading] = useState(false);
   const [error, setError] = useState("");
+  const [bulkAction, setBulkAction] = useState("create");
 
   const autoMap = async () => {
     setAutoLoading(true); setError("");
@@ -31,6 +32,12 @@ export default function MigrationMapping({
 
   const updateUser = (i, patch) => setUserMapping(userMapping.map((m, x) => (x === i ? { ...m, ...patch } : m)));
   const updateGroup = (i, patch) => setGroupMapping(groupMapping.map((m, x) => (x === i ? { ...m, ...patch } : m)));
+
+  // Bulk helpers: apply one action (or the source UPN) to every row at once, while each
+  // row keeps its own editable action and target UPN for one-by-one adjustments.
+  const applyAllUsers = () => setUserMapping(userMapping.map((m) => ({ ...m, action: bulkAction })));
+  const applyAllGroups = () => setGroupMapping(groupMapping.map((m) => ({ ...m, action: bulkAction })));
+  const keepSourceUpnAll = () => setUserMapping(userMapping.map((m) => ({ ...m, targetUpn: m.sourceUpn })));
 
   const addRule = () => setPrincipalRules([...principalRules, { find: "", replace: "" }]);
   const updateRule = (i, patch) => setPrincipalRules(principalRules.map((r, x) => (x === i ? { ...r, ...patch } : r)));
@@ -86,7 +93,7 @@ export default function MigrationMapping({
 
       {userMapping.length > 0 && (
         <div className="bg-card border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="font-medium">User Mapping ({userMapping.length})</h3>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={exportCsv}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
@@ -95,6 +102,16 @@ export default function MigrationMapping({
                 <input type="file" accept=".csv" className="hidden" onChange={importCsv} />
               </label>
             </div>
+          </div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap p-3 bg-muted/40 border rounded-lg">
+            <span className="text-sm font-medium">Apply to all users:</span>
+            <Select value={bulkAction} onValueChange={setBulkAction}>
+              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="map">map</SelectItem><SelectItem value="create">create</SelectItem><SelectItem value="skip">skip</SelectItem></SelectContent>
+            </Select>
+            <Button size="sm" variant="secondary" onClick={applyAllUsers}>Apply action to all</Button>
+            <Button size="sm" variant="outline" onClick={keepSourceUpnAll}>Keep source UPN for all</Button>
+            <span className="text-xs text-muted-foreground">Bulk-set every row, or keep editing individual rows below. "Keep source UPN" points each target UPN at that user's source UPN, so users arrive in the target still using the @source domain.</span>
           </div>
           <div className="overflow-auto max-h-72 border rounded-lg">
             <table className="w-full text-sm">
@@ -123,7 +140,17 @@ export default function MigrationMapping({
 
       {groupMapping.length > 0 && (
         <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-medium mb-3">Group Mapping ({groupMapping.length})</h3>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-medium">Group Mapping ({groupMapping.length})</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Apply to all:</span>
+              <Select value={bulkAction} onValueChange={setBulkAction}>
+                <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="map">map</SelectItem><SelectItem value="create">create</SelectItem><SelectItem value="skip">skip</SelectItem></SelectContent>
+              </Select>
+              <Button size="sm" variant="secondary" onClick={applyAllGroups}>Apply</Button>
+            </div>
+          </div>
           <div className="overflow-auto max-h-72 border rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-muted sticky top-0">
