@@ -38,6 +38,7 @@ const navSections = [
   { group: "Identity", name: "Users", icon: Users, page: "EntraUsers" },
   { group: "Identity", name: "Groups", icon: UserCheck, page: "EntraGroups" },
   { group: "Identity", name: "Devices", icon: MonitorSmartphone, page: "EntraDevices" },
+  { group: "Domains", name: "Domains & DNS", icon: Globe, page: "DnsDomains" },
   { group: "Applications", name: "App Registrations", icon: AppWindow, page: "AzureAppRegistrations" },
   { group: "Applications", name: "Enterprise Applications", icon: Boxes, page: "EnterpriseApplications" },
   { group: "Protection", name: "Conditional Access", icon: Shield, page: "EntraPolicies" },

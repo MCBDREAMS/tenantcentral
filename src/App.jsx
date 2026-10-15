@@ -17,6 +17,7 @@ import GoDaddyDefederation from './pages/GoDaddyDefederation';
 import TenantMigration from './pages/TenantMigration';
 import OrganizationalProfile from './pages/OrganizationalProfile';
 import EnterpriseApplications from './pages/EnterpriseApplications';
+import DnsDomains from './pages/DnsDomains';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { Suspense } from 'react';
@@ -82,6 +83,7 @@ const AnimatedRoutes = () => {
             <Route path="/TenantMigration" element={<LayoutWrapper currentPageName="TenantMigration"><TenantMigration /></LayoutWrapper>} />
             <Route path="/OrganizationalProfile" element={<LayoutWrapper currentPageName="OrganizationalProfile"><OrganizationalProfile /></LayoutWrapper>} />
             <Route path="/EnterpriseApplications" element={<LayoutWrapper currentPageName="EnterpriseApplications"><EnterpriseApplications /></LayoutWrapper>} />
+            <Route path="/DnsDomains" element={<LayoutWrapper currentPageName="DnsDomains"><DnsDomains /></LayoutWrapper>} />
             <Route path="/register" element={<ClientRegister />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>

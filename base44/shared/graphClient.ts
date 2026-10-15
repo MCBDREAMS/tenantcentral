@@ -91,6 +91,20 @@ export async function graphPost(token, path, body, opts) {
   return res.status === 204 ? {} : res.json().catch(() => ({}));
 }
 
+// POST with no request body — for Graph actions such as /domains/{id}/verify.
+export async function graphPostAction(token, path) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(60000)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph POST ${path} failed ${res.status}: ${err}`);
+  }
+  return res.status === 204 ? {} : res.json().catch(() => ({}));
+}
+
 export async function graphPut(token, path, body, contentType) {
   const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     method: "PUT",
