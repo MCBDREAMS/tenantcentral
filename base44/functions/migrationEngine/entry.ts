@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 import { getAccessToken, getTenantCreds, graphGet, graphGetAll, graphPost, graphPut, graphGetBytes } from '../../shared/graphClient.ts';
+import { getJson, putJson } from '../../shared/largePayload.ts';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SOFT_MS = 80000;
@@ -215,16 +216,33 @@ async function runTeam(srcToken, tgtToken, item, settings, state) {
   return { status: 'success', message: `Team created; ${srcChannels.length} channel(s) processed, ${chCopied} with messages. 1:1 chat history is not migratable via Graph.`, partial: !!settings.includeTeamChats };
 }
 
+// ── Batch storage ───────────────────────────────────────────────────────────
+// A batch's inputs and per-item progress log are far past a record field's size limit, so
+// they are kept in private file storage (shared/largePayload.ts). Batches created before
+// that change still carry their JSON inline, so both layouts are read here.
+async function loadBatchInputs(base44, batch) {
+  if (batch.payload_file_uri) return await getJson(base44, batch.payload_file_uri, 'migration-inputs');
+  return {
+    selection: JSON.parse(batch.selection || '[]'),
+    user_mapping: JSON.parse(batch.user_mapping || '[]'),
+    group_mapping: JSON.parse(batch.group_mapping || '[]'),
+    principal_replace_rules: JSON.parse(batch.principal_replace_rules || '[]'),
+    copy_settings: JSON.parse(batch.copy_settings || '{}'),
+  };
+}
+
 // ── Batch execution (chunked, time-bounded, incremental) ────────────────────
 async function runBatch(base44, user, body) {
   const batch = await base44.entities.MigrationBatch.get(body.batch_id);
   if (!batch) return Response.json({ error: 'Batch not found' }, { status: 404 });
   const denied = await authorizeAdminAction(base44, user, [batch.source_azure_tenant_id, batch.target_azure_tenant_id]);
   if (denied) return denied;
-  const selection = JSON.parse(batch.selection || '[]');
-  const settings = JSON.parse(batch.copy_settings || '{}');
-  const progress = JSON.parse(batch.progress || '{"done":0,"succeeded":0,"failed":0,"skipped":0,"items":{}}');
-  const itemsLog = progress.items || {};
+  const inputs = await loadBatchInputs(base44, batch);
+  const selection = inputs.selection;
+  const settings = inputs.copy_settings;
+  const itemsLog = batch.progress_file_uri ?
+  await getJson(base44, batch.progress_file_uri, 'migration-progress') :
+  JSON.parse(batch.progress || '{}').items || {};
   const maxItems = body.maxItems || 6;
   let cursor = body.reset ? 0 : (batch.cursor || 0);
   const start = Date.now();
@@ -275,12 +293,14 @@ async function runBatch(base44, user, body) {
   }
   const done = cursor >= selection.length;
   const status = done ? 'completed' : 'running';
-  const updated = {
+  const summary = { done: succeeded + failed + skipped, succeeded, failed, skipped, items: itemsLog };
+  await base44.entities.MigrationBatch.update(batch.id, {
     cursor, status, last_run_at: nowISO(),
-    progress: JSON.stringify({ done: succeeded + failed + skipped, succeeded, failed, skipped, items: itemsLog }),
-  };
-  await base44.entities.MigrationBatch.update(batch.id, updated);
-  return Response.json({ success: true, status, cursor, total: selection.length, progress: JSON.parse(updated.progress), items: itemsLog });
+    // The record keeps only the summary counts; the per-item log goes to file storage.
+    progress: JSON.stringify({ done: summary.done, succeeded, failed, skipped }),
+    progress_file_uri: await putJson(base44, itemsLog, 'migration-progress'),
+  });
+  return Response.json({ success: true, status, cursor, total: selection.length, progress: summary, items: itemsLog });
 }
 
 // ── Dry run: validate every item against both tenants WITHOUT writing ──────
@@ -289,7 +309,8 @@ async function dryRun(base44, user, body) {
   if (!batch) return Response.json({ error: 'Batch not found' }, { status: 404 });
   const denied = await authorizeAdminAction(base44, user, [batch.source_azure_tenant_id, batch.target_azure_tenant_id]);
   if (denied) return denied;
-  const selection = JSON.parse(batch.selection || '[]');
+  const inputs = await loadBatchInputs(base44, batch);
+  const selection = inputs.selection;
 
   const [srcCreds, tgtCreds] = await Promise.all([
     getTenantCreds(base44, batch.source_azure_tenant_id),
@@ -299,7 +320,6 @@ async function dryRun(base44, user, body) {
     getAccessToken(batch.source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret),
     getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret),
   ]);
-
   const [tgtUsers, tgtGroups, tgtDomains] = await Promise.all([
     graphGetAll(tgtToken, '/users?$select=id,userPrincipalName,mail,userType&$top=999'),
     graphGetAll(tgtToken, '/groups?$select=id,displayName,mail&$top=999'),
@@ -416,18 +436,23 @@ export default async function(req) {
       if (!validateGuid(source_azure_tenant_id) || !validateGuid(target_azure_tenant_id)) return Response.json({ error: 'Invalid tenant id' }, { status: 400 });
       const denied = await authorizeAdminAction(base44, user, [source_azure_tenant_id, target_azure_tenant_id]);
       if (denied) return denied;
+      // The inputs (selection, mappings, rules, settings) are far too large for a record
+      // field, so they are written to private file storage and referenced by uri.
+      const payload_file_uri = await putJson(base44, {
+        selection: body.selection || [],
+        user_mapping: body.user_mapping || [],
+        group_mapping: body.group_mapping || [],
+        principal_replace_rules: body.principal_replace_rules || [],
+        copy_settings: body.copy_settings || {},
+      }, 'migration-inputs');
       const rec = await base44.entities.MigrationBatch.create({
         name: body.name || 'Migration batch',
         source_azure_tenant_id, target_azure_tenant_id,
         source_tenant_name: body.source_tenant_name, target_tenant_name: body.target_tenant_name,
         workloads: (body.workloads || []).join(','),
-        selection: JSON.stringify(body.selection || []),
-        user_mapping: JSON.stringify(body.user_mapping || []),
-        group_mapping: JSON.stringify(body.group_mapping || []),
-        principal_replace_rules: JSON.stringify(body.principal_replace_rules || []),
-        copy_settings: JSON.stringify(body.copy_settings || {}),
+        payload_file_uri,
         status: 'planned', cursor: 0, incremental: !!body.incremental,
-        progress: JSON.stringify({ done: 0, succeeded: 0, failed: 0, skipped: 0, items: {} }),
+        progress: JSON.stringify({ done: 0, succeeded: 0, failed: 0, skipped: 0 }),
         created_by: user.email,
       });
       return Response.json({ success: true, batch_id: rec.id });

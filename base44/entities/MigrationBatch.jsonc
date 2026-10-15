@@ -24,25 +24,29 @@
       "type": "string",
       "description": "Comma-separated: mailboxes,onedrive,sharepoint,teams,users,groups"
     },
+    "payload_file_uri": {
+      "type": "string",
+      "description": "Private storage uri of the batch inputs JSON (selection, mappings, rules, copy settings) \u2014 these are too large for a record field"
+    },
     "selection": {
       "type": "string",
-      "description": "JSON array of migration items {kind, source, target}"
+      "description": "JSON array of migration items {kind, source, target} \u2014 legacy batches only, new batches keep this in payload_file_uri"
     },
     "user_mapping": {
       "type": "string",
-      "description": "JSON array of user mappings"
+      "description": "JSON array of user mappings \u2014 legacy batches only, new batches keep this in payload_file_uri"
     },
     "group_mapping": {
       "type": "string",
-      "description": "JSON array of group mappings"
+      "description": "JSON array of group mappings \u2014 legacy batches only, new batches keep this in payload_file_uri"
     },
     "principal_replace_rules": {
       "type": "string",
-      "description": "JSON array of {find, replace} principal replacement rules"
+      "description": "JSON array of {find, replace} principal replacement rules \u2014 legacy batches only, new batches keep this in payload_file_uri"
     },
     "copy_settings": {
       "type": "string",
-      "description": "JSON of per-workload copy settings"
+      "description": "JSON of per-workload copy settings \u2014 legacy batches only, new batches keep this in payload_file_uri"
     },
     "status": {
       "type": "string",
@@ -57,7 +61,11 @@
     },
     "progress": {
       "type": "string",
-      "description": "JSON {done, succeeded, failed, skipped, items}"
+      "description": "JSON {done, succeeded, failed, skipped} summary counts"
+    },
+    "progress_file_uri": {
+      "type": "string",
+      "description": "Private storage uri of the per-item progress log JSON, keyed by item index"
     },
     "cursor": {
       "type": "number",
