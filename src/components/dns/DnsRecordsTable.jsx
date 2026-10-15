@@ -31,7 +31,7 @@ function StatusBadge({ record }) {
 
 // The DNS entries a domain needs (Graph record sets plus the standard M365 mail
 // records) alongside what is actually published in public DNS right now.
-export default function DnsRecordsTable({ domain, records = [], summary, warnings = [], loading, isInitial }) {
+export default function DnsRecordsTable({ domain, records = [], summary, warnings = [], note, loading, isInitial }) {
   const [filter, setFilter] = useState("all");
 
   const rows = useMemo(() => {
@@ -84,14 +84,17 @@ export default function DnsRecordsTable({ domain, records = [], summary, warning
         </div>
       </div>
 
+      {note && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-start gap-2 text-xs text-amber-900">
+          <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
+          <p>{note}</p>
+        </div>
+      )}
+
       {warnings.length > 0 && (
-        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-start gap-2 text-xs text-amber-800">
+        <div className="px-5 py-3 bg-muted/60 border-b border-border flex items-start gap-2 text-xs text-muted-foreground">
           <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium text-amber-900">
-              This tenant's own record sets could not be read from Microsoft Graph, so the standard Microsoft 365
-              record set is listed instead. Grant the app Domain.Read.All with admin consent to read them.
-            </p>
             {warnings.map((w) => (
               <p key={w} className="font-mono break-all">{w}</p>
             ))}

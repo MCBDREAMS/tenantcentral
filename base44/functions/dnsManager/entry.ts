@@ -110,10 +110,10 @@ function mapGraphRecord(r, domain, source) {
 async function safeGraphList(token, path) {
   try {
     const data = await graphGet(token, path);
-    return { items: data.value || [], error: null };
+    return { items: data.value || [], error: null, denied: false };
   } catch (e) {
     console.warn('[dnsManager] graph fetch failed:', path, e.message);
-    return { items: [], error: e.message };
+    return { items: [], error: e.message, denied: /403|Authorization_RequestDenied/i.test(e.message) };
   }
 }
 
@@ -121,21 +121,25 @@ async function safeGraphList(token, path) {
 // the tenant's own record sets (which Graph only returns with Domain.Read.All) and
 // covers the records Microsoft does not return at all, such as SPF and DMARC. Records
 // the tenant's own sets already describe are never duplicated.
-function standardRecords(domain, initialDomain) {
+function standardRecords(domain, initialDomain, mailEnabled) {
   const dashed = domain.replace(/\./g, '-');
-  const rows = [
+  // The mail records below only apply to a domain that actually hosts mail.
+  const mailRows = [
     { type: 'MX', label: '@', value: `${dashed}.mail.protection.outlook.com`, detail: 'priority 0', service: 'Email routing', required: true },
     { type: 'TXT', label: '@', value: 'v=spf1 include:spf.protection.outlook.com -all', detail: '', service: 'Email (SPF)', required: true },
     { type: 'CNAME', label: 'autodiscover', value: 'autodiscover.outlook.com', detail: '', service: 'Email (autodiscover)', required: true },
     { type: 'CNAME', label: 'selector1._domainkey', value: `selector1-${dashed}._domainkey.${initialDomain}`, detail: '', service: 'Email (DKIM 1)', required: false },
     { type: 'CNAME', label: 'selector2._domainkey', value: `selector2-${dashed}._domainkey.${initialDomain}`, detail: '', service: 'Email (DKIM 2)', required: false },
     { type: 'TXT', label: '_dmarc', value: `v=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}`, detail: '', service: 'Email (DMARC)', required: false },
+  ];
+  const serviceRows = [
     { type: 'CNAME', label: 'enterpriseregistration', value: 'enterpriseregistration.windows.net', detail: '', service: 'Entra ID device registration', required: false },
     { type: 'CNAME', label: 'enterprisemanagement', value: 'enterprisemanagement.windows.net', detail: '', service: 'MDM enrollment', required: false },
     { type: 'CNAME', label: 'EnterpriseEnrollment', value: 'EnterpriseEnrollment.manage.microsoft.com', detail: '', service: 'Intune enrollment', required: false },
     { type: 'CNAME', label: 'lyncdiscover', value: 'webdir.online.lync.com', detail: '', service: 'Teams / Skype discovery', required: false },
     { type: 'SRV', label: '_sipfederationtls._tcp', value: 'sipdir.online.lync.com', detail: 'priority 100, weight 1, port 5061', service: 'Teams federation', required: false },
   ];
+  const rows = mailEnabled ? [...mailRows, ...serviceRows] : serviceRows;
   return rows.map((r) => ({
     id: `standard-${r.type}-${r.label}`,
     type: r.type,
@@ -216,7 +220,7 @@ export default async function (req) {
     // ── Required DNS records for one domain, checked against live public DNS ──
     if (action === 'domain_records') {
       const [domainList, verification, serviceConfig] = await Promise.all([
-        graphGetAll(token, '/domains?$select=id,isInitial&$top=999'),
+        graphGetAll(token, '/domains?$select=id,isInitial,supportedServices&$top=999'),
         safeGraphList(token, `/domains/${encodeURIComponent(domain)}/verificationDnsRecords`),
         safeGraphList(token, `/domains/${encodeURIComponent(domain)}/serviceConfigurationRecords`),
       ]);
@@ -230,7 +234,9 @@ export default async function (req) {
       ];
 
       if (current && !current.isInitial) {
-        for (const extra of standardRecords(domain, initialDomain || 'contoso.onmicrosoft.com')) {
+        const mailEnabled = current.supportedServices ? current.supportedServices.includes('Email') : true;
+        const standard = standardRecords(domain, initialDomain || 'contoso.onmicrosoft.com', mailEnabled);
+        for (const extra of standard) {
           if (!records.some((r) => r.type === extra.type && r.host.toLowerCase() === extra.host.toLowerCase())) {
             records.push(extra);
           }
@@ -253,7 +259,13 @@ export default async function (req) {
         domain,
         isInitial: !!(current && current.isInitial),
         records: checked,
-        warnings: [verification.error, serviceConfig.error].filter(Boolean),
+        record_sets_available: !(verification.denied || serviceConfig.denied),
+        record_set_note: verification.denied || serviceConfig.denied
+          ? "Microsoft Graph denied access to this domain's own DNS record sets, so the standard Microsoft 365 record set is shown instead. Add the Domain.Read.All application permission to the app registration in Entra ID and grant admin consent to read this tenant's exact records."
+          : null,
+        warnings: verification.denied || serviceConfig.denied
+          ? []
+          : [verification.error, serviceConfig.error].filter(Boolean),
         summary: {
           total: checked.length,
           required: checked.filter((r) => r.required).length,

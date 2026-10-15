@@ -196,6 +196,7 @@ export default function DnsDomains({ selectedTenant }) {
                 records={recordsQuery.data?.records || []}
                 summary={summary}
                 warnings={recordsQuery.data?.warnings || []}
+                note={recordsQuery.data?.record_set_note}
                 isInitial={recordsQuery.data?.isInitial}
                 loading={recordsQuery.isLoading || recordsQuery.isFetching}
               />
