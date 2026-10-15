@@ -261,7 +261,7 @@ export default async function (req) {
         records: checked,
         record_sets_available: !(verification.denied || serviceConfig.denied),
         record_set_note: verification.denied || serviceConfig.denied
-          ? "Microsoft Graph denied access to this domain's own DNS record sets, so the standard Microsoft 365 record set is shown instead. Add the Domain.Read.All application permission to the app registration in Entra ID and grant admin consent to read this tenant's exact records."
+          ? "Microsoft Graph denied access to this domain's own DNS record sets: the app registration needs the Domain.ReadWrite.All permission of type Application (a Delegated one has no effect on app-only calls). Until it is granted with admin consent, the standard Microsoft 365 record set is shown instead, and the Verify and Set default actions may also be refused."
           : null,
         warnings: verification.denied || serviceConfig.denied
           ? []
