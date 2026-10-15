@@ -56,20 +56,25 @@ async function generateKey(tenantIds, expiryDate, clientName) {
 // Validate key and check tenant ID is in allowed list
 async function validateKey(licenseKey, azureTenantId) {
   try {
-    // Key format: TC-XXXX-XXXX-XXXX-XXXX-SIG-{encoded_payload}
-    const parts = licenseKey.trim().split("-");
-    if (parts.length < 8 || parts[0] !== "TC") {
+    // Key layout (as emitted by generateKey): TC-{4 display groups}-{SIGNATURE}-{base64url payload}
+    // → "TC" is segment 0, the 4 display groups are 1-4, the SIGNATURE is segment 5, and the
+    // payload is every segment from 6 onward. The payload is base64url, so it can itself contain
+    // "-" and therefore span several segments — never assume a fixed total segment count.
+    const parts = String(licenseKey).replace(/\s+/g, "").split("-");
+    if (parts[0] !== "TC" || parts.length < 7) {
       return { valid: false, reason: "Invalid key format" };
     }
-    // Payload is after the 6th dash segment
-    const encoded = parts.slice(7).join("-");
+    const providedSig = parts[5].toUpperCase();
+    const encoded = parts.slice(6).join("-");
     const payload = decodePayload(encoded);
 
-    // Verify signature
+    // Verify signature — the signature is a hex prefix of the HMAC, so accept any truncation
+    // length we have ever issued (16-char legacy, 32-char current) in constant time.
+    if (providedSig.length < 16) {
+      return { valid: false, reason: "Invalid key signature" };
+    }
     const expectedSig = await hmacSign(encoded);
-    const providedSig = parts[6].toUpperCase();
-    // Accept newly issued 128-bit signatures, and legacy 64-bit ones, in constant time.
-    if (!constTimeEq(providedSig, expectedSig) && !constTimeEq(providedSig, expectedSig.slice(0, 16))) {
+    if (!constTimeEq(providedSig, expectedSig.slice(0, providedSig.length))) {
       return { valid: false, reason: "Invalid key signature" };
     }
 
