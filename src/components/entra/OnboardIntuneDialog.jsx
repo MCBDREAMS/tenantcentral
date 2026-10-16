@@ -205,6 +205,16 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
               <div>
                 <p className="text-sm font-semibold text-red-800">Deployment failed</p>
                 <p className="text-xs text-red-700 mt-0.5">{result?.error || "An unexpected error occurred."}</p>
+                {selectedTenant?.azure_client_id && String(result?.error || "").includes("API permissions") && (
+                  <a
+                    href={`https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/${selectedTenant.azure_client_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-red-800 underline hover:text-red-900"
+                  >
+                    Open this tenant&apos;s app registration → API permissions
+                  </a>
+                )}
               </div>
             </div>
           )}
