@@ -8,6 +8,10 @@ import { format, startOfDay } from 'npm:date-fns@3.6.0';
 const GLOBAL_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
+// Shown verbatim in the UI when Graph refuses an Intune script write (HTTP 403).
+// Graph requires DeviceManagementScripts.ReadWrite.All for scripts (Read.All to list).
+const SCRIPT_PERMISSION_HINT = "Microsoft Graph refused the request: the app registration used for this tenant needs the DeviceManagementScripts.ReadWrite.All permission (DeviceManagementScripts.Read.All to list scripts). Add it under Entra ID > App registrations > API permissions > Application, click Grant admin consent for this tenant, then retry.";
+
 // Graph helpers (getAccessToken, graphGet, graphGetBeta, graphGetAll) imported from shared/graphClient.ts
 
 Deno.serve(async (req) => {
@@ -711,10 +715,7 @@ Deno.serve(async (req) => {
         // Clean up the group we created
         await fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
         if (createRes.status === 403) {
-          return Response.json({
-            success: false,
-            error: "DeviceManagementConfiguration.ReadWrite.All permission is required on your Azure App Registration to deploy scripts via Intune."
-          }, { status: 403 });
+          return Response.json({ success: false, error: SCRIPT_PERMISSION_HINT }, { status: 403 });
         }
         return Response.json({ success: false, error: `Script creation failed: ${errText}` }, { status: createRes.status });
       }
@@ -1132,10 +1133,7 @@ Deno.serve(async (req) => {
       if (!createRes.ok) {
         const errText = await createRes.text();
         if (createRes.status === 403) {
-          return Response.json({
-            success: false,
-            error: "DeviceManagementConfiguration.ReadWrite.All permission required. Please grant this permission in your Azure App Registration.",
-          }, { status: 403 });
+          return Response.json({ success: false, error: SCRIPT_PERMISSION_HINT }, { status: 403 });
         }
         return Response.json({ success: false, error: errText }, { status: createRes.status });
       }

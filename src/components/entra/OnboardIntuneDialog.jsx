@@ -71,7 +71,7 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
       });
       setStep("cleaned");
     } catch (e) {
-      setResult(r => ({ ...r, cleanupError: e.message }));
+      setResult(r => ({ ...r, cleanupError: e?.response?.data?.error || e?.message }));
       setStep("done"); // go back to done with error note
     }
   };
@@ -89,7 +89,9 @@ export default function OnboardIntuneDialog({ device, selectedTenant, onClose })
       setResult(res.data);
       setStep("done");
     } catch (e) {
-      setResult({ error: e.message });
+      // The SDK only surfaces "Request failed with status code 403" — the real
+      // reason (missing Graph permission) is in the response body.
+      setResult({ error: e?.response?.data?.error || e?.message });
       setStep("error");
     }
   };

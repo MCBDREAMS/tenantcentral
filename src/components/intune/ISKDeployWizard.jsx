@@ -46,7 +46,8 @@ export default function ISKDeployWizard({ azureTenantId, tenantName }) {
         setError(res.data?.error || "Deployment failed");
       }
     } catch (e) {
-      setError(e.message);
+      // The SDK only reports the HTTP status — the real reason is in the response body.
+      setError(e?.response?.data?.error || e.message);
     }
     setRunning(false);
   }

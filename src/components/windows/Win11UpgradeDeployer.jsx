@@ -71,8 +71,10 @@ export default function Win11UpgradeDeployer({ selectedTenant }) {
         throw new Error(res.data?.error || "Deployment failed");
       }
     } catch (e) {
-      addLog(`✗ Error: ${e.message}`, "error");
-      setError(e.message);
+      // The SDK only reports the HTTP status — the real reason is in the response body.
+      const message = e?.response?.data?.error || e.message;
+      addLog(`✗ Error: ${message}`, "error");
+      setError(message);
     }
 
     setDeploying(false);

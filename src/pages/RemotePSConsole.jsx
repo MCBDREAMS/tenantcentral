@@ -242,7 +242,7 @@ export default function RemotePSConsole({ selectedTenant }) {
             {/* Info banner */}
             <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl text-xs text-blue-800 border border-blue-200">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
-              <span>Scripts are deployed via the <strong>Intune Management Extension (IME)</strong> as a device management script. Results are collected once Intune syncs the device (typically within 15–30 minutes). Requires <code className="bg-blue-100 px-1 rounded">DeviceManagementConfiguration.ReadWrite.All</code> permission.</span>
+              <span>Scripts are deployed via the <strong>Intune Management Extension (IME)</strong> as a device management script. Results are collected once Intune syncs the device (typically within 15–30 minutes). Requires <code className="bg-blue-100 px-1 rounded">DeviceManagementScripts.ReadWrite.All</code> permission.</span>
             </div>
 
             {/* Results */}

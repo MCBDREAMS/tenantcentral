@@ -143,7 +143,7 @@ export default function IntuneAdiMigration({ tenants: propTenants }) {
         <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex gap-2 text-sm text-blue-700">
             <Info className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>The <strong>source tenant</strong> is the Adidy/ADI environment to pull from. The <strong>target tenant</strong> is the Intune tenant to migrate into. Both must have the app's service principal granted <code>DeviceManagementManagedDevices.ReadWrite.All</code> and <code>DeviceManagementConfiguration.ReadWrite.All</code> in Azure.</span>
+            <span>The <strong>source tenant</strong> is the Adidy/ADI environment to pull from. The <strong>target tenant</strong> is the Intune tenant to migrate into. Both must have the app's service principal granted <code>DeviceManagementManagedDevices.ReadWrite.All</code>, <code>DeviceManagementConfiguration.ReadWrite.All</code> and <code>DeviceManagementScripts.ReadWrite.All</code> (scripts) in Azure.</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
