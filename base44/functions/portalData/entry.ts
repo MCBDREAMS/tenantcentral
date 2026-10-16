@@ -10,7 +10,7 @@ const GLOBAL_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
 
 // Shown verbatim in the UI when Graph refuses an Intune script write (HTTP 403).
 // Graph requires DeviceManagementScripts.ReadWrite.All for scripts (Read.All to list).
-const SCRIPT_PERMISSION_HINT = "Microsoft Graph refused the request: the app registration used for this tenant needs the DeviceManagementScripts.ReadWrite.All permission (DeviceManagementScripts.Read.All to list scripts). Add it under Entra ID > App registrations > API permissions > Application, click Grant admin consent for this tenant, then retry.";
+const SCRIPT_PERMISSION_HINT = "Microsoft Graph refused the request (403 Forbidden): the app registration used for this tenant is missing the DeviceManagementScripts.ReadWrite.All application permission (DeviceManagementScripts.Read.All to list scripts). Delegated permissions will NOT work here - this app calls Graph as itself with client credentials. Under Entra ID > App registrations > API permissions > Application permissions, add them and click Grant admin consent for this tenant, then retry.";
 
 // Graph helpers (getAccessToken, graphGet, graphGetBeta, graphGetAll) imported from shared/graphClient.ts
 
