@@ -5,7 +5,17 @@ import { Smartphone, RefreshCw, Loader2, Search, Apple, CheckCircle2, XCircle, A
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import FilterBar, {
+  useFilters,
+  applyFilters,
+  distinctOptions,
+  norm,
+  liveBucket,
+  archInfo,
+  DEVICE_LIVE_OPTIONS,
+  ARCH_OPTIONS,
+  COMPLIANCE_OPTIONS,
+} from "@/components/shared/FilterBar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -40,9 +50,8 @@ function CompBadge({ state }) {
 
 export default function MobileDevices({ selectedTenant, tenants }) {
   const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState("all");
-  const [compliance, setCompliance] = useState("all");
   const [tab, setTab] = useState("live");
+  const { values: filterValues, setFilter, clear: clearFilters } = useFilters();
 
   const azureTenantId = selectedTenant?.tenant_id;
 
@@ -57,18 +66,37 @@ export default function MobileDevices({ selectedTenant, tenants }) {
       }).then(r => r.data),
   });
 
-  const liveDevices = (liveData?.devices || []).filter(d => {
-    if (platform !== "all" && d.operatingSystem !== platform) return false;
-    if (compliance !== "all" && d.complianceState !== compliance) return false;
-    if (search) {
-      const s = search.toLowerCase();
-      return (d.deviceName || "").toLowerCase().includes(s) ||
-        (d.userPrincipalName || "").toLowerCase().includes(s) ||
-        (d.model || "").toLowerCase().includes(s) ||
-        (d.serialNumber || "").toLowerCase().includes(s);
-    }
-    return true;
-  });
+  const allLiveDevices = liveData?.devices || [];
+
+  const mobileGetters = {
+    platform: (d) => norm(d.operatingSystem),
+    compliance: (d) => norm(d.complianceState),
+    make: (d) => norm(d.manufacturer),
+    model: (d) => norm(d.model),
+    arch: (d) => archInfo(d).value,
+    live: (d) => liveBucket(d.lastSyncDateTime),
+  };
+
+  const mobileFilters = [
+    { key: "platform", label: "Platform", anyLabel: "Any platform", options: distinctOptions(allLiveDevices, mobileGetters.platform, 12), width: "w-40" },
+    { key: "compliance", label: "Compliance", anyLabel: "Any compliance", options: COMPLIANCE_OPTIONS, width: "w-44" },
+    { key: "make", label: "Make", anyLabel: "Any make", options: distinctOptions(allLiveDevices, mobileGetters.make), width: "w-40" },
+    { key: "model", label: "Model", anyLabel: "Any model", options: distinctOptions(allLiveDevices, mobileGetters.model), width: "w-44" },
+    { key: "arch", label: "Arch", anyLabel: "Any architecture", options: ARCH_OPTIONS, width: "w-40" },
+    { key: "live", label: "Last sync", anyLabel: "Any last sync", options: DEVICE_LIVE_OPTIONS, width: "w-44" },
+  ];
+
+  const searchedLiveDevices = search
+    ? allLiveDevices.filter(d => {
+        const s = search.toLowerCase();
+        return (d.deviceName || "").toLowerCase().includes(s) ||
+          (d.userPrincipalName || "").toLowerCase().includes(s) ||
+          (d.model || "").toLowerCase().includes(s) ||
+          (d.serialNumber || "").toLowerCase().includes(s);
+      })
+    : allLiveDevices;
+
+  const liveDevices = applyFilters(searchedLiveDevices, filterValues, mobileGetters);
 
   const stats = {
     total: (liveData?.devices || []).length,
@@ -124,31 +152,18 @@ export default function MobileDevices({ selectedTenant, tenants }) {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            <div className="relative flex-1 min-w-[200px]">
+          <div className="mb-4 space-y-3">
+            <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input placeholder="Search devices, users, models..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
             </div>
-            <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="Platform" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Platforms</SelectItem>
-                <SelectItem value="Android">Android</SelectItem>
-                <SelectItem value="iOS">iOS</SelectItem>
-                <SelectItem value="iPadOS">iPadOS</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={compliance} onValueChange={setCompliance}>
-              <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="Compliance" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Compliance</SelectItem>
-                <SelectItem value="compliant">Compliant</SelectItem>
-                <SelectItem value="noncompliant">Non-Compliant</SelectItem>
-                <SelectItem value="inGracePeriod">Grace Period</SelectItem>
-                <SelectItem value="unknown">Unknown</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-slate-400 self-center">{liveDevices.length} devices</span>
+            <FilterBar
+              filters={mobileFilters}
+              values={filterValues}
+              onChange={setFilter}
+              onClear={clearFilters}
+              right={`${liveDevices.length} of ${allLiveDevices.length} devices`}
+            />
           </div>
 
           {/* Table */}

@@ -10,6 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import DeviceDetailPanel from "@/components/intune/DeviceDetailPanel";
+import FilterBar, {
+  useFilters,
+  applyFilters,
+  distinctOptions,
+  norm,
+  liveBucket,
+  archInfo,
+  DEVICE_LIVE_OPTIONS,
+  ARCH_OPTIONS,
+  COMPLIANCE_OPTIONS,
+} from "@/components/shared/FilterBar";
 import { format } from "date-fns";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger
@@ -29,6 +40,7 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null); // { device, action }
   const [actionLoading, setActionLoading] = useState(null);
+  const { values: filterValues, setFilter, clear: clearFilters } = useFilters();
 
   const { data: devices = [] } = useQuery({
     queryKey: ['intune-devices', selectedTenant?.id],
@@ -56,11 +68,35 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
   });
   const graphDevices = graphResult?.devices || [];
 
-  const filteredGraphDevices = graphDevices.filter(d =>
-    !searchTerm ||
-    d.deviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.userPrincipalName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.model?.toLowerCase().includes(searchTerm.toLowerCase())
+  const graphGetters = {
+    os: (d) => norm(d.operatingSystem),
+    make: (d) => norm(d.manufacturer),
+    model: (d) => norm(d.model),
+    arch: (d) => archInfo(d).value,
+    compliance: (d) => norm(d.complianceState),
+    owner: (d) => norm(d.managedDeviceOwnerType),
+    live: (d) => liveBucket(d.lastSyncDateTime),
+  };
+
+  const graphFilters = [
+    { key: "os", label: "OS", anyLabel: "Any OS", options: distinctOptions(graphDevices, graphGetters.os, 20), width: "w-36" },
+    { key: "make", label: "Make", anyLabel: "Any make", options: distinctOptions(graphDevices, graphGetters.make), width: "w-40" },
+    { key: "model", label: "Model", anyLabel: "Any model", options: distinctOptions(graphDevices, graphGetters.model), width: "w-44" },
+    { key: "arch", label: "Arch", anyLabel: "Any architecture", options: ARCH_OPTIONS, width: "w-40" },
+    { key: "compliance", label: "Compliance", anyLabel: "Any compliance", options: COMPLIANCE_OPTIONS, width: "w-44" },
+    { key: "owner", label: "Ownership", anyLabel: "Any ownership", options: distinctOptions(graphDevices, graphGetters.owner), width: "w-40" },
+    { key: "live", label: "Last sync", anyLabel: "Any last sync", options: DEVICE_LIVE_OPTIONS, width: "w-44" },
+  ];
+
+  const filteredGraphDevices = applyFilters(
+    graphDevices.filter(d =>
+      !searchTerm ||
+      d.deviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      d.userPrincipalName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      d.model?.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    filterValues,
+    graphGetters
   );
 
   const getTenantName = (tid) => allTenants.find(t => t.id === tid)?.name || tid;
@@ -179,6 +215,15 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
                 <span className="text-xs text-slate-400">{filteredGraphDevices.length} devices</span>
               </div>
 
+              <div className="mb-4">
+                <FilterBar
+                  filters={graphFilters}
+                  values={filterValues}
+                  onChange={setFilter}
+                  onClear={clearFilters}
+                />
+              </div>
+
               {loadingGraph ? (
                 <div className="text-center py-10 text-sm text-slate-400">Loading devices from Microsoft Graph...</div>
               ) : (
@@ -186,20 +231,21 @@ export default function IntuneDevices({ selectedTenant, tenants }) {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        {["Device Name", "OS / Version", "User", "Model", "Compliance", "Last Sync", "Actions"].map(h => (
+                        {["Device Name", "OS / Version", "User", "Model", "Arch", "Compliance", "Last Sync", "Actions"].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredGraphDevices.length === 0 ? (
-                        <tr><td colSpan={7} className="text-center py-8 text-slate-400">No devices found</td></tr>
+                        <tr><td colSpan={8} className="text-center py-8 text-slate-400">No devices found</td></tr>
                       ) : filteredGraphDevices.map(d => (
                         <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 font-medium text-slate-800">{d.deviceName}</td>
                           <td className="px-4 py-3 text-slate-600 text-xs">{d.operatingSystem}<br /><span className="text-slate-400">{d.osVersion}</span></td>
                           <td className="px-4 py-3 text-xs text-slate-500">{d.userPrincipalName || "—"}</td>
                           <td className="px-4 py-3 text-xs text-slate-500">{d.manufacturer} {d.model}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500" title={archInfo(d).note}>{archInfo(d).label}</td>
                           <td className="px-4 py-3"><ComplianceBadge state={d.complianceState} /></td>
                           <td className="px-4 py-3 text-xs text-slate-400">{fmt(d.lastSyncDateTime)}</td>
                           <td className="px-4 py-3">

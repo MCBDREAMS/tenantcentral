@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
 
     // ── Intune: list devices from Graph (all pages) ──────────────────────────
     if (action === "list_intune_devices") {
-      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState&$top=999`);
+      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$select=id,deviceName,operatingSystem,osVersion,complianceState,managedDeviceOwnerType,userPrincipalName,model,manufacturer,serialNumber,lastSyncDateTime,enrolledDateTime,azureADDeviceId,emailAddress,managementAgent,deviceEnrollmentType,isEncrypted,deviceHealthAttestationState,processorArchitecture&$top=999`);
       return Response.json({ success: true, devices });
     }
 
@@ -1390,7 +1390,7 @@ Deno.serve(async (req) => {
 
     // ── Intune: List mobile devices (iOS/Android) ─────────────────────────────
     if (action === "sync_mobile_devices") {
-      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$filter=operatingSystem eq 'Android' or operatingSystem eq 'iOS' or operatingSystem eq 'iPadOS'&$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,serialNumber,imei,manufacturer,model,isEncrypted,jailBroken,enrolledDateTime,lastSyncDateTime,managedDeviceOwnerType`);
+      const devices = await graphGetAll(token, `https://graph.microsoft.com/beta/deviceManagement/managedDevices?$filter=operatingSystem eq 'Android' or operatingSystem eq 'iOS' or operatingSystem eq 'iPadOS'&$select=id,deviceName,operatingSystem,osVersion,complianceState,userPrincipalName,serialNumber,imei,manufacturer,model,isEncrypted,jailBroken,enrolledDateTime,lastSyncDateTime,managedDeviceOwnerType,processorArchitecture`);
       return Response.json({ success: true, devices });
     }
 

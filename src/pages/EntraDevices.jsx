@@ -9,6 +9,17 @@ import PageHeader from "@/components/shared/PageHeader";
 import QuickSyncButton from "@/components/shared/QuickSyncButton";
 import EntraDeviceDetail from "@/components/entra/EntraDeviceDetail";
 import OnboardIntuneDialog from "@/components/entra/OnboardIntuneDialog";
+import FilterBar, {
+  useFilters,
+  applyFilters,
+  distinctOptions,
+  norm,
+  liveBucket,
+  archInfo,
+  DEVICE_LIVE_OPTIONS,
+  ENABLED_OPTIONS,
+  ARCH_OPTIONS,
+} from "@/components/shared/FilterBar";
 
 function CompBadge({ state }) {
   const map = {
@@ -28,6 +39,7 @@ export default function EntraDevices({ selectedTenant }) {
   const [addingToGroup, setAddingToGroup] = useState(false);
   const [addGroupResult, setAddGroupResult] = useState(null);
   const [search, setSearch] = useState("");
+  const { values: filterValues, setFilter, clear: clearFilters } = useFilters();
   const queryClient = useQueryClient();
 
   const azureTenantId = selectedTenant?.tenant_id;
@@ -64,13 +76,33 @@ export default function EntraDevices({ selectedTenant }) {
   const devices = data?.devices || [];
   const groups = groupsData?.groups || [];
 
-  const filteredDevices = search.trim()
+  const deviceGetters = {
+    os: (d) => norm(d.operatingSystem),
+    make: (d) => norm(d.manufacturer),
+    model: (d) => norm(d.model),
+    enabled: (d) => (d.accountEnabled === false ? "disabled" : "enabled"),
+    arch: (d) => archInfo(d).value,
+    live: (d) => liveBucket(d.approximateLastSignInDateTime),
+  };
+
+  const deviceFilters = [
+    { key: "os", label: "OS", anyLabel: "Any OS", options: distinctOptions(devices, deviceGetters.os, 30), width: "w-40" },
+    { key: "make", label: "Make", anyLabel: "Any make", options: distinctOptions(devices, deviceGetters.make), width: "w-40" },
+    { key: "model", label: "Model", anyLabel: "Any model", options: distinctOptions(devices, deviceGetters.model), width: "w-40" },
+    { key: "arch", label: "Arch", anyLabel: "Any architecture", options: ARCH_OPTIONS, width: "w-40" },
+    { key: "enabled", label: "State", anyLabel: "Any state", options: ENABLED_OPTIONS, width: "w-36" },
+    { key: "live", label: "Last activity", anyLabel: "Any activity", options: DEVICE_LIVE_OPTIONS, width: "w-48" },
+  ];
+
+  const searchedDevices = search.trim()
     ? devices.filter(d =>
         (d.displayName || "").toLowerCase().includes(search.toLowerCase()) ||
         (d.operatingSystem || "").toLowerCase().includes(search.toLowerCase()) ||
         (d.deviceId || "").toLowerCase().includes(search.toLowerCase())
       )
     : devices;
+
+  const filteredDevices = applyFilters(searchedDevices, filterValues, deviceGetters);
 
   // Check if a device is already managed in Intune
   const isInIntune = (device) => {
@@ -156,6 +188,14 @@ export default function EntraDevices({ selectedTenant }) {
               />
             </div>
           </div>
+          <div className="px-4 py-2.5 border-b border-slate-100">
+            <FilterBar
+              filters={deviceFilters}
+              values={filterValues}
+              onChange={setFilter}
+              onClear={clearFilters}
+            />
+          </div>
           <div className="divide-y divide-slate-100">
             {filteredDevices.map((device, i) => {
               const managed = isInIntune(device);
@@ -165,7 +205,7 @@ export default function EntraDevices({ selectedTenant }) {
                     <Monitor className="h-4 w-4 text-slate-400 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{device.displayName}</p>
-                      <p className="text-xs text-slate-400 truncate">{device.operatingSystem} · {device.deviceId}</p>
+                      <p className="text-xs text-slate-400 truncate">{device.operatingSystem} · {archInfo(device).label} · {device.deviceId}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
