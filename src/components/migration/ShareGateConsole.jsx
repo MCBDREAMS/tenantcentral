@@ -7,28 +7,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import MigrationSourcePicker from "@/components/migration/MigrationSourcePicker";
+import MigrationAccountsStep from "@/components/migration/MigrationAccountsStep";
 import MigrationMapping from "@/components/migration/MigrationMapping";
 import MigrationCopySettings from "@/components/migration/MigrationCopySettings";
 import MigrationRunConsole from "@/components/migration/MigrationRunConsole";
 
 const WORKLOADS = [
   { id: "mailboxes", label: "Exchange Mailboxes", kind: "users", note: "Identity + mailbox (body via Exchange move request)" },
+  { id: "chats", label: "Teams Chats", kind: "chats", note: "1:1 and group chats, chosen per conversation" },
   { id: "onedrive", label: "OneDrive Drives", kind: "onedrive", note: "Files copied live via Graph" },
   { id: "sharepoint", label: "SharePoint Sites", kind: "sharepoint", note: "Group-connected site + files copied live" },
-  { id: "teams", label: "Teams (channels + chat)", kind: "teams", note: "Team, channels, channel messages (best-effort)" },
+  { id: "teams", label: "Teams (channels)", kind: "teams", note: "Team, channels, channel messages (best-effort)" },
   { id: "groups", label: "Users & Groups", kind: "groups", note: "Identities created in target" },
 ];
 
-const STEPS = ["Scope", "Select Source", "Map & Replace", "Copy Settings", "Run & Report"];
+const STEPS = ["Scope", "Select Source", "Accounts & Domains", "Map & Replace", "Copy Settings", "Run & Report"];
 
 export default function ShareGateConsole() {
   const { rbac, filterTenants } = useRbac();
   const [allTenants, setAllTenants] = useState([]);
 
   // Fetch the tenant list exactly ONCE. RBAC scoping is derived below with useMemo, so a
-  // re-render (or a fresh function identity from useRbac) can never re-trigger the fetch.
-  // Previously the effect depended on `filterTenants`, which is recreated on every render —
-  // that produced an endless list/re-render loop (the constant "refreshing" you saw).
+  // re-render can never re-trigger the fetch (that previously caused a re-render loop).
   useEffect(() => {
     let cancelled = false;
     base44.entities.Tenant.list()
@@ -43,28 +43,81 @@ export default function ShareGateConsole() {
   const [step, setStep] = useState(0);
   const [sourceTenantId, setSourceTenantId] = useState("");
   const [targetTenantId, setTargetTenantId] = useState("");
-  const [workloads, setWorkloads] = useState(["mailboxes", "onedrive", "sharepoint", "teams", "groups"]);
+  const [workloads, setWorkloads] = useState(["mailboxes", "chats", "onedrive", "sharepoint", "teams", "groups"]);
   const [incremental, setIncremental] = useState(true);
-  const [selection, setSelection] = useState({}); // {workload: [objects]}
-  const [userMapping, setUserMapping] = useState([]);
+  const [selection, setSelection] = useState({}); // content objects: {workload: [objects]}
+  const [userConfig, setUserConfig] = useState({}); // per-account selection, mode, domain, mailbox options
+  const [chatConfig, setChatConfig] = useState({}); // per-chat selection
+  const [domains, setDomains] = useState([]); // verified domains of the TARGET tenant
   const [groupMapping, setGroupMapping] = useState([]);
   const [principalRules, setPrincipalRules] = useState([]);
   const [copySettings, setCopySettings] = useState({
     usageLocation: "US", assignLicense: false, targetSkuId: "",
     permissions: true, versionHistory: false, metadata: true,
     maxFilesPerRun: 30, folderDepth: 2, maxChannelsPerRun: 10, includeTeamChats: true,
+    maxChatMessagesPerRun: 25, requireAllMembersMapped: false,
   });
   const [batchId, setBatchId] = useState(null);
 
   const sourceTenant = tenants.find((t) => t.tenant_id === sourceTenantId);
   const targetTenant = tenants.find((t) => t.tenant_id === targetTenantId);
 
+  // Target verified domains power the per-account domain picker.
+  useEffect(() => {
+    if (!targetTenantId) { setDomains([]); return; }
+    let cancelled = false;
+    base44.functions.invoke("migrationEngine", { action: "list_domains", target_azure_tenant_id: targetTenantId })
+      .then((res) => { if (!cancelled) setDomains(res.data?.domains || []); })
+      .catch(() => { if (!cancelled) setDomains([]); });
+    return () => { cancelled = true; };
+  }, [targetTenantId]);
+
   const toggleWorkload = (id) => setWorkloads((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
+
+  // The accounts step is the single source of truth for users: mapping rows (and therefore
+  // the migration payload) are derived from it, so mode and domain always match what was picked.
+  const userMapping = useMemo(() => Object.values(userConfig)
+    .filter((u) => u.selected && u.mode !== "skip")
+    .map((u) => ({
+      sourceId: u.id,
+      sourceUpn: u.upn,
+      sourceMail: u.mail,
+      sourceName: u.displayName,
+      action: u.mode === "migrate" ? "map" : "create",
+      targetUpn: u.localPart && u.domain ? `${u.localPart}@${u.domain}` : u.upn,
+      targetDomain: u.domain,
+      mailbox: u.includeMailbox && u.mail ? u.mailbox : null,
+    })), [userConfig]);
+
+  // Edits made on the mapping step (action / target UPN) are written back to the account rows.
+  const setUserMapping = (next) => setUserConfig((prev) => {
+    const byUpn = new Map(Object.values(prev).map((u) => [u.upn, u]));
+    const copy = { ...prev };
+    (next || []).forEach((m) => {
+      const u = byUpn.get(m.sourceUpn);
+      if (!u) return;
+      const [localPart, domain] = String(m.targetUpn || "").split("@");
+      copy[u.id] = {
+        ...u,
+        mode: m.action === "map" ? "migrate" : m.action === "skip" ? "skip" : "create",
+        selected: m.action === "skip" ? false : true,
+        localPart: localPart || u.localPart,
+        domain: domain || u.domain,
+      };
+    });
+    return copy;
+  });
+
+  const pickerWorkloads = workloads.filter((w) => w !== "mailboxes" && w !== "chats");
+  const accountsSelected = Object.values(userConfig).some((u) => u.selected && u.mode !== "skip");
+  const chatsSelected = Object.values(chatConfig).some((c) => c.selected);
 
   const canNext =
     step === 0 ? !!sourceTenantId && !!targetTenantId && sourceTenantId !== targetTenantId && workloads.length > 0
-    : step === 1 ? Object.values(selection).some((arr) => arr && arr.length > 0)
-    : step === 2 ? userMapping.length > 0 || groupMapping.length > 0
+    : step === 1 ? pickerWorkloads.length === 0 || Object.values(selection).some((arr) => arr && arr.length > 0)
+    : step === 2 ? accountsSelected || chatsSelected ||
+        (!workloads.includes("mailboxes") && !workloads.includes("chats"))
+    : step === 3 ? userMapping.length > 0 || groupMapping.length > 0 || chatsSelected
     : true;
 
   return (
@@ -144,18 +197,38 @@ export default function ShareGateConsole() {
         </div>
       )}
 
-      {/* Step 1 — Select source objects */}
+      {/* Step 1 — Select source content objects */}
       {step === 1 && sourceTenant && (
-        <MigrationSourcePicker
+        pickerWorkloads.length === 0 ? (
+          <div className="bg-card border rounded-xl p-5 text-sm text-muted-foreground">
+            No file, site or team content is in scope — continue to accounts &amp; domains.
+          </div>
+        ) : (
+          <MigrationSourcePicker
+            sourceTenant={sourceTenant}
+            workloads={pickerWorkloads}
+            selection={selection}
+            setSelection={setSelection}
+          />
+        )
+      )}
+
+      {/* Step 2 — Per-account selection, migrate vs create, target domain, mailboxes & chats */}
+      {step === 2 && sourceTenant && (
+        <MigrationAccountsStep
           sourceTenant={sourceTenant}
+          domains={domains}
           workloads={workloads}
-          selection={selection}
-          setSelection={setSelection}
+          userConfig={userConfig}
+          setUserConfig={setUserConfig}
+          userMapping={userMapping}
+          chatConfig={chatConfig}
+          setChatConfig={setChatConfig}
         />
       )}
 
-      {/* Step 2 — Mapping & principal replace */}
-      {step === 2 && (
+      {/* Step 3 — Mapping & principal replace */}
+      {step === 3 && (
         <MigrationMapping
           sourceTenant={sourceTenant}
           targetTenant={targetTenant}
@@ -170,18 +243,25 @@ export default function ShareGateConsole() {
         />
       )}
 
-      {/* Step 3 — Copy settings */}
-      {step === 3 && (
-        <MigrationCopySettings settings={copySettings} setSettings={setCopySettings} workloads={workloads} />
+      {/* Step 4 — Copy settings */}
+      {step === 4 && (
+        <MigrationCopySettings
+          settings={copySettings}
+          setSettings={setCopySettings}
+          workloads={workloads}
+          domains={domains}
+        />
       )}
 
-      {/* Step 4 — Run & report */}
-      {step === 4 && (
+      {/* Step 5 — Run & report */}
+      {step === 5 && (
         <MigrationRunConsole
           sourceTenant={sourceTenant}
           targetTenant={targetTenant}
           workloads={workloads}
           selection={selection}
+          userConfig={userConfig}
+          chatConfig={chatConfig}
           userMapping={userMapping}
           groupMapping={groupMapping}
           principalRules={principalRules}

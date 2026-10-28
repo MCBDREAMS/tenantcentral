@@ -5,16 +5,46 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function buildSelection(workloads, selection, userMapping, groupMapping) {
+function buildSelection(workloads, selection, userMapping, groupMapping, userConfig = {}, chatConfig = {}, settings = {}) {
   const items = [];
   const userByUpn = Object.fromEntries(userMapping.map((m) => [m.sourceUpn, m]));
   const groupById = Object.fromEntries(groupMapping.map((m) => [m.sourceId, m]));
 
   if (workloads.includes("mailboxes")) {
-    (selection.mailboxes || []).forEach((u) => {
-      const m = userByUpn[u.upn] || { action: "create", targetUpn: u.upn };
-      if (m.action === "skip") return;
-      items.push({ kind: "user", source: u, target: { upn: m.targetUpn, action: m.action } });
+    // Accounts picked in the accounts step carry their own mode (migrate into an existing
+    // target account vs create a brand-new one), target domain and mailbox options.
+    const accounts = Object.values(userConfig).filter((u) => u.selected && u.mode !== "skip");
+    accounts.forEach((u) => {
+      const m = userByUpn[u.upn] || {};
+      const targetUpn = m.targetUpn || (u.localPart && u.domain ? `${u.localPart}@${u.domain}` : u.upn);
+      items.push({
+        kind: "user",
+        source: { id: u.id, upn: u.upn, mail: u.mail, displayName: u.displayName, jobTitle: u.jobTitle, department: u.department },
+        target: { upn: targetUpn, mode: u.mode, action: u.mode === "migrate" ? "map" : "create" },
+        mailbox: u.includeMailbox && u.mail ? u.mailbox : null,
+      });
+    });
+    // Legacy batches built before the accounts step keep working from the mailbox tab.
+    if (accounts.length === 0) {
+      (selection.mailboxes || []).forEach((u) => {
+        const m = userByUpn[u.upn] || { action: "create", targetUpn: u.upn };
+        if (m.action === "skip") return;
+        items.push({ kind: "user", source: u, target: { upn: m.targetUpn, action: m.action } });
+      });
+    }
+  }
+  if (workloads.includes("chats")) {
+    // Each chat is recreated in the target with the participants mapped to their target UPNs.
+    const mapUpn = (upn) => userByUpn[upn]?.targetUpn || null;
+    Object.values(chatConfig).filter((c) => c.selected).forEach((c) => {
+      const chat = c.chat || {};
+      const members = (chat.members || []).map(mapUpn).filter(Boolean);
+      if (settings?.requireAllMembersMapped && members.length < (chat.members || []).length) return;
+      items.push({
+        kind: "chat",
+        source: { id: chat.id, chatType: chat.chatType, topic: chat.topic, members: chat.members || [] },
+        target: { topic: chat.topic, members },
+      });
     });
   }
   if (workloads.includes("groups")) {
@@ -51,7 +81,7 @@ function buildSelection(workloads, selection, userMapping, groupMapping) {
 // To avoid another round-trip, we resolve target user ids here via auto_map results if present.
 
 export default function MigrationRunConsole({
-  sourceTenant, targetTenant, workloads, selection, userMapping, groupMapping,
+  sourceTenant, targetTenant, workloads, selection, userConfig, chatConfig, userMapping, groupMapping,
   principalRules, copySettings, incremental, batchId, setBatchId,
 }) {
   const [name, setName] = useState(`Migration ${sourceTenant?.name} → ${targetTenant?.name}`);
@@ -75,7 +105,7 @@ export default function MigrationRunConsole({
 
   const createBatch = async () => {
     setError("");
-    let sel = buildSelection(workloads, selection, userMapping, groupMapping);
+    let sel = buildSelection(workloads, selection, userMapping, groupMapping, userConfig, chatConfig, copySettings);
     sel = resolveTargetUserIds(sel);
     if (sel.length === 0) { setError("No items to migrate. Go back and select source objects and mappings."); return null; }
     try {

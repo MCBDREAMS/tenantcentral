@@ -55,6 +55,34 @@ async function listSourceObjects(token, workload, top) {
     const t = await graphGetAll(token, `/groups?$filter=resourceProvisioningOptions/Any(x:x eq 'Team')&$select=id,displayName,description,mail,visibility,createdDateTime&$top=999`);
     return t.map(x => ({ id: x.id, displayName: x.displayName, description: x.description, mail: x.mail, visibility: x.visibility }));
   }
+  if (workload === 'chats') {
+    // Teams chats are enumerated per user (app-only Chat.Read.All). Members are returned by
+    // UPN so the wizard can match them to the target accounts picked for this migration.
+    const u = await graphGetAll(token, `/users?$select=id,displayName,userPrincipalName,userType&$top=999`);
+    const users = u.filter(x => x.userType !== 'Guest' && x.userPrincipalName).slice(0, Math.min(top || 40, 60));
+    const byId = new Map();
+    let denied = 0;
+    const results = await Promise.allSettled(users.map(usr =>
+      graphGet(token, `/users/${usr.id}/chats?$top=50&$expand=members`)
+    ));
+    for (const r of results) {
+      if (r.status === 'rejected') { denied++; continue; }
+      for (const c of (r.value?.value || [])) {
+        if (byId.has(c.id)) continue;
+        byId.set(c.id, {
+          id: c.id,
+          topic: c.topic || '',
+          chatType: c.chatType,
+          members: (c.members || []).map(m => m.email || m.userId || m.displayName).filter(Boolean),
+          lastUpdatedDateTime: c.lastUpdatedDateTime,
+        });
+      }
+    }
+    if (byId.size === 0 && denied > 0) {
+      throw new Error('Could not read Teams chats. Grant the application permission Chat.Read.All in the source tenant app registration (Chat.ReadWrite.All in the target for chat creation), then retry.');
+    }
+    return [...byId.values()].sort((a, b) => String(b.lastUpdatedDateTime || '').localeCompare(String(a.lastUpdatedDateTime || '')));
+  }
   return [];
 }
 
@@ -91,13 +119,47 @@ async function autoMap(srcToken, tgtToken, principalRules) {
 }
 
 // ── Live copy helpers (Graph writes into the TARGET tenant) ─────────────────
+// Summarise the Exchange work implied by the per-account mailbox options picked in the
+// wizard. Graph cannot move mailbox content, so these are recorded for the operator.
+function mailboxFollowUp(mb) {
+  if (!mb) return '';
+  const steps = [];
+  if (mb.includeArchive) steps.push('move the online archive');
+  if (mb.keepPermissions) steps.push('re-apply mailbox permissions (FullAccess / SendAs / Send on behalf)');
+  if (mb.keepDelegates) steps.push('re-apply calendar delegate access');
+  if (mb.keepRules) steps.push('re-create inbox rules');
+  if (mb.copyContacts) steps.push('copy contacts and tasks');
+  if (mb.keepLitigationHold) steps.push('re-enable litigation hold');
+  if (mb.convertToShared) steps.push('convert to shared after the move');
+  if (mb.forwardTo) steps.push(`set forwarding to ${mb.forwardTo}`);
+  return steps.length ? ' Exchange follow-up queued: ' + steps.join(', ') + '.' : '';
+}
+
 async function createTargetUser(token, item, settings) {
   const tgt = item.target;
+  const upn = tgt.upn;
+  const followUp = mailboxFollowUp(item.mailbox);
+
+  // "migrate" attaches the source identity to an account that already exists in the target;
+  // "create" provisions a brand-new account. Migrating falls back to create when the target
+  // account is not present, so a partially pre-provisioned tenant still completes.
+  if (tgt.mode === 'migrate' || tgt.action === 'map') {
+    try {
+      const existing = await graphGet(token, `/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName,displayName`);
+      if (existing?.id) {
+        if (settings.assignLicense && settings.targetSkuId) {
+          try { await graphPost(token, `/users/${existing.id}/assignLicense`, { addLicenses: [{ skuId: settings.targetSkuId }], removeLicenses: [] }); } catch (e) { /* non-fatal */ }
+        }
+        return { status: 'success', message: `Linked to the existing target account ${existing.userPrincipalName} — no new identity created. Mailbox content follows through the Exchange cross-tenant move.` + followUp };
+      }
+    } catch (e) { /* not present in the target → create below */ }
+  }
+
   const body = {
     accountEnabled: true,
-    displayName: item.source.displayName || localPart(tgt.upn),
-    mailNickname: localPart(tgt.upn),
-    userPrincipalName: tgt.upn,
+    displayName: item.source.displayName || localPart(upn),
+    mailNickname: localPart(upn),
+    userPrincipalName: upn,
     usageLocation: settings.usageLocation || 'US',
     passwordProfile: { password: genPassword(), forceChangePassword: true },
     jobTitle: item.source.jobTitle || null,
@@ -108,7 +170,7 @@ async function createTargetUser(token, item, settings) {
   if (settings.assignLicense && settings.targetSkuId) {
     try { await graphPost(token, `/users/${created.id}/assignLicense`, { addLicenses: [{ skuId: settings.targetSkuId }], removeLicenses: [] }); } catch (e) { /* non-fatal */ }
   }
-  return { status: 'success', message: `Identity created in target. Mailbox email body requires Exchange cross-tenant move request (New-MigrationBatch) — not moveable via Graph.` };
+  return { status: 'success', message: `New account created in the target (${upn}). Mailbox email body requires the Exchange cross-tenant move request (New-MigrationBatch) — not moveable via Graph.` + followUp };
 }
 
 async function createTargetGroup(token, item) {
@@ -216,6 +278,67 @@ async function runTeam(srcToken, tgtToken, item, settings, state) {
   return { status: 'success', message: `Team created; ${srcChannels.length} channel(s) processed, ${chCopied} with messages. 1:1 chat history is not migratable via Graph.`, partial: !!settings.includeTeamChats };
 }
 
+// Recreate one selected Teams chat in the target with its mapped participants, then copy
+// its message history best-effort. The target chat id is kept in the item state so
+// incremental re-runs post only new messages instead of creating a second chat.
+async function runChat(srcToken, tgtToken, item, settings, state) {
+  const members = (item.target?.members || []).filter(Boolean);
+  let chatId = state.chatId;
+
+  if (!chatId) {
+    if (members.length < 2) {
+      return { status: 'failed', message: 'Fewer than two participants are mapped to target accounts — map the participants in the accounts step first.' };
+    }
+    const resolved = [];
+    for (const upn of members) {
+      try {
+        const u = await graphGet(tgtToken, `/users/${encodeURIComponent(upn)}?$select=id`);
+        if (u?.id) resolved.push(u.id);
+      } catch (e) { /* participant missing in target — skipped */ }
+    }
+    if (resolved.length < 2) {
+      return { status: 'failed', message: 'The mapped participants could not be found in the target tenant. Create or link those accounts first, then re-run.' };
+    }
+    const chatType = item.source?.chatType === 'oneOnOne' && resolved.length === 2 && !settings.chatAsGroup ? 'oneOnOne' : 'group';
+    let created;
+    try {
+      created = await graphPost(tgtToken, '/chats', {
+        chatType,
+        topic: item.source?.topic || 'Migrated chat',
+        members: resolved.map(id => ({
+          '@odata.type': '#microsoft.graph.aadUserConversationMember',
+          roles: ['owner'],
+          'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${id}')`,
+        })),
+      });
+    } catch (e) {
+      return { status: 'failed', message: 'Chat creation failed: ' + e.message + ' (the target tenant app registration needs Chat.Create / Chat.ReadWrite.All application permission.)' };
+    }
+    chatId = created.id;
+    state.chatId = chatId;
+  }
+
+  let copied = 0;
+  try {
+    const msgs = await graphGet(srcToken, `/chats/${item.source.id}/messages?$top=${settings.maxChatMessagesPerRun || 25}`);
+    const ordered = (msgs.value || []).slice().reverse();
+    // Incremental re-runs continue after the messages already copied into this target chat.
+    const already = state.chatCopied || 0;
+    for (const m of ordered.slice(already)) {
+      try {
+        await graphPost(tgtToken, `/chats/${chatId}/messages`, {
+          body: { content: m.body?.content || '', contentType: m.body?.contentType || 'text' },
+        });
+        copied++;
+      } catch (e) { /* keep copying the rest */ }
+    }
+  } catch (e) {
+    return { status: 'success', partial: true, message: `Chat created (${chatId}); message history could not be read: ${e.message}` };
+  }
+  state.chatCopied = (state.chatCopied || 0) + copied;
+  return { status: 'success', partial: true, message: `Chat created (${chatId}); copied ${copied} message(s) this pass (${state.chatCopied} in total).` };
+}
+
 // ── Batch storage ───────────────────────────────────────────────────────────
 // A batch's inputs and per-item progress log are far past a record field's size limit, so
 // they are kept in private file storage (shared/largePayload.ts). Batches created before
@@ -274,6 +397,7 @@ async function runBatch(base44, user, body) {
       else if (item.kind === 'onedrive') result = await runOneDrive(srcToken, tgtToken, item, settings, state);
       else if (item.kind === 'sharepoint') result = await runSharePoint(srcToken, tgtToken, item, settings, state);
       else if (item.kind === 'team') result = await runTeam(srcToken, tgtToken, item, settings, state);
+      else if (item.kind === 'chat') result = await runChat(srcToken, tgtToken, item, settings, state);
       else result = { status: 'skipped', message: 'Unknown kind' };
     } catch (e) {
       result = { status: 'failed', message: e.message };
@@ -344,11 +468,18 @@ async function dryRun(base44, user, body) {
         else if (!verifiedDomains.has(domain)) {
           status = 'blocked';
           message = `Domain "${domain}" is not verified in the target tenant. Verify it there (or point this UPN at a target domain) before this user can be created — this is the usual blocker when keeping the source UPN.`;
+        } else if (item.target?.mode === 'migrate' || item.target?.action === 'map') {
+          if (targetUpns.has(upn.toLowerCase())) {
+            message = `Will link the source account to the existing target account ${upn} — no new identity is created.`;
+          } else {
+            status = 'warning';
+            message = `${upn} does not exist in the target yet, so it will be created as a new account instead of being linked. Point it at an existing target account or switch the account to "Create new".`;
+          }
         } else if (targetUpns.has(upn.toLowerCase())) {
           status = 'warning';
-          message = `${upn} already exists in the target tenant.`;
+          message = `${upn} already exists in the target tenant — creating a new account with this UPN will fail. Switch the account to "Migrate to existing account" to link it instead.`;
         } else {
-          message = `Ready to create ${upn} in the target tenant.`;
+          message = `Ready to create ${upn} as a new account in the target tenant.`;
         }
       } else if (item.kind === 'group') {
         const dn = item.target?.displayName || item.source?.displayName || 'group';
@@ -373,6 +504,15 @@ async function dryRun(base44, user, body) {
             status = 'blocked';
             message = 'Target OneDrive not provisioned — the target user must open OneDrive once (or provision via SharePoint admin) before files can be copied.';
           }
+        }
+      } else if (item.kind === 'chat') {
+        label = item.source?.topic || `Chat (${item.source?.chatType || 'chat'})`;
+        const mapped = item.target?.members || [];
+        if (mapped.length < 2) {
+          status = 'blocked';
+          message = 'Fewer than two participants are mapped to target accounts — map those accounts in the accounts step first.';
+        } else {
+          message = `Ready to create the chat in the target with ${mapped.length} participant(s) and copy its message history.`;
         }
       } else if (item.kind === 'sharepoint' || item.kind === 'team') {
         label = item.target?.displayName || item.source?.displayName || item.kind;
@@ -415,6 +555,29 @@ export default async function(req) {
       const token = await getAccessToken(source_azure_tenant_id, creds.clientId, creds.clientSecret);
       const objects = await listSourceObjects(token, workload, top);
       return Response.json({ success: true, workload, objects });
+    }
+
+    // Verified domains of the TARGET tenant — feeds the per-account domain picker.
+    if (action === 'list_domains') {
+      const { target_azure_tenant_id } = body;
+      if (!validateGuid(target_azure_tenant_id)) return Response.json({ error: 'Invalid target tenant id' }, { status: 400 });
+      const denied = await authorizeAdminAction(base44, user, [target_azure_tenant_id]);
+      if (denied) return denied;
+      const creds = await getTenantCreds(base44, target_azure_tenant_id);
+      const token = await getAccessToken(target_azure_tenant_id, creds.clientId, creds.clientSecret);
+      const domains = await graphGetAll(token, '/domains?$select=id,isVerified,isDefault,isInitial,authenticationType,supportedServices&$top=999');
+      // Only domains that can hold a user principal name: this drops the *.mail.onmicrosoft.com
+      // routing domain and SharePoint-specific subdomains.
+      const usable = domains.filter(d => d.isVerified && (!d.supportedServices || d.supportedServices.includes('Email')));
+      return Response.json({
+        success: true,
+        domains: usable.map(d => ({
+          domain: d.id,
+          isDefault: !!d.isDefault,
+          isInitial: !!d.isInitial,
+          authenticationType: d.authenticationType,
+        })),
+      });
     }
 
     if (action === 'auto_map') {
