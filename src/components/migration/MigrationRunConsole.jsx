@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import MigrationLiveDashboard from "@/components/migration/MigrationLiveDashboard";
 
 function buildSelection(workloads, selection, userMapping, groupMapping, userConfig = {}, chatConfig = {}, settings = {}) {
   const items = [];
@@ -190,9 +191,6 @@ export default function MigrationRunConsole({
     URL.revokeObjectURL(url);
   };
 
-  const done = progress?.done || 0;
-  const pct = total ? Math.round((done / total) * 100) : 0;
-
   return (
     <div className="space-y-4">
       <div className="bg-card border rounded-xl p-5 space-y-3">
@@ -222,22 +220,7 @@ export default function MigrationRunConsole({
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
-      {(progress || running) && (
-        <div className="bg-card border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Progress — {status}</span>
-            <span className="text-sm text-muted-foreground">{done}/{total} ({pct}%)</span>
-          </div>
-          <div className="h-3 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-          </div>
-          <div className="flex gap-4 mt-3 text-sm">
-            <span className="text-emerald-600">✓ {progress?.succeeded || 0}</span>
-            <span className="text-destructive">✕ {progress?.failed || 0}</span>
-            <span className="text-muted-foreground">skip {progress?.skipped || 0}</span>
-          </div>
-        </div>
-      )}
+      <MigrationLiveDashboard batchId={batchId} onSelectBatch={setBatchId} refreshKey={running} />
 
       {dryResults && (
         <div className="bg-card border rounded-xl p-5">
@@ -270,34 +253,6 @@ export default function MigrationRunConsole({
                       <span className="ml-1">{r.status}</span>
                     </td>
                     <td className="p-2 text-muted-foreground">{r.message}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {Object.keys(items).length > 0 && (
-        <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-medium mb-3">Item-level report</h3>
-          <div className="overflow-auto max-h-96 border rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-muted sticky top-0">
-                <tr><th className="text-left p-2">#</th><th className="text-left p-2">Status</th><th className="text-left p-2">Detail</th><th className="text-left p-2">Time</th></tr>
-              </thead>
-              <tbody>
-                {Object.entries(items).map(([k, v]) => (
-                  <tr key={k} className="border-t">
-                    <td className="p-2">{k}</td>
-                    <td className="p-2">
-                      {v.status === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> :
-                       v.status === "failed" ? <XCircle className="h-4 w-4 text-destructive inline" /> :
-                       <AlertCircle className="h-4 w-4 text-muted-foreground inline" />}
-                      <span className="ml-1">{v.status}</span>
-                    </td>
-                    <td className="p-2 text-muted-foreground">{v.message}</td>
-                    <td className="p-2 text-xs text-muted-foreground">{v.ts ? new Date(v.ts).toLocaleTimeString() : ""}</td>
                   </tr>
                 ))}
               </tbody>

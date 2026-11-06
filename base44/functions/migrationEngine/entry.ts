@@ -354,6 +354,16 @@ async function loadBatchInputs(base44, batch) {
   };
 }
 
+// Human label for one migration item — shown in the live progress dashboard.
+function itemLabel(item) {
+  if (item.kind === 'user') return item.target?.upn || item.source?.upn || 'User';
+  if (item.kind === 'onedrive') return item.target?.upn || item.source?.upn || 'OneDrive';
+  if (item.kind === 'group') return item.target?.displayName || item.source?.displayName || 'Group';
+  if (item.kind === 'chat') return item.source?.topic || `Chat (${item.source?.chatType || 'chat'})`;
+  if (item.kind === 'sharepoint' || item.kind === 'team') return item.target?.displayName || item.source?.displayName || item.kind;
+  return String(item.kind || 'item');
+}
+
 // ── Batch execution (chunked, time-bounded, incremental) ────────────────────
 async function runBatch(base44, user, body) {
   const batch = await base44.entities.MigrationBatch.get(body.batch_id);
@@ -380,17 +390,50 @@ async function runBatch(base44, user, body) {
   ]);
 
   let processed = 0;
+
+  // Live progress: the item about to be worked on is published to the batch record (and the
+  // per-item log to file storage) BEFORE its work starts, so a dashboard watching this batch
+  // can show what is processing right now and which accounts already finished.
+  const counts = () => {
+    let succeeded = 0, failed = 0, skipped = 0;
+    for (const k of Object.keys(itemsLog)) {
+      const s = itemsLog[k].status;
+      if (s === 'success') succeeded++;
+      else if (s === 'failed') failed++;
+      else if (s === 'skipped') skipped++;
+    }
+    return { succeeded, failed, skipped, done: succeeded + failed + skipped, total: selection.length };
+  };
+  const publish = async (current) => {
+    const c = counts();
+    const progress_file_uri = await putJson(base44, itemsLog, 'migration-progress');
+    await base44.entities.MigrationBatch.update(batch.id, {
+      // A batch that is actively working is running — this keeps the dashboard polling
+      // from the very first item instead of waiting for the pass to end.
+      status: 'running',
+      progress: JSON.stringify({
+        ...c,
+        current_index: current ? current.index : null,
+        current_label: current ? current.label : '',
+        current_since: current ? current.since : null,
+      }),
+      progress_file_uri,
+    });
+  };
+
   while (cursor < selection.length && processed < maxItems && Date.now() - start < SOFT_MS) {
     const idx = cursor;
     const item = selection[idx];
     const state = itemsLog[idx] || { fileCopied: [] };
-    let result;
 
     // Incremental skip: idempotent create kinds already succeeded are not re-run.
     if (state.status === 'success' && ['user', 'group'].includes(item.kind)) {
       cursor++; processed++; continue;
     }
 
+    await publish({ index: idx, label: itemLabel(item), since: nowISO() });
+
+    let result;
     try {
       if (item.kind === 'user') result = await createTargetUser(tgtToken, item, settings);
       else if (item.kind === 'group') result = await createTargetGroup(tgtToken, item);
@@ -407,7 +450,35 @@ async function runBatch(base44, user, body) {
     cursor++; processed++;
   }
 
-  // Recompute counts from the log.
+  const c = counts();
+  const done = cursor >= selection.length;
+  const status = done ? 'completed' : 'running';
+  await base44.entities.MigrationBatch.update(batch.id, {
+    cursor, status, last_run_at: nowISO(),
+    // The record keeps only the summary counts; the per-item log goes to file storage.
+    progress: JSON.stringify({ ...c, current_index: null, current_label: '', current_since: null }),
+    progress_file_uri: await putJson(base44, itemsLog, 'migration-progress'),
+  });
+  const summary = { ...c, items: itemsLog };
+  return Response.json({ success: true, status, cursor, total: selection.length, progress: summary, items: itemsLog });
+}
+
+// ── Live progress read model ────────────────────────────────────────────────
+// Everything the progress dashboard needs in one call: counts, the item being processed
+// right now, and every selected account/mailbox/object with its latest outcome.
+const ROW_CAP = 500;
+
+async function batchStatus(base44, user, body) {
+  const batch = await base44.entities.MigrationBatch.get(body.batch_id);
+  if (!batch) return Response.json({ error: 'Batch not found' }, { status: 404 });
+  const denied = await authorizeAdminAction(base44, user, [batch.source_azure_tenant_id, batch.target_azure_tenant_id]);
+  if (denied) return denied;
+  const inputs = await loadBatchInputs(base44, batch);
+  const selection = inputs.selection || [];
+  const meta = JSON.parse(batch.progress || '{}');
+  const itemsLog = batch.progress_file_uri ?
+  await getJson(base44, batch.progress_file_uri, 'migration-progress') : (meta.items || {});
+
   let succeeded = 0, failed = 0, skipped = 0;
   for (const k of Object.keys(itemsLog)) {
     const s = itemsLog[k].status;
@@ -415,16 +486,41 @@ async function runBatch(base44, user, body) {
     else if (s === 'failed') failed++;
     else if (s === 'skipped') skipped++;
   }
-  const done = cursor >= selection.length;
-  const status = done ? 'completed' : 'running';
-  const summary = { done: succeeded + failed + skipped, succeeded, failed, skipped, items: itemsLog };
-  await base44.entities.MigrationBatch.update(batch.id, {
-    cursor, status, last_run_at: nowISO(),
-    // The record keeps only the summary counts; the per-item log goes to file storage.
-    progress: JSON.stringify({ done: summary.done, succeeded, failed, skipped }),
-    progress_file_uri: await putJson(base44, itemsLog, 'migration-progress'),
+
+  const rows = selection.slice(0, ROW_CAP).map((item, index) => {
+    const log = itemsLog[index] || {};
+    return {
+      index,
+      kind: item.kind,
+      label: itemLabel(item),
+      source_upn: item.source?.upn || '',
+      // Mailbox rows are the accounts whose Exchange mailbox is in scope for this item.
+      mailbox: item.mailbox ? (item.source?.mail || item.source?.upn || '') : null,
+      mailbox_options: item.mailbox || null,
+      status: log.status || 'pending',
+      message: log.message || '',
+      ts: log.ts || null,
+    };
   });
-  return Response.json({ success: true, status, cursor, total: selection.length, progress: summary, items: itemsLog });
+
+  const currentIndex = meta.current_index == null ? null : meta.current_index;
+  return Response.json({
+    success: true,
+    batch: {
+      id: batch.id, name: batch.name, status: batch.status, cursor: batch.cursor || 0,
+      source_tenant_name: batch.source_tenant_name, target_tenant_name: batch.target_tenant_name,
+      workloads: batch.workloads, last_run_at: batch.last_run_at, incremental: !!batch.incremental,
+    },
+    counts: { total: selection.length, succeeded, failed, skipped, done: succeeded + failed + skipped },
+    current: currentIndex == null ? null : {
+      index: currentIndex,
+      label: meta.current_label || (rows[currentIndex]?.label ?? ''),
+      since: meta.current_since || null,
+      row: rows[currentIndex] || null,
+    },
+    rows,
+    truncated: selection.length > ROW_CAP,
+  });
 }
 
 // ── Dry run: validate every item against both tenants WITHOUT writing ──────
@@ -615,7 +711,7 @@ export default async function(req) {
         workloads: (body.workloads || []).join(','),
         payload_file_uri,
         status: 'planned', cursor: 0, incremental: !!body.incremental,
-        progress: JSON.stringify({ done: 0, succeeded: 0, failed: 0, skipped: 0 }),
+        progress: JSON.stringify({ done: 0, succeeded: 0, failed: 0, skipped: 0, total: (body.selection || []).length }),
         created_by: user.email,
       });
       return Response.json({ success: true, batch_id: rec.id });
@@ -623,6 +719,31 @@ export default async function(req) {
 
     if (action === 'run') {
       return await runBatch(base44, user, body);
+    }
+
+    // Live progress dashboard: one poll returns counts, the item processing right now and
+    // every selected account/mailbox with its latest outcome.
+    if (action === 'batch_status') {
+      if (!body.batch_id) return Response.json({ error: 'batch_id is required' }, { status: 400 });
+      return await batchStatus(base44, user, body);
+    }
+
+    // Batches this user may read, for reopening the dashboard after a page reload.
+    if (action === 'list_batches') {
+      const page = await base44.entities.MigrationBatch.filter({}, { sort: '-created_date', limit: 15 });
+      const batches = Array.isArray(page) ? page : (page.items || []);
+      return Response.json({
+        success: true,
+        batches: batches.map(b => {
+          const meta = JSON.parse(b.progress || '{}');
+          return {
+            id: b.id, name: b.name, status: b.status,
+            source_tenant_name: b.source_tenant_name, target_tenant_name: b.target_tenant_name,
+            workloads: b.workloads, last_run_at: b.last_run_at, created_date: b.created_date,
+            progress: { done: meta.done || 0, succeeded: meta.succeeded || 0, failed: meta.failed || 0, skipped: meta.skipped || 0, total: meta.total || 0 },
+          };
+        }),
+      });
     }
 
     if (action === 'dry_run') {
