@@ -19,7 +19,7 @@ export default function MigrationMapping({
     try {
       const res = await base44.functions.invoke("migrationEngine", {
         action: "auto_map",
-        source_azure_tenant_id: sourceTenant.tenant_id,
+        source_azure_tenant_id: sourceTenant?.tenant_id,
         target_azure_tenant_id: targetTenant.tenant_id,
         principal_replace_rules: principalRules,
       });
@@ -84,7 +84,7 @@ export default function MigrationMapping({
             <Button size="icon" variant="ghost" onClick={() => removeRule(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
           </div>
         ))}
-        <Button className="mt-2" onClick={autoMap} disabled={autoLoading}>
+        <Button className="mt-2" onClick={autoMap} disabled={autoLoading || !sourceTenant?.tenant_id}>
           {autoLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wand2 className="h-4 w-4 mr-2" />}
           Auto-map users & groups
         </Button>

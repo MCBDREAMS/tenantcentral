@@ -176,6 +176,11 @@ export default function MigrationLiveDashboard({ batchId, onSelectBatch, refresh
               </span>
             )}
             {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {batch?.source_kind === "onprem" && (
+              <span className="text-xs px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 whitespace-nowrap">
+                On-prem source
+              </span>
+            )}
             <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLE[batch?.status] || STATUS_STYLE.planned}`}>
               {batch?.status || "loading"}
             </span>

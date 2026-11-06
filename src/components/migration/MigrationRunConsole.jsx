@@ -20,7 +20,11 @@ function buildSelection(workloads, selection, userMapping, groupMapping, userCon
       const targetUpn = m.targetUpn || (u.localPart && u.domain ? `${u.localPart}@${u.domain}` : u.upn);
       items.push({
         kind: "user",
-        source: { id: u.id, upn: u.upn, mail: u.mail, displayName: u.displayName, jobTitle: u.jobTitle, department: u.department },
+        source: {
+          id: u.id, upn: u.upn, mail: u.mail, displayName: u.displayName, jobTitle: u.jobTitle, department: u.department,
+          // On-premises rows carry the AD identity details that make the target account continuous.
+          givenName: u.givenName, surname: u.surname, onPremisesImmutableId: u.immutableId, onprem: !!u.onprem,
+        },
         target: { upn: targetUpn, mode: u.mode, action: u.mode === "migrate" ? "map" : "create" },
         mailbox: u.includeMailbox && u.mail ? u.mailbox : null,
       });
@@ -84,8 +88,11 @@ function buildSelection(workloads, selection, userMapping, groupMapping, userCon
 export default function MigrationRunConsole({
   sourceTenant, targetTenant, workloads, selection, userConfig, chatConfig, userMapping, groupMapping,
   principalRules, copySettings, incremental, batchId, setBatchId,
+  sourceKind = "m365", sourceScanId = "", sourceLabel = "",
 }) {
-  const [name, setName] = useState(`Migration ${sourceTenant?.name} → ${targetTenant?.name}`);
+  const onprem = sourceKind === "onprem";
+  const sourceName = onprem ? (sourceLabel || "on-premises server") : (sourceTenant?.name || "source");
+  const [name, setName] = useState(`Migration ${sourceName} → ${targetTenant?.name || ""}`);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(null);
   const [items, setItems] = useState({});
@@ -112,8 +119,13 @@ export default function MigrationRunConsole({
     try {
       const res = await base44.functions.invoke("migrationEngine", {
         action: "create_batch",
-        name, source_azure_tenant_id: sourceTenant.tenant_id, target_azure_tenant_id: targetTenant.tenant_id,
-        source_tenant_name: sourceTenant.name, target_tenant_name: targetTenant.name,
+        name,
+        source_kind: sourceKind,
+        source_scan_id: onprem ? sourceScanId : "",
+        source_label: onprem ? sourceLabel : "",
+        source_azure_tenant_id: onprem ? "" : sourceTenant?.tenant_id,
+        target_azure_tenant_id: targetTenant?.tenant_id,
+        source_tenant_name: sourceName, target_tenant_name: targetTenant?.name,
         workloads, selection: sel, user_mapping: userMapping, group_mapping: groupMapping,
         principal_replace_rules: principalRules, copy_settings: copySettings, incremental,
       });

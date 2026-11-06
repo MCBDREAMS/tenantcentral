@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowRightLeft, Check, ChevronsRight } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronsRight, Server } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
 import PageHeader from "@/components/shared/PageHeader";
@@ -11,6 +11,9 @@ import MigrationAccountsStep from "@/components/migration/MigrationAccountsStep"
 import MigrationMapping from "@/components/migration/MigrationMapping";
 import MigrationCopySettings from "@/components/migration/MigrationCopySettings";
 import MigrationRunConsole from "@/components/migration/MigrationRunConsole";
+import OnPremAgentPicker from "@/components/migration/OnPremAgentPicker";
+import OnPremSourceStep from "@/components/migration/OnPremSourceStep";
+import OnPremAccountsStep from "@/components/migration/OnPremAccountsStep";
 
 const WORKLOADS = [
   { id: "mailboxes", label: "Exchange Mailboxes", kind: "users", note: "Identity + mailbox (body via Exchange move request)" },
@@ -20,6 +23,14 @@ const WORKLOADS = [
   { id: "teams", label: "Teams (channels)", kind: "teams", note: "Team, channels, channel messages (best-effort)" },
   { id: "groups", label: "Users & Groups", kind: "groups", note: "Identities created in target" },
 ];
+
+// An on-premises source only carries directory objects: the agent scans AD, not mail or files.
+const ONPREM_WORKLOADS = [
+  { id: "mailboxes", label: "AD accounts (identities)", kind: "users", note: "Created in the target with ObjectGUID as ImmutableID" },
+  { id: "groups", label: "AD groups", kind: "groups", note: "Security groups from the memberships in the agent scan" },
+];
+
+const M365_WORKLOADS = ["mailboxes", "chats", "onedrive", "sharepoint", "teams", "groups"];
 
 const STEPS = ["Scope", "Select Source", "Accounts & Domains", "Map & Replace", "Copy Settings", "Run & Report"];
 
@@ -41,9 +52,11 @@ export default function ShareGateConsole() {
   const tenants = useMemo(() => filterTenants(allTenants) || [], [allTenants, rbac]);
 
   const [step, setStep] = useState(0);
+  const [sourceMode, setSourceMode] = useState("m365"); // "m365" | "onprem"
+  const [onpremScan, setOnpremScan] = useState(null); // AdAgentScan summary chosen as the source
   const [sourceTenantId, setSourceTenantId] = useState("");
   const [targetTenantId, setTargetTenantId] = useState("");
-  const [workloads, setWorkloads] = useState(["mailboxes", "chats", "onedrive", "sharepoint", "teams", "groups"]);
+  const [workloads, setWorkloads] = useState(M365_WORKLOADS);
   const [incremental, setIncremental] = useState(true);
   const [selection, setSelection] = useState({}); // content objects: {workload: [objects]}
   const [userConfig, setUserConfig] = useState({}); // per-account selection, mode, domain, mailbox options
@@ -73,6 +86,23 @@ export default function ShareGateConsole() {
   }, [targetTenantId]);
 
   const toggleWorkload = (id) => setWorkloads((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
+
+  // Switching source type invalidates everything chosen for the previous source — the account
+  // rows and object selections belong to one source, so they are dropped rather than mixed.
+  const switchSource = (mode) => {
+    if (mode === sourceMode) return;
+    setSourceMode(mode);
+    setWorkloads(mode === "onprem" ? ONPREM_WORKLOADS.map((w) => w.id) : M365_WORKLOADS);
+    setSelection({});
+    setUserConfig({});
+    setChatConfig({});
+    setGroupMapping([]);
+    setBatchId(null);
+  };
+
+  const onpremLabel = onpremScan
+    ? `${onpremScan.domain}${onpremScan.hostname ? ` (${onpremScan.hostname})` : ""}`
+    : "";
 
   // The accounts step is the single source of truth for users: mapping rows (and therefore
   // the migration payload) are derived from it, so mode and domain always match what was picked.
@@ -113,10 +143,15 @@ export default function ShareGateConsole() {
   const chatsSelected = Object.values(chatConfig).some((c) => c.selected);
 
   const canNext =
-    step === 0 ? !!sourceTenantId && !!targetTenantId && sourceTenantId !== targetTenantId && workloads.length > 0
-    : step === 1 ? pickerWorkloads.length === 0 || Object.values(selection).some((arr) => arr && arr.length > 0)
+    step === 0 ? (sourceMode === "onprem"
+        ? !!onpremScan?.id && !!targetTenantId && workloads.length > 0
+        : !!sourceTenantId && !!targetTenantId && sourceTenantId !== targetTenantId && workloads.length > 0)
+    : step === 1 ? (sourceMode === "onprem"
+        ? !!onpremScan?.id
+        : pickerWorkloads.length === 0 || Object.values(selection).some((arr) => arr && arr.length > 0))
     : step === 2 ? accountsSelected || chatsSelected ||
-        (!workloads.includes("mailboxes") && !workloads.includes("chats"))
+        Object.values(selection).some((arr) => arr && arr.length > 0) ||
+        (!workloads.includes("mailboxes") && !workloads.includes("chats") && !workloads.includes("groups"))
     : step === 3 ? userMapping.length > 0 || groupMapping.length > 0 || chatsSelected
     : true;
 
@@ -124,7 +159,7 @@ export default function ShareGateConsole() {
     <div className="p-6 max-w-6xl mx-auto">
       <PageHeader
         title="Tenant-to-Tenant Migration"
-        subtitle="ShareGate-style live cross-tenant migration console"
+        subtitle="Live migration console — tenant-to-tenant or on-premises AD to Microsoft 365"
         icon={ArrowRightLeft}
       />
 
@@ -153,15 +188,44 @@ export default function ShareGateConsole() {
       {/* Step 0 — Scope */}
       {step === 0 && (
         <div className="bg-card border rounded-xl p-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium">Migration source</span>
+            <div className="inline-flex rounded-lg border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => switchSource("m365")}
+                className={`px-3 py-1.5 text-sm ${sourceMode === "m365" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
+              >
+                Microsoft 365 tenant
+              </button>
+              <button
+                type="button"
+                onClick={() => switchSource("onprem")}
+                className={`px-3 py-1.5 text-sm border-l flex items-center gap-1.5 ${sourceMode === "onprem" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
+              >
+                <Server className="h-3.5 w-3.5" />On-premises server
+              </button>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Source tenant</label>
-              <Select value={sourceTenantId} onValueChange={setSourceTenantId}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select source tenant" /></SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t) => <SelectItem key={t.id} value={t.tenant_id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {sourceMode === "m365" ? (
+                <>
+                  <label className="text-sm font-medium">Source tenant</label>
+                  <Select value={sourceTenantId} onValueChange={setSourceTenantId}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select source tenant" /></SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((t) => <SelectItem key={t.id} value={t.tenant_id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <label className="text-sm font-medium">On-premises server (AD agent)</label>
+                  <div className="mt-1"><OnPremAgentPicker scanId={onpremScan?.id || ""} onSelect={setOnpremScan} /></div>
+                </>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">Target tenant</label>
@@ -173,13 +237,13 @@ export default function ShareGateConsole() {
               </Select>
             </div>
           </div>
-          {sourceTenantId && targetTenantId && sourceTenantId === targetTenantId && (
+          {sourceMode === "m365" && sourceTenantId && targetTenantId && sourceTenantId === targetTenantId && (
             <p className="text-sm text-destructive">Source and target tenants must be different.</p>
           )}
           <div>
             <label className="text-sm font-medium">Workloads to migrate</label>
             <div className="grid md:grid-cols-2 gap-2 mt-2">
-              {WORKLOADS.map((w) => (
+              {(sourceMode === "onprem" ? ONPREM_WORKLOADS : WORKLOADS).map((w) => (
                 <label key={w.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/40 cursor-pointer">
                   <Checkbox checked={workloads.includes(w.id)} onCheckedChange={() => toggleWorkload(w.id)} />
                   <div>
@@ -198,7 +262,8 @@ export default function ShareGateConsole() {
       )}
 
       {/* Step 1 — Select source content objects */}
-      {step === 1 && sourceTenant && (
+      {step === 1 && sourceMode === "onprem" && <OnPremSourceStep scan={onpremScan} />}
+      {step === 1 && sourceMode === "m365" && sourceTenant && (
         pickerWorkloads.length === 0 ? (
           <div className="bg-card border rounded-xl p-5 text-sm text-muted-foreground">
             No file, site or team content is in scope — continue to accounts &amp; domains.
@@ -214,7 +279,18 @@ export default function ShareGateConsole() {
       )}
 
       {/* Step 2 — Per-account selection, migrate vs create, target domain, mailboxes & chats */}
-      {step === 2 && sourceTenant && (
+      {step === 2 && sourceMode === "onprem" && onpremScan && (
+        <OnPremAccountsStep
+          scanId={onpremScan.id}
+          domains={domains}
+          workloads={workloads}
+          userConfig={userConfig}
+          setUserConfig={setUserConfig}
+          selection={selection}
+          setSelection={setSelection}
+        />
+      )}
+      {step === 2 && sourceMode === "m365" && sourceTenant && (
         <MigrationAccountsStep
           sourceTenant={sourceTenant}
           domains={domains}
@@ -258,6 +334,9 @@ export default function ShareGateConsole() {
         <MigrationRunConsole
           sourceTenant={sourceTenant}
           targetTenant={targetTenant}
+          sourceKind={sourceMode}
+          sourceScanId={onpremScan?.id || ""}
+          sourceLabel={onpremLabel}
           workloads={workloads}
           selection={selection}
           userConfig={userConfig}

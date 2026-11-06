@@ -6,9 +6,26 @@
       "type": "string",
       "description": "Migration batch name"
     },
+    "source_kind": {
+      "type": "string",
+      "enum": [
+        "m365",
+        "onprem"
+      ],
+      "default": "m365",
+      "description": "Where the content comes from: another Microsoft 365 tenant, or an on-premises AD server through the migration agent"
+    },
+    "source_scan_id": {
+      "type": "string",
+      "description": "AdAgentScan record id for on-premises batches"
+    },
+    "source_label": {
+      "type": "string",
+      "description": "Human source label for on-premises batches, e.g. 'contoso.local (DC01)'"
+    },
     "source_azure_tenant_id": {
       "type": "string",
-      "description": "Azure Tenant GUID being migrated FROM"
+      "description": "Azure Tenant GUID being migrated FROM (empty for on-premises batches)"
     },
     "source_tenant_name": {
       "type": "string"
@@ -88,7 +105,6 @@
   },
   "required": [
     "name",
-    "source_azure_tenant_id",
     "target_azure_tenant_id"
   ],
   "rls": {

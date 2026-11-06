@@ -12,6 +12,9 @@ function genPassword() {
   return 'Mig' + rnd.slice(0, 14) + '!1Aa';
 }
 function localPart(upn) { return (upn || '').split('@')[0] || 'user'; }
+// Graph mailNickname accepts only letters, digits, dot, hyphen and underscore — an AD group
+// name with spaces (very common on-prem) would be rejected as-is.
+function nickname(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 60) || 'group'; }
 function nowISO() { return new Date().toISOString(); }
 function validateGuid(id) { return id && GUID.test(id); }
 
@@ -166,9 +169,17 @@ async function createTargetUser(token, item, settings) {
     department: item.source.department || null,
   };
   if (item.source.onPremisesImmutableId) body.onPremisesImmutableId = item.source.onPremisesImmutableId;
+  if (item.source.givenName) body.givenName = item.source.givenName;
+  if (item.source.surname) body.surname = item.source.surname;
   const created = await graphPost(token, '/users', body);
   if (settings.assignLicense && settings.targetSkuId) {
     try { await graphPost(token, `/users/${created.id}/assignLicense`, { addLicenses: [{ skuId: settings.targetSkuId }], removeLicenses: [] }); } catch (e) { /* non-fatal */ }
+  }
+  if (item.source.onprem) {
+    const idNote = item.source.onPremisesImmutableId
+      ? ' ImmutableID set from the AD ObjectGUID, so the account keeps identity continuity with on-premises AD.'
+      : ' No ImmutableID came through for this account — run a fresh agent scan if you need hard-match continuity.';
+    return { status: 'success', message: `On-premises account provisioned in the target as ${upn}.${idNote} Mailbox and file-share content stays on-prem until that data is cut over.` };
   }
   return { status: 'success', message: `New account created in the target (${upn}). Mailbox email body requires the Exchange cross-tenant move request (New-MigrationBatch) — not moveable via Graph.` + followUp };
 }
@@ -176,7 +187,7 @@ async function createTargetUser(token, item, settings) {
 async function createTargetGroup(token, item) {
   const src = item.source;
   const isUnified = (src.groupTypes || []).includes('Unified');
-  const body = { displayName: item.target.displayName, description: src.description || '', mailNickname: localPart(src.mail || item.target.displayName) };
+  const body = { displayName: item.target.displayName, description: src.description || '', mailNickname: src.mail ? localPart(src.mail) : nickname(item.target.displayName) };
   if (isUnified) { body.groupTypes = ['Unified']; body.mailEnabled = true; body.securityEnabled = false; body.visibility = src.visibility || 'Public'; }
   else { body.groupTypes = []; body.mailEnabled = !!src.mailEnabled; body.securityEnabled = src.securityEnabled !== false; }
   const g = await graphPost(token, '/groups', body);
@@ -380,14 +391,16 @@ async function runBatch(base44, user, body) {
   let cursor = body.reset ? 0 : (batch.cursor || 0);
   const start = Date.now();
 
-  const [srcCreds, tgtCreds] = await Promise.all([
-    getTenantCreds(base44, batch.source_azure_tenant_id),
-    getTenantCreds(base44, batch.target_azure_tenant_id),
-  ]);
-  const [srcToken, tgtToken] = await Promise.all([
-    getAccessToken(batch.source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret),
-    getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret),
-  ]);
+  // On-prem batches have no source tenant — their items are built from the agent scan, so only
+  // the target token is needed (file/OneDrive kinds never appear in those batches).
+  const onpremSource = batch.source_kind === 'onprem';
+  const tgtCreds = await getTenantCreds(base44, batch.target_azure_tenant_id);
+  const tgtToken = await getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret);
+  let srcToken = null;
+  if (!onpremSource) {
+    const srcCreds = await getTenantCreds(base44, batch.source_azure_tenant_id);
+    srcToken = await getAccessToken(batch.source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret);
+  }
 
   let processed = 0;
 
@@ -508,6 +521,7 @@ async function batchStatus(base44, user, body) {
     success: true,
     batch: {
       id: batch.id, name: batch.name, status: batch.status, cursor: batch.cursor || 0,
+      source_kind: batch.source_kind || 'm365', source_label: batch.source_label || '',
       source_tenant_name: batch.source_tenant_name, target_tenant_name: batch.target_tenant_name,
       workloads: batch.workloads, last_run_at: batch.last_run_at, incremental: !!batch.incremental,
     },
@@ -532,14 +546,9 @@ async function dryRun(base44, user, body) {
   const inputs = await loadBatchInputs(base44, batch);
   const selection = inputs.selection;
 
-  const [srcCreds, tgtCreds] = await Promise.all([
-    getTenantCreds(base44, batch.source_azure_tenant_id),
-    getTenantCreds(base44, batch.target_azure_tenant_id),
-  ]);
-  const [srcToken, tgtToken] = await Promise.all([
-    getAccessToken(batch.source_azure_tenant_id, srcCreds.clientId, srcCreds.clientSecret),
-    getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret),
-  ]);
+  // Validation only ever reads the target tenant, and an on-prem batch has no source tenant.
+  const tgtCreds = await getTenantCreds(base44, batch.target_azure_tenant_id);
+  const tgtToken = await getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret);
   const [tgtUsers, tgtGroups, tgtDomains] = await Promise.all([
     graphGetAll(tgtToken, '/users?$select=id,userPrincipalName,mail,userType&$top=999'),
     graphGetAll(tgtToken, '/groups?$select=id,displayName,mail&$top=999'),
@@ -690,10 +699,69 @@ export default async function(req) {
       return Response.json({ success: true, ...mapping });
     }
 
+    // ── On-premises source (AD agent scans) ──────────────────────────────────
+    // The on-prem agent posts its AD scans to adAgentReceiver. These two actions surface them in
+    // the shape the migration wizard needs, without shipping every scan's raw user payload.
+    if (action === 'onprem_scans') {
+      const denied = await authorizeAdminAction(base44, user, []);
+      if (denied) return denied;
+      const scans = await base44.asServiceRole.entities.AdAgentScan.list('-scan_time', 20);
+      return Response.json({
+        success: true,
+        scans: (scans || []).map(s => ({
+          id: s.id, hostname: s.hostname, domain: s.domain, forest: s.forest,
+          scan_time: s.scan_time, user_count: s.user_count, group_count: s.group_count, status: s.status,
+        })),
+      });
+    }
+
+    if (action === 'onprem_users') {
+      const denied = await authorizeAdminAction(base44, user, []);
+      if (denied) return denied;
+      const { scan_id } = body;
+      if (!scan_id) return Response.json({ error: 'scan_id is required' }, { status: 400 });
+      const scans = await base44.asServiceRole.entities.AdAgentScan.filter({ id: scan_id });
+      if (!scans.length) return Response.json({ error: 'Agent scan not found' }, { status: 404 });
+      const scan = scans[0];
+      const raw = JSON.parse(scan.users_payload || '[]');
+      const users = raw.map(u => ({
+        id: u.upn || u.samAccountName || u.objectGuid,
+        upn: u.upn || (u.samAccountName ? `${u.samAccountName}@${scan.domain}` : ''),
+        mail: u.mail || '',
+        samAccountName: u.samAccountName || '',
+        displayName: u.displayName || u.samAccountName || u.upn || '',
+        givenName: u.givenName || '',
+        surname: u.surname || '',
+        department: u.department || '',
+        jobTitle: u.title || '',
+        enabled: u.enabled !== false,
+        immutableId: u.immutableId || '',
+        ou: u.ou || '',
+        groups: String(u.groups || '').split('|').filter(Boolean),
+      })).filter(u => u.upn);
+      // Groups come from the memberships the scan recorded, so a group only appears when at
+      // least one scanned user belongs to it.
+      const counts = new Map();
+      users.forEach(u => u.groups.forEach(g => counts.set(g, (counts.get(g) || 0) + 1)));
+      const groups = [...counts.entries()]
+        .map(([name, members]) => ({ id: name, displayName: name, memberCount: members }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+      return Response.json({
+        success: true, users, groups,
+        scan: {
+          id: scan.id, hostname: scan.hostname, domain: scan.domain, forest: scan.forest,
+          scan_time: scan.scan_time, user_count: scan.user_count, group_count: scan.group_count,
+        },
+      });
+    }
+
     if (action === 'create_batch') {
       const { source_azure_tenant_id, target_azure_tenant_id } = body;
-      if (!validateGuid(source_azure_tenant_id) || !validateGuid(target_azure_tenant_id)) return Response.json({ error: 'Invalid tenant id' }, { status: 400 });
-      const denied = await authorizeAdminAction(base44, user, [source_azure_tenant_id, target_azure_tenant_id]);
+      // An on-premises batch describes its source with an agent scan instead of a source tenant.
+      const onprem = body.source_kind === 'onprem';
+      if (!validateGuid(target_azure_tenant_id)) return Response.json({ error: 'Invalid target tenant id' }, { status: 400 });
+      if (!onprem && !validateGuid(source_azure_tenant_id)) return Response.json({ error: 'Invalid source tenant id' }, { status: 400 });
+      const denied = await authorizeAdminAction(base44, user, [onprem ? null : source_azure_tenant_id, target_azure_tenant_id]);
       if (denied) return denied;
       // The inputs (selection, mappings, rules, settings) are far too large for a record
       // field, so they are written to private file storage and referenced by uri.
@@ -706,7 +774,10 @@ export default async function(req) {
       }, 'migration-inputs');
       const rec = await base44.entities.MigrationBatch.create({
         name: body.name || 'Migration batch',
-        source_azure_tenant_id, target_azure_tenant_id,
+        source_kind: onprem ? 'onprem' : 'm365',
+        source_scan_id: onprem ? (body.source_scan_id || '') : '',
+        source_label: onprem ? (body.source_label || '') : '',
+        source_azure_tenant_id: onprem ? '' : source_azure_tenant_id, target_azure_tenant_id,
         source_tenant_name: body.source_tenant_name, target_tenant_name: body.target_tenant_name,
         workloads: (body.workloads || []).join(','),
         payload_file_uri,
@@ -737,7 +808,7 @@ export default async function(req) {
         batches: batches.map(b => {
           const meta = JSON.parse(b.progress || '{}');
           return {
-            id: b.id, name: b.name, status: b.status,
+            id: b.id, name: b.name, status: b.status, source_kind: b.source_kind || 'm365',
             source_tenant_name: b.source_tenant_name, target_tenant_name: b.target_tenant_name,
             workloads: b.workloads, last_run_at: b.last_run_at, created_date: b.created_date,
             progress: { done: meta.done || 0, succeeded: meta.succeeded || 0, failed: meta.failed || 0, skipped: meta.skipped || 0, total: meta.total || 0 },
