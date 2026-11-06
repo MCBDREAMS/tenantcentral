@@ -800,8 +800,10 @@ export default async function(req) {
     }
 
     // Batches this user may read, for reopening the dashboard after a page reload.
+    // Scoped to the caller: platform admins see every batch, everyone else only their own.
     if (action === 'list_batches') {
-      const page = await base44.entities.MigrationBatch.filter({}, { sort: '-created_date', limit: 15 });
+      const query = user.role === 'admin' ? {} : { created_by_id: user.id };
+      const page = await base44.entities.MigrationBatch.filter(query, { sort: '-created_date', limit: 15 });
       const batches = Array.isArray(page) ? page : (page.items || []);
       return Response.json({
         success: true,
@@ -821,15 +823,16 @@ export default async function(req) {
       return await dryRun(base44, user, body);
     }
 
-    if (action === 'reset') {
-      const batch = await base44.entities.MigrationBatch.get(body.batch_id);
+    // Resuming/pausing a batch touches a specific tenant pair, so it runs the same
+    // authorization gate as run/dry_run/batch_status instead of trusting the batch id.
+    if (action === 'reset' || action === 'pause') {
+      if (!body.batch_id) return Response.json({ error: 'batch_id is required' }, { status: 400 });
+      const batch = await base44.entities.MigrationBatch.get(body.batch_id).catch(() => null);
       if (!batch) return Response.json({ error: 'Batch not found' }, { status: 404 });
-      await base44.entities.MigrationBatch.update(batch.id, { cursor: 0, status: 'running' });
-      return Response.json({ success: true });
-    }
-
-    if (action === 'pause') {
-      await base44.entities.MigrationBatch.update(body.batch_id, { status: 'paused' });
+      const denied = await authorizeAdminAction(base44, user, [batch.source_azure_tenant_id, batch.target_azure_tenant_id]);
+      if (denied) return denied;
+      const patch = action === 'reset' ? { cursor: 0, status: 'running' } : { status: 'paused' };
+      await base44.entities.MigrationBatch.update(batch.id, patch);
       return Response.json({ success: true });
     }
 

@@ -14,6 +14,11 @@ const SCRIPT_PERMISSION_HINT = "Microsoft Graph refused the request (403 Forbidd
 
 // Graph helpers (getAccessToken, graphGet, graphGetBeta, graphGetAll) imported from shared/graphClient.ts
 
+// Every identifier that arrives in a request body is encoded before it is placed in a
+// Graph path. Without this, a value such as "x/../users/..." or "id?$filter=..." would
+// pivot the request to a different Graph endpoint under the tenant's app token.
+const enc = (value: unknown) => encodeURIComponent(String(value ?? ""));
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -61,8 +66,8 @@ Deno.serve(async (req) => {
     if (action === "get_mailbox") {
       const { user_id } = body;
       const [details, mailSettings] = await Promise.all([
-        graphGet(token, `/users/${user_id}?$select=id,displayName,mail,userPrincipalName,accountEnabled,jobTitle,department,assignedLicenses,createdDateTime,lastPasswordChangeDateTime`),
-        graphGet(token, `/users/${user_id}/mailboxSettings`).catch(() => ({})),
+        graphGet(token, `/users/${enc(user_id)}?$select=id,displayName,mail,userPrincipalName,accountEnabled,jobTitle,department,assignedLicenses,createdDateTime,lastPasswordChangeDateTime`),
+        graphGet(token, `/users/${enc(user_id)}/mailboxSettings`).catch(() => ({})),
       ]);
       return Response.json({ success: true, details, mailSettings });
     }
@@ -98,7 +103,7 @@ Deno.serve(async (req) => {
       if (alertStatus) patchBody.status = alertStatus;
       if (classification) patchBody.classification = classification;
       if (determination) patchBody.determination = determination;
-      const res = await fetch(`https://graph.microsoft.com/v1.0/security/alerts_v2/${alert_id}`, {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/security/alerts_v2/${enc(alert_id)}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(patchBody)
@@ -166,7 +171,7 @@ Deno.serve(async (req) => {
       const userRes = await graphGet(token, `/users/${encodeURIComponent(user_upn)}?$select=id`);
       const userId = userRes.id;
       if (!userId) return Response.json({ methods: [] });
-      const methodsRes = await graphGet(token, `/users/${userId}/authentication/methods`);
+      const methodsRes = await graphGet(token, `/users/${enc(userId)}/authentication/methods`);
       return Response.json({ success: true, methods: methodsRes.value || [] });
     }
 
@@ -190,10 +195,10 @@ Deno.serve(async (req) => {
     if (action === "get_device_updates") {
       const { device_id } = body;
       const [protectionState, compliancePolicies, configStates, deviceDetail] = await Promise.all([
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/windowsProtectionState`).catch(() => ({})),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}?$select=id,deviceName,osVersion,complianceState,lastSyncDateTime,lastLogOnDateTime`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/windowsProtectionState`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}?$select=id,deviceName,osVersion,complianceState,lastSyncDateTime,lastLogOnDateTime`).catch(() => ({})),
       ]);
       // Filter update-related config/compliance states
       const updatePolicies = (compliancePolicies.value || []).filter(p =>
@@ -220,7 +225,7 @@ Deno.serve(async (req) => {
     // ── Intune: remediate device (sync/scan) ─────────────────────────────────
     if (action === "remediate_device") {
       const { device_id, remediation_type } = body;
-      let url = `https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/`;
+      let url = `https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}/`;
       if (remediation_type === "sync") url += "syncDevice";
       else if (remediation_type === "defender_scan_quick") url += "windowsDefenderScan";
       else if (remediation_type === "defender_scan_full") url += "windowsDefenderScan";
@@ -250,10 +255,10 @@ Deno.serve(async (req) => {
     if (action === "get_device_detail") {
       const { device_id } = body;
       const [detail, health, configStatuses, compliancePolicies] = await Promise.all([
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}`),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceHealthAttestationState`).catch(() => ({})),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}`),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceHealthAttestationState`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
       ]);
       return Response.json({
         success: true,
@@ -267,7 +272,7 @@ Deno.serve(async (req) => {
     // ── Intune: get device script deployment status ──────────────────────────
     if (action === "get_device_scripts") {
       const { device_id } = body;
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceRunStates?$expand=deviceHealthScriptRunSummary&$top=50`).catch(() => ({ value: [] }));
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceRunStates?$expand=deviceHealthScriptRunSummary&$top=50`).catch(() => ({ value: [] }));
       const scripts = await graphGetBeta(token, `/deviceManagement/deviceManagementScripts?$top=50`).catch(() => ({ value: [] }));
       return Response.json({ success: true, scriptRunStates: data.value || [], scripts: scripts.value || [] });
     }
@@ -275,14 +280,14 @@ Deno.serve(async (req) => {
     // ── Intune: get device app deployment status ─────────────────────────────
     if (action === "get_device_apps") {
       const { device_id } = body;
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceInstallStates?$top=100`).catch(() => ({ value: [] }));
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceInstallStates?$top=100`).catch(() => ({ value: [] }));
       return Response.json({ success: true, appInstallStates: data.value || [] });
     }
 
     // ── Intune: get all installed apps on a device (discovered apps) ──────────
     if (action === "get_device_installed_apps") {
       const { device_id } = body;
-      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/detectedApps?$top=200`).catch(() => ({ value: [] }));
+      const data = await graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/detectedApps?$top=200`).catch(() => ({ value: [] }));
       const apps = data.value || [];
       // Check for Automate agent presence
       const automateKeywords = ["automate", "connectwise automate", "labtech", "labtech agent", "automate agent"];
@@ -306,7 +311,7 @@ Deno.serve(async (req) => {
     // ── Intune: sync device ──────────────────────────────────────────────────
     if (action === "sync_device") {
       const { device_id } = body;
-      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/syncDevice`, {
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}/syncDevice`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -323,7 +328,7 @@ Deno.serve(async (req) => {
     // ── Exchange: get group members ───────────────────────────────────────────
     if (action === "get_group_members") {
       const { group_id } = body;
-      const data = await graphGet(token, `/groups/${group_id}/members?$select=id,displayName,mail,userPrincipalName&$top=100`);
+      const data = await graphGet(token, `/groups/${enc(group_id)}/members?$select=id,displayName,mail,userPrincipalName&$top=100`);
       return Response.json({ success: true, members: data.value || [] });
     }
 
@@ -417,7 +422,7 @@ Deno.serve(async (req) => {
     // ── Exchange: delete a mailbox rule ──────────────────────────────────────
     if (action === "delete_mailbox_rule") {
       const { user_id, rule_id } = body;
-      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules/${rule_id}`, {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${enc(user_id)}/mailFolders/inbox/messageRules/${enc(rule_id)}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -431,7 +436,7 @@ Deno.serve(async (req) => {
     // ── Exchange: update/disable a mailbox rule ───────────────────────────────
     if (action === "update_mailbox_rule") {
       const { user_id, rule_id, patch } = body;
-      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules/${rule_id}`, {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${enc(user_id)}/mailFolders/inbox/messageRules/${enc(rule_id)}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(patch)
@@ -448,9 +453,9 @@ Deno.serve(async (req) => {
     if (action === "get_device_performance") {
       const { device_id } = body;
       const [detail, complianceStates, configStates] = await Promise.all([
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}?$select=id,deviceName,operatingSystem,osVersion,complianceState,isEncrypted,totalStorageSpaceInBytes,freeStorageSpaceInBytes,processorArchitecture,lastSyncDateTime,deviceHealthAttestationState,model,manufacturer`).catch(() => ({})),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
-        graphGetBeta(token, `/deviceManagement/managedDevices/${device_id}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}?$select=id,deviceName,operatingSystem,osVersion,complianceState,isEncrypted,totalStorageSpaceInBytes,freeStorageSpaceInBytes,processorArchitecture,lastSyncDateTime,deviceHealthAttestationState,model,manufacturer`).catch(() => ({})),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceCompliancePolicyStates?$top=50`).catch(() => ({ value: [] })),
+        graphGetBeta(token, `/deviceManagement/managedDevices/${enc(device_id)}/deviceConfigurationStates?$top=50`).catch(() => ({ value: [] })),
       ]);
       return Response.json({
         success: true,
@@ -463,7 +468,7 @@ Deno.serve(async (req) => {
     // ── Exchange: import / create a single mailbox rule ───────────────────────
     if (action === "import_mailbox_rule") {
       const { user_id, rule } = body;
-      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${user_id}/mailFolders/inbox/messageRules`, {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/users/${enc(user_id)}/mailFolders/inbox/messageRules`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(rule)
@@ -586,7 +591,7 @@ Deno.serve(async (req) => {
     // ── Entra: get single Azure AD device detail ──────────────────────────────
     if (action === "get_entra_device_detail") {
       const { device_id } = body;
-      const device = await graphGet(token, `/devices/${device_id}?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType`);
+      const device = await graphGet(token, `/devices/${enc(device_id)}?$select=id,displayName,deviceId,operatingSystem,operatingSystemVersion,accountEnabled,trustType,isManaged,isCompliant,registrationDateTime,approximateLastSignInDateTime,physicalIds,model,manufacturer,profileType`);
       return Response.json({ success: true, device });
     }
 
@@ -600,14 +605,14 @@ Deno.serve(async (req) => {
     if (action === "add_device_to_group") {
       const { device_id, group_id } = body;
       // Get device's directory object ID first
-      const deviceData = await graphGet(token, `/devices?$filter=id eq '${device_id}'&$select=id`).catch(async () => {
+      const deviceData = await graphGet(token, `/devices?$filter=id eq '${enc(device_id)}'&$select=id`).catch(async () => {
         return { value: [{ id: device_id }] };
       });
       const directoryId = deviceData.value?.[0]?.id || device_id;
-      const res = await fetch(`https://graph.microsoft.com/v1.0/groups/${group_id}/members/$ref`, {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/groups/${enc(group_id)}/members/$ref`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${directoryId}` })
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${enc(directoryId)}` })
       });
       if (!res.ok && res.status !== 204) {
         const err = await res.text();
@@ -682,10 +687,10 @@ Deno.serve(async (req) => {
       groupId = group.id;
 
       // Step 2: Add the specific device to this group
-      const addMemberRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}/members/$ref`, {
+      const addMemberRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${enc(groupId)}/members/$ref`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${device_id}` })
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${enc(device_id)}` })
       });
       // Non-fatal if membership fails — log but continue
       if (!addMemberRes.ok) {
@@ -713,7 +718,7 @@ Deno.serve(async (req) => {
       if (!createRes.ok) {
         const errText = await createRes.text();
         // Clean up the group we created
-        await fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+        await fetch(`https://graph.microsoft.com/v1.0/groups/${enc(groupId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
         if (createRes.status === 403) {
           return Response.json({ success: false, error: SCRIPT_PERMISSION_HINT }, { status: 403 });
         }
@@ -724,7 +729,7 @@ Deno.serve(async (req) => {
       scriptId = script.id;
 
       // Step 4: Assign script ONLY to the specific device's group
-      const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}/assign`, {
+      const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${enc(scriptId)}/assign`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -742,8 +747,8 @@ Deno.serve(async (req) => {
         const err = await assignRes.text();
         // Clean up script and group
         await Promise.all([
-          fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}),
-          fetch(`https://graph.microsoft.com/v1.0/groups/${groupId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+          fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${enc(scriptId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}),
+          fetch(`https://graph.microsoft.com/v1.0/groups/${enc(groupId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
         ]);
         return Response.json({ success: false, error: `Script assignment failed: ${err}` }, { status: assignRes.status });
       }
@@ -988,7 +993,7 @@ Deno.serve(async (req) => {
     // ── Intune: Delete device from Intune ────────────────────────────────────
     if (action === "delete_intune_device") {
       const { device_id } = body;
-      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}`, {
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -1002,7 +1007,7 @@ Deno.serve(async (req) => {
     // ── Intune: Wipe (factory reset) device ───────────────────────────────────
     if (action === "wipe_intune_device") {
       const { device_id } = body;
-      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/wipe`, {
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}/wipe`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ keepEnrollmentData: false, keepUserData: false })
@@ -1017,7 +1022,7 @@ Deno.serve(async (req) => {
     // ── Intune: Retire device (remove company data) ───────────────────────────
     if (action === "retire_intune_device") {
       const { device_id } = body;
-      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}/retire`, {
+      const res = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}/retire`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -1033,7 +1038,7 @@ Deno.serve(async (req) => {
       const { device_id } = body;
 
       // First get the managed device to find serialNumber
-      const mdRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${device_id}?$select=id,serialNumber,azureADDeviceId`, {
+      const mdRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(device_id)}?$select=id,serialNumber,azureADDeviceId`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!mdRes.ok) {
@@ -1093,8 +1098,8 @@ Deno.serve(async (req) => {
     if (action === "cleanup_onboard_script") {
       const { script_id, group_id } = body;
       const results = await Promise.allSettled([
-        script_id ? fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${script_id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
-        group_id  ? fetch(`https://graph.microsoft.com/v1.0/groups/${group_id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
+        script_id ? fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${enc(script_id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
+        group_id  ? fetch(`https://graph.microsoft.com/v1.0/groups/${enc(group_id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(),
       ]);
       return Response.json({ success: true, results: results.map(r => r.status) });
     }
@@ -1163,7 +1168,7 @@ Deno.serve(async (req) => {
           await Promise.all(device_ids.slice(0, 20).map(async (devId) => {
             // Look up device directory object
             try {
-              const devRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${devId}?$select=id,azureADDeviceId`, {
+              const devRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/managedDevices/${enc(devId)}?$select=id,azureADDeviceId`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (devRes.ok) {
@@ -1180,7 +1185,7 @@ Deno.serve(async (req) => {
                       await fetch(`https://graph.microsoft.com/v1.0/groups/${group.id}/members/$ref`, {
                         method: "POST",
                         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${entraId}` })
+                        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${enc(entraId)}` })
                       }).catch(() => {});
                     }
                   }
@@ -1211,7 +1216,7 @@ Deno.serve(async (req) => {
         };
       }
 
-      const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}/assign`, {
+      const assignRes = await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${enc(scriptId)}/assign`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(assignBody),
@@ -1220,7 +1225,7 @@ Deno.serve(async (req) => {
       if (!assignRes.ok) {
         const err = await assignRes.text();
         // Clean up
-        await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${scriptId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+        await fetch(`https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts/${enc(scriptId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
         return Response.json({ success: false, error: `Script assignment failed: ${err}` }, { status: assignRes.status });
       }
 
@@ -1322,7 +1327,7 @@ Deno.serve(async (req) => {
     // ── Entra: Get members of a directory role ───────────────────────────────
     if (action === "get_role_members") {
       const { role_id } = body;
-      const members = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles/${role_id}/members?$select=id,displayName,userPrincipalName`);
+      const members = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles/${enc(role_id)}/members?$select=id,displayName,userPrincipalName`);
       return Response.json({ success: true, members });
     }
 
@@ -1336,13 +1341,13 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ roleTemplateId: role_template_id }),
       });
       // Get the role id (whether created or already exists)
-      const roles = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles?$filter=roleTemplateId eq '${role_template_id}'&$select=id`);
+      const roles = await graphGetAll(token, `https://graph.microsoft.com/v1.0/directoryRoles?$filter=roleTemplateId eq '${enc(role_template_id)}'&$select=id`);
       const roleId = roles[0]?.id;
       if (!roleId) return Response.json({ success: false, error: "Role not found" }, { status: 404 });
-      const assignRes = await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${roleId}/members/$ref`, {
+      const assignRes = await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${enc(roleId)}/members/$ref`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${user_id}` }),
+        body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${enc(user_id)}` }),
       });
       if (!assignRes.ok && assignRes.status !== 400) { // 400 = already member
         const err = await assignRes.text();
@@ -1354,7 +1359,7 @@ Deno.serve(async (req) => {
     // ── Entra: Remove member from directory role ──────────────────────────────
     if (action === "remove_directory_role_member") {
       const { role_id, user_id } = body;
-      await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${role_id}/members/${user_id}/$ref`, {
+      await fetch(`https://graph.microsoft.com/v1.0/directoryRoles/${enc(role_id)}/members/${user_id}/$ref`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1380,7 +1385,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete_named_location") {
       const { location_id } = body;
-      await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/namedLocations/${location_id}`, {
+      await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/namedLocations/${enc(location_id)}`, {
         method: "DELETE", headers: { Authorization: `Bearer ${token}` },
       });
       return Response.json({ success: true });
@@ -1411,7 +1416,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete_autopilot_profile") {
       const { profile_id } = body;
-      await fetch(`https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles/${profile_id}`, {
+      await fetch(`https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeploymentProfiles/${enc(profile_id)}`, {
         method: "DELETE", headers: { Authorization: `Bearer ${token}` },
       });
       return Response.json({ success: true });
@@ -1436,7 +1441,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete_intune_filter") {
       const { filter_id } = body;
-      await fetch(`https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/${filter_id}`, {
+      await fetch(`https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/${enc(filter_id)}`, {
         method: "DELETE", headers: { Authorization: `Bearer ${token}` },
       });
       return Response.json({ success: true });
@@ -1447,7 +1452,7 @@ Deno.serve(async (req) => {
       const { policy_id } = body;
 
       // Fetch the raw CA policy from Graph
-      const policyRes = await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies/${policy_id}`, {
+      const policyRes = await fetch(`https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies/${enc(policy_id)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!policyRes.ok) {
@@ -1526,7 +1531,7 @@ Deno.serve(async (req) => {
       const groupDetails = await Promise.all(
         (users.includeGroups || []).slice(0, 10).map(async gid => {
           try {
-            const countRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${gid}/members/$count`, {
+            const countRes = await fetch(`https://graph.microsoft.com/v1.0/groups/${enc(gid)}/members/$count`, {
               headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" }
             });
             const count = countRes.ok ? parseInt(await countRes.text()) || 0 : 0;

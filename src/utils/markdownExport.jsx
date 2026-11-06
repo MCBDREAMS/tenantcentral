@@ -37,14 +37,27 @@ export function markdownToFragment(markdown) {
   );
 }
 
+// Anything that comes from stored data (tenant names, document titles) must never be
+// able to inject markup into the exported document, which is rendered via innerHTML.
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export function buildDocumentHtml(markdown, { title, subtitle = "", metaRight = "" }) {
+  const safeTitle = escapeHtml(title);
+  const safeSubtitle = escapeHtml(subtitle);
+  const safeMeta = escapeHtml(metaRight || "Generated: " + stamp());
   const fragment = markdownToFragment(markdown);
   return [
     "<!DOCTYPE html>",
     '<html lang="en">',
     "<head>",
     '<meta charset="utf-8" />',
-    "<title>" + [title, subtitle].filter(Boolean).join(" - ") + "</title>",
+    "<title>" + [safeTitle, safeSubtitle].filter(Boolean).join(" - ") + "</title>",
     "<style>",
     "  @page { size: A4; margin: 18mm; }",
     "  body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; color: #1e293b; max-width: 760px; margin: 0 auto; padding: 8px; }",
@@ -59,10 +72,10 @@ export function buildDocumentHtml(markdown, { title, subtitle = "", metaRight = 
     "<body>",
     '  <div class="doc-header">',
     "    <div>",
-    '      <div class="doc-title">' + title + "</div>",
-    subtitle ? '      <div class="doc-sub">' + subtitle + "</div>" : "",
+    '      <div class="doc-title">' + safeTitle + "</div>",
+    safeSubtitle ? '      <div class="doc-sub">' + safeSubtitle + "</div>" : "",
     "    </div>",
-    '    <div class="doc-meta">' + (metaRight || "Generated: " + stamp()) + "</div>",
+    '    <div class="doc-meta">' + safeMeta + "</div>",
     "  </div>",
     "  " + fragment,
     "</body>",

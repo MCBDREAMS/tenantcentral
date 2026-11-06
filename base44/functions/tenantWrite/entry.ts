@@ -1,7 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { authorizeAdminAction } from '../../shared/rbacCheck.ts';
 
 const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+
+// Identifiers from the request body are encoded before being placed in a Graph path,
+// so values such as "x/../users/..." cannot pivot the request to another endpoint.
+const enc = (value) => encodeURIComponent(String(value ?? ""));
+const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function getAccessToken(tenantId) {
   const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
@@ -94,10 +100,10 @@ async function fetchAll(token, path) {
 // Remediation actions
 async function remediateDevice(token, deviceId, action) {
   const actionMap = {
-    sync: `/deviceManagement/managedDevices/${deviceId}/syncDevice`,
-    reboot: `/deviceManagement/managedDevices/${deviceId}/rebootNow`,
-    retire: `/deviceManagement/managedDevices/${deviceId}/retire`,
-    wipe: `/deviceManagement/managedDevices/${deviceId}/wipe`,
+    sync: `/deviceManagement/managedDevices/${enc(deviceId)}/syncDevice`,
+    reboot: `/deviceManagement/managedDevices/${enc(deviceId)}/rebootNow`,
+    retire: `/deviceManagement/managedDevices/${enc(deviceId)}/retire`,
+    wipe: `/deviceManagement/managedDevices/${enc(deviceId)}/wipe`,
   };
   const path = actionMap[action];
   if (!path) throw new Error(`Unknown device action: ${action}`);
@@ -122,27 +128,18 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, azure_tenant_id } = body;
 
-    // ── Authorization: require admin role or tenant-scoped privileged role ───
-    if (user.role !== "admin") {
-      const adminRoles = await base44.asServiceRole.entities.AdminRole.filter({ user_email: user.email, is_active: true });
-      const adminRole = adminRoles[0];
-      if (!adminRole || adminRole.role === "readonly") {
-        return Response.json({ error: "Forbidden: insufficient privileges" }, { status: 403 });
-      }
-      // Verify every tenant referenced in this request is in the caller's assigned scope
-      const requestedTenantIds = [azure_tenant_id, body.source_tenant_id, body.target_tenant_id].filter(Boolean);
-      if (adminRole.assigned_tenants && requestedTenantIds.length > 0) {
-        const allowed = adminRole.assigned_tenants.split(",").map(s => s.trim()).filter(Boolean);
-        if (allowed.length > 0) {
-          for (const azureTid of requestedTenantIds) {
-            const tenantRecs = await base44.asServiceRole.entities.Tenant.filter({ tenant_id: azureTid });
-            const tenantRec = tenantRecs[0];
-            if (tenantRec && !allowed.includes(tenantRec.id)) {
-              return Response.json({ error: `Forbidden: tenant ${azureTid} not in your assigned scope` }, { status: 403 });
-            }
-          }
-        }
-      }
+    // ── Authorization: license + admin role / tenant-scoped privileged role ──
+    // Shared with the other privileged functions so tenant scoping fails closed
+    // and license entitlement is checked server-side.
+    const denied = await authorizeAdminAction(base44, user, [
+      azure_tenant_id,
+      body.source_tenant_id,
+      body.target_tenant_id,
+    ]);
+    if (denied) return denied;
+
+    if (!GUID_REGEX.test(String(azure_tenant_id || ""))) {
+      return Response.json({ error: "Invalid or missing azure_tenant_id" }, { status: 400 });
     }
 
     const token = await getAccessToken(azure_tenant_id);
@@ -150,14 +147,14 @@ Deno.serve(async (req) => {
     // ── CA Policy: toggle state ──────────────────────────────────────────────
     if (action === "update_ca_policy") {
       const { graph_policy_id, state, display_name } = body;
-      await graphPatch(token, `/identity/conditionalAccess/policies/${graph_policy_id}`, { state, displayName: display_name });
+      await graphPatch(token, `/identity/conditionalAccess/policies/${enc(graph_policy_id)}`, { state, displayName: display_name });
       return Response.json({ success: true });
     }
 
     // ── CA Policy: delete ────────────────────────────────────────────────────
     if (action === "delete_ca_policy") {
       const { graph_policy_id } = body;
-      await graphDelete(token, `/identity/conditionalAccess/policies/${graph_policy_id}`);
+      await graphDelete(token, `/identity/conditionalAccess/policies/${enc(graph_policy_id)}`);
       return Response.json({ success: true });
     }
 
@@ -166,8 +163,8 @@ Deno.serve(async (req) => {
       const { graph_profile_id, profile_type, display_name, description, assignments, scope_tag_ids, oma_settings } = body;
       const isCompliance = profile_type === "compliance_policy";
       const endpoint = isCompliance
-        ? `/deviceManagement/deviceCompliancePolicies/${graph_profile_id}`
-        : `/deviceManagement/deviceConfigurations/${graph_profile_id}`;
+        ? `/deviceManagement/deviceCompliancePolicies/${enc(graph_profile_id)}`
+        : `/deviceManagement/deviceConfigurations/${enc(graph_profile_id)}`;
       const patchBody = { displayName: display_name, description };
       if (Array.isArray(scope_tag_ids)) patchBody.roleScopeTagIds = scope_tag_ids;
       if (Array.isArray(oma_settings) && oma_settings.length > 0 && !isCompliance) {
@@ -188,8 +185,8 @@ Deno.serve(async (req) => {
       // Assignments (include/exclude groups) — POST .../assign
       if (Array.isArray(assignments)) {
         const assignPath = isCompliance
-          ? `/deviceManagement/deviceCompliancePolicies/${graph_profile_id}/assign`
-          : `/deviceManagement/deviceConfigurations/${graph_profile_id}/assign`;
+          ? `/deviceManagement/deviceCompliancePolicies/${enc(graph_profile_id)}/assign`
+          : `/deviceManagement/deviceConfigurations/${enc(graph_profile_id)}/assign`;
         const assignBody = {
           assignments: assignments.filter(a => a.groupId).map(a => ({
             target: a.intent === "exclude"
@@ -267,7 +264,7 @@ Deno.serve(async (req) => {
     // ── Update Entra User ────────────────────────────────────────────────────
     if (action === "update_user") {
       const { graph_user_id, display_name, job_title, department, account_enabled } = body;
-      await graphPatch(token, `/users/${graph_user_id}`, {
+      await graphPatch(token, `/users/${enc(graph_user_id)}`, {
         displayName: display_name,
         jobTitle: job_title || "",
         department: department || "",
@@ -294,7 +291,7 @@ Deno.serve(async (req) => {
     // ── Update Entra Group ───────────────────────────────────────────────────
     if (action === "update_group") {
       const { graph_group_id, display_name, description } = body;
-      await graphPatch(token, `/groups/${graph_group_id}`, {
+      await graphPatch(token, `/groups/${enc(graph_group_id)}`, {
         displayName: display_name,
         description: description || "",
       });
