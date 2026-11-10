@@ -129,6 +129,35 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, license_key: key });
     }
 
+    // Report whether this application already holds an active license record.
+    // The activation screen keeps its key in the browser only, so a new browser,
+    // cleared storage or a private window would otherwise lock the operator out
+    // of an application that is already licensed.
+    if (action === "status") {
+      let licenses = [];
+      try {
+        licenses = await base44.asServiceRole.entities.License.list();
+      } catch {
+        licenses = [];
+      }
+      if (!Array.isArray(licenses) || licenses.length === 0) {
+        return Response.json({ success: true, valid: false, reason: "No license issued for this application" });
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const active = licenses.find(
+        (l) => (l.status || "active") === "active" && (!l.expiry_date || String(l.expiry_date) >= today),
+      );
+      if (!active) {
+        return Response.json({ success: true, valid: false, reason: "No active license for this application" });
+      }
+      return Response.json({
+        success: true,
+        valid: true,
+        clientName: active.client_name,
+        expiryDate: active.expiry_date,
+      });
+    }
+
     // Validate a license key
     if (action === "validate") {
       const { license_key, azure_tenant_id } = body;
