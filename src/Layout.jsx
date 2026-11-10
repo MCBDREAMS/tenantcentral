@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Building2, Shield, Laptop, Users, FolderCog,
   ChevronDown, ChevronRight, Menu, X, LogOut, Settings, Layers, Settings2, GitMerge,
   MonitorSmartphone, UserCheck, ShieldCheck, FileText, Lock, Globe, Terminal,
-  AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter,
+  AppWindow, ClipboardList, UserCog, MapPin, KeyRound, Rocket, Filter, ArrowRightLeft,
   BarChart2, ShieldAlert, Smartphone, Server, Mail, MessageSquare, Database, Activity, Zap, GitBranch, Cpu, Bot, HeartPulse, Unlink, Search, Landmark, Boxes } from
 "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,14 @@ const navSections = [
   { name: "Tenants", icon: Building2, page: "Tenants" },
   { name: "Tenant Settings", icon: Settings, page: "TenantSettings" },
   { name: "Organizational Profile", icon: Landmark, page: "OrganizationalProfile" }]
+
+},
+{
+  label: "Migration",
+  section: null,
+  items: [
+  { name: "Migration Hub", icon: ArrowRightLeft, page: "MigrationHub" },
+  { name: "Tenant-to-Tenant Migration", icon: GitMerge, page: "TenantMigration" }]
 
 },
 {
@@ -116,8 +124,7 @@ const navSections = [
   { name: "Copy App Permissions", icon: GitMerge, page: "AppPermissionsCopy" },
   { name: "License Manager", icon: KeyRound, page: "LicenseAdmin" },
   { name: "SOP Generator", icon: FileText, page: "SopGenerator" },
-  { name: "App Health Check", icon: Activity, page: "AppHealthCheck" },
-  { name: "Tenant-to-Tenant Migration", icon: GitMerge, page: "TenantMigration" }]
+  { name: "App Health Check", icon: Activity, page: "AppHealthCheck" }]
 
 },
 {
