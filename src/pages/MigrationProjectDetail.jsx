@@ -12,10 +12,11 @@ import ScriptPanel from "@/components/migration/suite/ScriptPanel";
 import PrescanPanel from "@/components/migration/suite/PrescanPanel";
 import SharePointSitesPanel from "@/components/migration/suite/SharePointSitesPanel";
 import CredentialsPanel from "@/components/migration/suite/CredentialsPanel";
+import NativeRunPanel from "@/components/migration/suite/NativeRunPanel";
 import PostAuditPanel from "@/components/migration/suite/PostAuditPanel";
 import { STATUS_META, sourceLabel } from "@/components/migration/suite/migrationMeta";
 
-export default function MigrationProjectDetail() {
+export default function MigrationProjectDetail({ tenants = [] }) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [project, setProject] = useState(null);
@@ -124,6 +125,7 @@ export default function MigrationProjectDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="run">Run in app</TabsTrigger>
           <TabsTrigger value="signin">Sign-in</TabsTrigger>
           <TabsTrigger value="sites">SharePoint sites</TabsTrigger>
           <TabsTrigger value="scripts">Scripts</TabsTrigger>
@@ -133,6 +135,9 @@ export default function MigrationProjectDetail() {
 
         <TabsContent value="overview">
           <ProjectOverview project={project} />
+        </TabsContent>
+        <TabsContent value="run">
+          <NativeRunPanel project={project} tenants={tenants} onRefresh={load} />
         </TabsContent>
         <TabsContent value="signin">
           <CredentialsPanel project={project} onRefresh={load} />

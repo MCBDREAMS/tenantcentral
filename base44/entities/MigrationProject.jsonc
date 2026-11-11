@@ -37,6 +37,17 @@
       "type": "string",
       "description": "Credentials model, agent host, proxy or scope notes"
     },
+    "source_tenant_id": {
+      "type": "string",
+      "description": "Base44 Tenant record id of a Microsoft 365 source used for the in-app run"
+    },
+    "source_azure_tenant_id": {
+      "type": "string",
+      "description": "Azure tenant GUID of the Microsoft 365 source used for the in-app run"
+    },
+    "source_tenant_name": {
+      "type": "string"
+    },
     "source_auth": {
       "type": "string",
       "description": "JSON sign-in settings for the source system: {method, username, password, client_id, client_secret}"
@@ -101,6 +112,10 @@
         "red"
       ],
       "default": "draft"
+    },
+    "native_batch_id": {
+      "type": "string",
+      "description": "MigrationBatch record id used by the in-app run, so the live dashboard reopens"
     },
     "item_count": {
       "type": "number",
