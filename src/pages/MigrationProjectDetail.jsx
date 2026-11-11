@@ -143,7 +143,7 @@ export default function MigrationProjectDetail({ tenants = [] }) {
           <CredentialsPanel project={project} onRefresh={load} />
         </TabsContent>
         <TabsContent value="sites">
-          <SharePointSitesPanel project={project} />
+          <SharePointSitesPanel project={project} tenants={tenants} onRefresh={load} />
         </TabsContent>
         <TabsContent value="scripts">
           <ScriptPanel project={project} onRefresh={load} />

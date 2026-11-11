@@ -8,6 +8,14 @@ export const SOURCE_TYPES = [
     hint: "SharePoint 2013 / 2016 / 2019 farms scanned with PnP.PowerShell.",
   },
   {
+    value: "sharepoint_online",
+    label: "SharePoint Online (Microsoft 365)",
+    short: "SP Online",
+    endpointLabel: "Source tenant domain",
+    placeholder: "contoso.sharepoint.com",
+    hint: "SharePoint Online sites, libraries and lists read live from the source tenant with Microsoft Graph.",
+  },
+  {
     value: "file_share",
     label: "File share",
     short: "File share",
@@ -101,6 +109,13 @@ export const STATUS_META = {
 };
 
 export const FILTER_ORDER = ["all", "draft", "ready", "running", "completed", "failed"];
+
+// Sources that live in a Microsoft 365 tenant the app can read directly with Graph.
+export const CLOUD_SOURCES = ["sharepoint_online", "m365_tenant"];
+
+export function isCloudSource(value) {
+  return CLOUD_SOURCES.includes(value);
+}
 
 export function sourceLabel(project) {
   const meta = SOURCE_TYPES.find((s) => s.value === project.source_type);

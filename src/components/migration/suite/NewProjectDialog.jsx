@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MODES, SOURCE_TYPES, WORKLOADS } from "./migrationMeta";
+import { MODES, SOURCE_TYPES, WORKLOADS, isCloudSource } from "./migrationMeta";
 import TenantAuthCard from "./TenantAuthCard";
 import { emptyAuth } from "./authMethods";
 import { Building2, Cloud } from "lucide-react";
@@ -22,6 +22,7 @@ const makeForm = () => ({
   name: "",
   source_type: "sharepoint_onprem",
   source_endpoint: "",
+  source_tenant_id: "",
   target_tenant_id: "",
   workloads: ["sharepoint", "onedrive"],
   mode: "standard",
@@ -73,6 +74,12 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       setError("Insane mode needs an Azure storage account for the staging hop.");
       return;
     }
+    const cloud = isCloudSource(form.source_type);
+    const srcTenant = tenants.find((t) => t.id === form.source_tenant_id) || null;
+    if (cloud && !srcTenant) {
+      setError("Pick the source tenant so the app can read its sites and users.");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -81,8 +88,11 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       const created = await base44.entities.MigrationProject.create({
         name: form.name.trim(),
         source_type: form.source_type,
-        source_endpoint: form.source_endpoint.trim(),
-        source_label: `${sourceMeta.short} · ${form.source_endpoint.trim() || "endpoint not set"}`,
+        source_endpoint: srcTenant ? srcTenant.domain : form.source_endpoint.trim(),
+        source_tenant_id: srcTenant?.id || "",
+        source_azure_tenant_id: srcTenant?.tenant_id || "",
+        source_tenant_name: srcTenant?.name || "",
+        source_label: `${sourceMeta.short} · ${(srcTenant ? srcTenant.domain : form.source_endpoint.trim()) || "endpoint not set"}`,
         source_notes: "",
         source_auth: JSON.stringify(form.source_auth),
         target_auth: JSON.stringify(form.target_auth),
@@ -159,12 +169,30 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
 
             <div className="space-y-2">
               <Label htmlFor="mp-endpoint">{sourceMeta.endpointLabel}</Label>
-              <Input
-                id="mp-endpoint"
-                value={form.source_endpoint}
-                onChange={(e) => setForm({ ...form, source_endpoint: e.target.value })}
-                placeholder={sourceMeta.placeholder}
-              />
+              {isCloudSource(form.source_type) ? (
+                <Select
+                  value={form.source_tenant_id || undefined}
+                  onValueChange={(value) => setForm({ ...form, source_tenant_id: value })}
+                >
+                  <SelectTrigger id="mp-endpoint">
+                    <SelectValue placeholder="Select the source tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} {tenant.domain ? `(${tenant.domain})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="mp-endpoint"
+                  value={form.source_endpoint}
+                  onChange={(e) => setForm({ ...form, source_endpoint: e.target.value })}
+                  placeholder={sourceMeta.placeholder}
+                />
+              )}
             </div>
           </div>
 

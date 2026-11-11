@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowRightLeft, Boxes, Building2, Cloud, FolderOpen, HardDrive, Zap } from "lucide-react";
+import { Plus, ArrowRightLeft, Boxes, Building2, Cloud, FolderOpen, Globe, HardDrive, Zap } from "lucide-react";
 import MigrationProjectsTable from "@/components/migration/suite/MigrationProjectsTable";
 import NewProjectDialog from "@/components/migration/suite/NewProjectDialog";
 import CredentialManager from "@/components/migration/credentials/CredentialManager";
@@ -11,6 +11,7 @@ import { MODES, SOURCE_TYPES } from "@/components/migration/suite/migrationMeta"
 
 const SOURCE_ICONS = {
   sharepoint_onprem: Boxes,
+  sharepoint_online: Globe,
   file_share: FolderOpen,
   google_workspace: Cloud,
   box: HardDrive,

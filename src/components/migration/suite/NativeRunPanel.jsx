@@ -16,7 +16,7 @@ const host = (value) =>
 export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
   const { toast } = useToast();
   const list = useMemo(() => engineWorkloads(project.workloads), [project.workloads]);
-  const m365 = project.source_type === "m365_tenant";
+  const m365 = ["m365_tenant", "sharepoint_online"].includes(project.source_type);
 
   const guess = useMemo(
     () =>

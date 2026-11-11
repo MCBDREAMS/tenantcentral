@@ -10,6 +10,7 @@
       "type": "string",
       "enum": [
         "sharepoint_onprem",
+        "sharepoint_online",
         "file_share",
         "google_workspace",
         "box",
@@ -17,6 +18,7 @@
       ],
       "enumColors": [
         "purple",
+        "blue",
         "gray",
         "blue",
         "pink",
