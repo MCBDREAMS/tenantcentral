@@ -14,8 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MODES, SOURCE_TYPES, WORKLOADS } from "./migrationMeta";
+import TenantAuthCard from "./TenantAuthCard";
+import { emptyAuth } from "./authMethods";
+import { Building2, Cloud } from "lucide-react";
 
-const emptyForm = {
+const makeForm = () => ({
   name: "",
   source_type: "sharepoint_onprem",
   source_endpoint: "",
@@ -24,21 +27,24 @@ const emptyForm = {
   mode: "standard",
   staging_account: "",
   notes: "",
-};
+  source_auth: emptyAuth("interactive"),
+  target_auth: emptyAuth("credential"),
+});
 
 export default function NewProjectDialog({ open, onOpenChange, tenants = [], onCreated }) {
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(makeForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm);
+      setForm(makeForm());
       setError("");
     }
   }, [open]);
 
   const sourceMeta = SOURCE_TYPES.find((s) => s.value === form.source_type) || SOURCE_TYPES[0];
+  const selectedTenant = tenants.find((t) => t.id === form.target_tenant_id) || null;
 
   const toggleWorkload = (id) => {
     setForm((prev) => ({
@@ -78,6 +84,8 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
         source_endpoint: form.source_endpoint.trim(),
         source_label: `${sourceMeta.short} · ${form.source_endpoint.trim() || "endpoint not set"}`,
         source_notes: "",
+        source_auth: JSON.stringify(form.source_auth),
+        target_auth: JSON.stringify(form.target_auth),
         target_tenant_id: tenant.id,
         target_tenant_name: tenant.name,
         target_azure_tenant_id: tenant.tenant_id,
@@ -180,6 +188,30 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
             {tenants.length === 0 && (
               <p className="text-xs text-muted-foreground">Add a tenant first so the migration has a destination.</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Sign-in for this migration</Label>
+            <p className="text-xs text-muted-foreground">
+              How the source and the destination tenant are authenticated. You can change this later on
+              the project's Sign-in tab.
+            </p>
+            <div className="grid gap-3">
+              <TenantAuthCard
+                title="Source sign-in"
+                subtitle={sourceMeta.label}
+                icon={Cloud}
+                value={form.source_auth}
+                onChange={(source_auth) => setForm({ ...form, source_auth })}
+              />
+              <TenantAuthCard
+                title="Destination sign-in"
+                subtitle={selectedTenant?.name || "Select a destination tenant first"}
+                icon={Building2}
+                value={form.target_auth}
+                onChange={(target_auth) => setForm({ ...form, target_auth })}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

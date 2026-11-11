@@ -37,6 +37,14 @@
       "type": "string",
       "description": "Credentials model, agent host, proxy or scope notes"
     },
+    "source_auth": {
+      "type": "string",
+      "description": "JSON sign-in settings for the source system: {method, username, password, client_id, client_secret}"
+    },
+    "target_auth": {
+      "type": "string",
+      "description": "JSON sign-in settings for the destination tenant: {method, username, password, client_id, client_secret}"
+    },
     "target_tenant_id": {
       "type": "string",
       "description": "Base44 Tenant record id being migrated into"

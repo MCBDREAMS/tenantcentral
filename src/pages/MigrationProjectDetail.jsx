@@ -11,6 +11,7 @@ import ProjectOverview from "@/components/migration/suite/ProjectOverview";
 import ScriptPanel from "@/components/migration/suite/ScriptPanel";
 import PrescanPanel from "@/components/migration/suite/PrescanPanel";
 import SharePointSitesPanel from "@/components/migration/suite/SharePointSitesPanel";
+import CredentialsPanel from "@/components/migration/suite/CredentialsPanel";
 import PostAuditPanel from "@/components/migration/suite/PostAuditPanel";
 import { STATUS_META, sourceLabel } from "@/components/migration/suite/migrationMeta";
 
@@ -123,6 +124,7 @@ export default function MigrationProjectDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="signin">Sign-in</TabsTrigger>
           <TabsTrigger value="sites">SharePoint sites</TabsTrigger>
           <TabsTrigger value="scripts">Scripts</TabsTrigger>
           <TabsTrigger value="prescan">Pre-migration scan</TabsTrigger>
@@ -131,6 +133,9 @@ export default function MigrationProjectDetail() {
 
         <TabsContent value="overview">
           <ProjectOverview project={project} />
+        </TabsContent>
+        <TabsContent value="signin">
+          <CredentialsPanel project={project} onRefresh={load} />
         </TabsContent>
         <TabsContent value="sites">
           <SharePointSitesPanel project={project} />
