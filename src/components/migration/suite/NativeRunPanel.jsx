@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, Loader2, Pause, Play, RefreshCw, Rocket, ScanSearch } from "lucide-react";
 import MigrationLiveDashboard from "@/components/migration/MigrationLiveDashboard";
+import MailboxSelectionPanel from "./MailboxSelectionPanel";
 import { COPY_SETTINGS, buildSelection, engineWorkloads } from "./nativeSelection";
 
 const host = (value) =>
@@ -35,6 +36,7 @@ export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [pass, setPass] = useState("");
+  const [mailboxIds, setMailboxIds] = useState([]);
   const stop = useRef(false);
 
   const sourceTenant = tenants.find((t) => t.id === sourceTenantId);
@@ -65,6 +67,8 @@ export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
       });
       setMapping(mapRes.data);
       setObjects(found);
+      // Every discovered mailbox starts ticked, so a full-tenant move is still one click.
+      setMailboxIds((found.mailboxes || []).map((m) => m.id));
       await base44.entities.MigrationProject.update(project.id, {
         source_tenant_id: sourceTenant.id,
         source_azure_tenant_id: sourceTenant.tenant_id,
@@ -79,8 +83,8 @@ export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
   };
 
   const selection = useMemo(
-    () => (objects ? buildSelection(objects, mapping, list) : []),
-    [objects, mapping, list],
+    () => (objects ? buildSelection(objects, mapping, list, { mailboxIds }) : []),
+    [objects, mapping, list, mailboxIds],
   );
 
   const runLoop = async (id) => {
@@ -239,12 +243,10 @@ export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
               {scanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanSearch className="mr-2 h-4 w-4" />}
               Scan source
             </Button>
-            {!batchId && (
-              <Button onClick={start} disabled={running || scanning || selection.length === 0}>
-                {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                Start migration
-              </Button>
-            )}
+            <Button onClick={start} disabled={running || scanning || selection.length === 0}>
+              {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+              {batchId ? "Start new run" : "Start migration"}
+            </Button>
             {running && (
               <Button
                 variant="outline"
@@ -285,6 +287,14 @@ export default function NativeRunPanel({ project, tenants = [], onRefresh }) {
                 {selection.length} items in this run
               </span>
             </div>
+          )}
+
+          {objects?.mailboxes?.length > 0 && (
+            <MailboxSelectionPanel
+              mailboxes={objects.mailboxes}
+              selectedIds={mailboxIds}
+              onChange={setMailboxIds}
+            />
           )}
 
           {pass && <p className="text-xs text-muted-foreground">{pass}</p>}

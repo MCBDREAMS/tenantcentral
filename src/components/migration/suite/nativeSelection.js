@@ -23,14 +23,18 @@ export const COPY_SETTINGS = {
   maxChannelsPerRun: 10,
 };
 
-export function buildSelection(objects, mapping, list) {
+// opts.mailboxIds narrows the mailboxes (and their target accounts) to the ones
+// ticked in the mailbox picker; omitted means every discovered mailbox.
+export function buildSelection(objects, mapping, list, opts = {}) {
   const byUpn = Object.fromEntries(
     (mapping?.userMapping || []).map((m) => [m.sourceUpn, m]),
   );
   const items = [];
+  const onlyMailboxes = Array.isArray(opts.mailboxIds) ? new Set(opts.mailboxIds) : null;
 
   if (list.includes("mailboxes")) {
     (objects.mailboxes || []).forEach((u) => {
+      if (onlyMailboxes && !onlyMailboxes.has(u.id)) return;
       const m = byUpn[u.upn] || { action: "create", targetUpn: u.upn };
       items.push({
         kind: "user",
