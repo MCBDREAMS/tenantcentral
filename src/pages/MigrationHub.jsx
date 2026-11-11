@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, ArrowRightLeft, Boxes, Building2, Cloud, FolderOpen, HardDrive, Zap } from "lucide-react";
 import MigrationProjectsTable from "@/components/migration/suite/MigrationProjectsTable";
 import NewProjectDialog from "@/components/migration/suite/NewProjectDialog";
+import CredentialManager from "@/components/migration/credentials/CredentialManager";
 import { MODES, SOURCE_TYPES } from "@/components/migration/suite/migrationMeta";
 
 const SOURCE_ICONS = {
@@ -117,6 +118,8 @@ export default function MigrationHub({ tenants = [] }) {
         onOpen={(project) => navigate(`/MigrationProject?id=${project.id}`)}
         onDelete={handleDelete}
       />
+
+      <CredentialManager />
 
       <NewProjectDialog
         open={dialogOpen}

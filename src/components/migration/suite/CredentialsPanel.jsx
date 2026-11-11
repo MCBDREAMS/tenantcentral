@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Building2, Cloud, Info, Loader2, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import TenantAuthCard from "./TenantAuthCard";
+import SavedCredentialPicker from "@/components/migration/credentials/SavedCredentialPicker";
+import { authFromCredential } from "@/components/migration/credentials/credentialMeta";
 import { emptyAuth, parseAuth } from "./authMethods";
 
 export default function CredentialsPanel({ project, onRefresh }) {
@@ -63,22 +65,28 @@ export default function CredentialsPanel({ project, onRefresh }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <TenantAuthCard
-          title="Source sign-in"
-          subtitle={project.source_label || project.source_endpoint || "Source system"}
-          icon={Cloud}
-          value={source}
-          onChange={setSource}
-        />
-        <TenantAuthCard
-          title="Destination sign-in"
-          subtitle={`${project.target_tenant_name || "Destination tenant"}${
-            project.target_domain ? ` · ${project.target_domain}` : ""
-          }`}
-          icon={Building2}
-          value={target}
-          onChange={setTarget}
-        />
+        <div className="space-y-2">
+          <SavedCredentialPicker role="source" onApply={(auth) => setSource(auth)} />
+          <TenantAuthCard
+            title="Source sign-in"
+            subtitle={project.source_label || project.source_endpoint || "Source system"}
+            icon={Cloud}
+            value={source}
+            onChange={setSource}
+          />
+        </div>
+        <div className="space-y-2">
+          <SavedCredentialPicker role="destination" onApply={(auth) => setTarget(auth)} />
+          <TenantAuthCard
+            title="Destination sign-in"
+            subtitle={`${project.target_tenant_name || "Destination tenant"}${
+              project.target_domain ? ` · ${project.target_domain}` : ""
+            }`}
+            icon={Building2}
+            value={target}
+            onChange={setTarget}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
