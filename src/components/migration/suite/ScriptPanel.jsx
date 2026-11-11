@@ -9,6 +9,11 @@ import { useToast } from "@/components/ui/use-toast";
 
 const KINDS = [
   {
+    id: "sites",
+    label: "SharePoint sites",
+    detail: "Lists every source site collection into sharepoint-sites.csv for the discovery scan.",
+  },
+  {
     id: "discovery",
     label: "Discovery scan",
     detail: "Inventories the source and emits the CSV the pre-migration scan reads.",
@@ -67,7 +72,7 @@ export default function ScriptPanel({ project, onRefresh }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {KINDS.map((item) => (
               <button
                 key={item.id}

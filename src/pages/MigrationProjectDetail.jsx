@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import ProjectOverview from "@/components/migration/suite/ProjectOverview";
 import ScriptPanel from "@/components/migration/suite/ScriptPanel";
 import PrescanPanel from "@/components/migration/suite/PrescanPanel";
+import SharePointSitesPanel from "@/components/migration/suite/SharePointSitesPanel";
 import PostAuditPanel from "@/components/migration/suite/PostAuditPanel";
 import { STATUS_META, sourceLabel } from "@/components/migration/suite/migrationMeta";
 
@@ -122,6 +123,7 @@ export default function MigrationProjectDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="sites">SharePoint sites</TabsTrigger>
           <TabsTrigger value="scripts">Scripts</TabsTrigger>
           <TabsTrigger value="prescan">Pre-migration scan</TabsTrigger>
           <TabsTrigger value="postaudit">Post-migration audit</TabsTrigger>
@@ -129,6 +131,9 @@ export default function MigrationProjectDetail() {
 
         <TabsContent value="overview">
           <ProjectOverview project={project} />
+        </TabsContent>
+        <TabsContent value="sites">
+          <SharePointSitesPanel project={project} />
         </TabsContent>
         <TabsContent value="scripts">
           <ScriptPanel project={project} onRefresh={load} />
