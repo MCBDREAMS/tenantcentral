@@ -249,16 +249,39 @@ Deno.serve(async (req) => {
     // ── Create Entra User ────────────────────────────────────────────────────
     if (action === "create_user") {
       const { display_name, upn, password, job_title, department, account_enabled } = body;
+      // Never fall back to a fixed password. Generate a random temporary password
+      // server-side, guarantee the Entra complexity classes, and return it once so
+      // the operator can hand it over. forceChangePasswordNextSignIn stays on.
+      const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+      const LOWER = "abcdefghijkmnopqrstuvwxyz";
+      const DIGITS = "23456789";
+      const SYMBOLS = "!@#$%*-_+=";
+      const pool = UPPER + LOWER + DIGITS + SYMBOLS;
+      const randomFrom = (chars: string) => {
+        const buf = new Uint32Array(1);
+        crypto.getRandomValues(buf);
+        return chars[buf[0] % chars.length];
+      };
+      const filler = Array.from({ length: 20 }, () => randomFrom(pool)).join("");
+      const generatedPassword =
+        randomFrom(UPPER) + randomFrom(LOWER) + randomFrom(DIGITS) + randomFrom(SYMBOLS) + filler;
+      const temporaryPassword = password || generatedPassword;
+
       const result = await graphPost(token, "/users", {
         displayName: display_name,
         userPrincipalName: upn,
         mailNickname: upn.split("@")[0],
-        passwordProfile: { password: password || "TempPass123!", forceChangePasswordNextSignIn: true },
+        passwordProfile: { password: temporaryPassword, forceChangePasswordNextSignIn: true },
         jobTitle: job_title || "",
         department: department || "",
         accountEnabled: account_enabled !== false,
       });
-      return Response.json({ success: true, user: result });
+      // Only ever exposed once, in this response, and only when the server generated it.
+      return Response.json({
+        success: true,
+        user: result,
+        temporary_password: password ? null : temporaryPassword,
+      });
     }
 
     // ── Update Entra User ────────────────────────────────────────────────────
