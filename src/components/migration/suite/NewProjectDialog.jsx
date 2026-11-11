@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MODES, SOURCE_TYPES, WORKLOADS, isCloudSource } from "./migrationMeta";
+import ConnectedTenantSelect from "./ConnectedTenantSelect";
 import TenantAuthCard from "./TenantAuthCard";
 import { emptyAuth } from "./authMethods";
 import { Building2, Cloud } from "lucide-react";
@@ -46,6 +47,14 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
 
   const sourceMeta = SOURCE_TYPES.find((s) => s.value === form.source_type) || SOURCE_TYPES[0];
   const selectedTenant = tenants.find((t) => t.id === form.target_tenant_id) || null;
+  const connectedTenants = tenants.filter((t) => t.status === "connected");
+  const tenantOptions = connectedTenants.length > 0 ? connectedTenants : tenants;
+  const tenantHint =
+    tenantOptions.length === 0
+      ? "No tenants yet — add one on the Tenants page first."
+      : connectedTenants.length === 0
+      ? "No tenant is marked connected, so the full tenant list is shown. Run a connection test on Tenants first."
+      : `${connectedTenants.length} connected tenant${connectedTenants.length === 1 ? "" : "s"} available.`;
 
   const toggleWorkload = (id) => {
     setForm((prev) => ({
@@ -76,8 +85,12 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
     }
     const cloud = isCloudSource(form.source_type);
     const srcTenant = tenants.find((t) => t.id === form.source_tenant_id) || null;
-    if (cloud && !srcTenant) {
-      setError("Pick the source tenant so the app can read its sites and users.");
+    if (!srcTenant) {
+      setError("Pick the source tenant.");
+      return;
+    }
+    if (srcTenant.id === tenant.id) {
+      setError("Source and destination must be different tenants.");
       return;
     }
 
@@ -88,11 +101,11 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       const created = await base44.entities.MigrationProject.create({
         name: form.name.trim(),
         source_type: form.source_type,
-        source_endpoint: srcTenant ? srcTenant.domain : form.source_endpoint.trim(),
-        source_tenant_id: srcTenant?.id || "",
-        source_azure_tenant_id: srcTenant?.tenant_id || "",
-        source_tenant_name: srcTenant?.name || "",
-        source_label: `${sourceMeta.short} · ${(srcTenant ? srcTenant.domain : form.source_endpoint.trim()) || "endpoint not set"}`,
+        source_endpoint: cloud ? srcTenant.domain : form.source_endpoint.trim() || srcTenant.domain,
+        source_tenant_id: srcTenant.id,
+        source_azure_tenant_id: srcTenant.tenant_id,
+        source_tenant_name: srcTenant.name,
+        source_label: `${sourceMeta.short} · ${(cloud ? srcTenant.domain : form.source_endpoint.trim() || srcTenant.domain) || "endpoint not set"}`,
         source_notes: "",
         source_auth: JSON.stringify(form.source_auth),
         target_auth: JSON.stringify(form.target_auth),
@@ -146,77 +159,65 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Source system</Label>
-              <Select
-                value={form.source_type}
-                onValueChange={(value) => setForm({ ...form, source_type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCE_TYPES.map((source) => (
-                    <SelectItem key={source.value} value={source.value}>
-                      {source.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">{sourceMeta.hint}</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mp-endpoint">{sourceMeta.endpointLabel}</Label>
-              {isCloudSource(form.source_type) ? (
-                <Select
-                  value={form.source_tenant_id || undefined}
-                  onValueChange={(value) => setForm({ ...form, source_tenant_id: value })}
-                >
-                  <SelectTrigger id="mp-endpoint">
-                    <SelectValue placeholder="Select the source tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name} {tenant.domain ? `(${tenant.domain})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id="mp-endpoint"
-                  value={form.source_endpoint}
-                  onChange={(e) => setForm({ ...form, source_endpoint: e.target.value })}
-                  placeholder={sourceMeta.placeholder}
-                />
-              )}
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label>Destination tenant</Label>
+            <Label>Source system</Label>
             <Select
-              value={form.target_tenant_id}
-              onValueChange={(value) => setForm({ ...form, target_tenant_id: value })}
+              value={form.source_type}
+              onValueChange={(value) => setForm({ ...form, source_type: value })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a tenant" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tenants.map((tenant) => (
-                  <SelectItem key={tenant.id} value={tenant.id}>
-                    {tenant.name} {tenant.domain ? `(${tenant.domain})` : ""}
+                {SOURCE_TYPES.map((source) => (
+                  <SelectItem key={source.value} value={source.value}>
+                    {source.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {tenants.length === 0 && (
-              <p className="text-xs text-muted-foreground">Add a tenant first so the migration has a destination.</p>
-            )}
+            <p className="text-xs text-muted-foreground">{sourceMeta.hint}</p>
           </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Source tenant</Label>
+              <ConnectedTenantSelect
+                value={form.source_tenant_id}
+                onChange={(value) => setForm({ ...form, source_tenant_id: value })}
+                tenants={tenantOptions}
+                placeholder="Select the source tenant"
+              />
+              <p className="text-xs text-muted-foreground">
+                {isCloudSource(form.source_type)
+                  ? "Sites, mailboxes and users are read straight from this tenant."
+                  : "The tenant that will receive and own the migrated content."}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Destination tenant</Label>
+              <ConnectedTenantSelect
+                value={form.target_tenant_id}
+                onChange={(value) => setForm({ ...form, target_tenant_id: value })}
+                tenants={tenantOptions}
+                placeholder="Select the destination tenant"
+              />
+              <p className="text-xs text-muted-foreground">{tenantHint}</p>
+            </div>
+          </div>
+
+          {!isCloudSource(form.source_type) && (
+            <div className="space-y-2">
+              <Label htmlFor="mp-endpoint">{sourceMeta.endpointLabel}</Label>
+              <Input
+                id="mp-endpoint"
+                value={form.source_endpoint}
+                onChange={(e) => setForm({ ...form, source_endpoint: e.target.value })}
+                placeholder={sourceMeta.placeholder}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Sign-in for this migration</Label>
