@@ -150,8 +150,7 @@
   },
   "required": [
     "name",
-    "source_type",
-    "target_tenant_id"
+    "source_type"
   ],
   "rls": {
     "create": {

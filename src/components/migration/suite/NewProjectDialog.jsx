@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MODES, SOURCE_TYPES, WORKLOADS, isCloudSource } from "./migrationMeta";
-import ConnectedTenantSelect from "./ConnectedTenantSelect";
+import TenantTextEntry from "./TenantTextEntry";
 import TenantAuthCard from "./TenantAuthCard";
 import { emptyAuth } from "./authMethods";
 import { Building2, Cloud } from "lucide-react";
@@ -23,8 +23,8 @@ const makeForm = () => ({
   name: "",
   source_type: "sharepoint_onprem",
   source_endpoint: "",
-  source_tenant_id: "",
-  target_tenant_id: "",
+  source_tenant_text: "",
+  target_tenant_text: "",
   workloads: ["sharepoint", "onedrive"],
   mode: "standard",
   staging_account: "",
@@ -46,15 +46,28 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
   }, [open]);
 
   const sourceMeta = SOURCE_TYPES.find((s) => s.value === form.source_type) || SOURCE_TYPES[0];
-  const selectedTenant = tenants.find((t) => t.id === form.target_tenant_id) || null;
-  const connectedTenants = tenants.filter((t) => t.status === "connected");
-  const tenantOptions = connectedTenants.length > 0 ? connectedTenants : tenants;
+  const resolveTenant = (input) => {
+    const value = String(input || "").trim().toLowerCase();
+    if (!value) return null;
+    const exact =
+      tenants.find((t) => String(t.id).toLowerCase() === value) ||
+      tenants.find((t) => String(t.tenant_id || "").toLowerCase() === value) ||
+      tenants.find((t) => String(t.domain || "").toLowerCase() === value) ||
+      tenants.find((t) => String(t.name || "").toLowerCase() === value);
+    if (exact) return exact;
+    return (
+      tenants.find((t) => {
+        const domain = String(t.domain || "").toLowerCase();
+        return domain && value.includes(domain);
+      }) || null
+    );
+  };
+  const targetTenant = resolveTenant(form.target_tenant_text);
+  const connectedCount = tenants.filter((t) => t.status === "connected").length;
   const tenantHint =
-    tenantOptions.length === 0
-      ? "No tenants yet — add one on the Tenants page first."
-      : connectedTenants.length === 0
-      ? "No tenant is marked connected, so the full tenant list is shown. Run a connection test on Tenants first."
-      : `${connectedTenants.length} connected tenant${connectedTenants.length === 1 ? "" : "s"} available.`;
+    tenants.length === 0
+      ? "Nothing stored yet — type the domain; add the tenant on the Tenants page for a live run."
+      : `Type any domain, or pick from the ${tenants.length} stored tenant${tenants.length === 1 ? "" : "s"} (${connectedCount} connected).`;
 
   const toggleWorkload = (id) => {
     setForm((prev) => ({
@@ -70,9 +83,12 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       setError("Give the project a name.");
       return;
     }
-    const tenant = tenants.find((t) => t.id === form.target_tenant_id);
-    if (!tenant) {
-      setError("Pick the destination tenant.");
+    if (!form.target_tenant_text.trim()) {
+      setError("Type the destination tenant name or domain.");
+      return;
+    }
+    if (!form.source_tenant_text.trim()) {
+      setError("Type the source tenant name or domain.");
       return;
     }
     if (form.workloads.length === 0) {
@@ -84,12 +100,9 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       return;
     }
     const cloud = isCloudSource(form.source_type);
-    const srcTenant = tenants.find((t) => t.id === form.source_tenant_id) || null;
-    if (!srcTenant) {
-      setError("Pick the source tenant.");
-      return;
-    }
-    if (srcTenant.id === tenant.id) {
+    const tenant = resolveTenant(form.target_tenant_text);
+    const srcTenant = resolveTenant(form.source_tenant_text);
+    if (srcTenant && tenant && srcTenant.id === tenant.id) {
       setError("Source and destination must be different tenants.");
       return;
     }
@@ -101,18 +114,20 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       const created = await base44.entities.MigrationProject.create({
         name: form.name.trim(),
         source_type: form.source_type,
-        source_endpoint: cloud ? srcTenant.domain : form.source_endpoint.trim() || srcTenant.domain,
-        source_tenant_id: srcTenant.id,
-        source_azure_tenant_id: srcTenant.tenant_id,
-        source_tenant_name: srcTenant.name,
-        source_label: `${sourceMeta.short} · ${(cloud ? srcTenant.domain : form.source_endpoint.trim() || srcTenant.domain) || "endpoint not set"}`,
+        source_endpoint: cloud
+          ? srcTenant?.domain || form.source_tenant_text.trim()
+          : form.source_endpoint.trim() || srcTenant?.domain || form.source_tenant_text.trim(),
+        source_tenant_id: srcTenant?.id || "",
+        source_azure_tenant_id: srcTenant?.tenant_id || "",
+        source_tenant_name: srcTenant?.name || form.source_tenant_text.trim(),
+        source_label: `${sourceMeta.short} · ${srcTenant?.domain || form.source_tenant_text.trim()}`,
         source_notes: "",
         source_auth: JSON.stringify(form.source_auth),
         target_auth: JSON.stringify(form.target_auth),
-        target_tenant_id: tenant.id,
-        target_tenant_name: tenant.name,
-        target_azure_tenant_id: tenant.tenant_id,
-        target_domain: tenant.domain,
+        target_tenant_id: tenant?.id || "",
+        target_tenant_name: tenant?.name || form.target_tenant_text.trim(),
+        target_azure_tenant_id: tenant?.tenant_id || "",
+        target_domain: tenant?.domain || form.target_tenant_text.trim(),
         workloads: form.workloads.join(","),
         mode: form.mode,
         staging_account: form.mode === "insane" ? form.staging_account.trim() : "",
@@ -125,7 +140,7 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
             at: new Date().toISOString(),
             actor: me?.email || "system",
             action: "Project created",
-            detail: `${sourceMeta.label} into ${tenant.name}`,
+            detail: `${sourceMeta.label} into ${tenant?.name || form.target_tenant_text.trim()}`,
           },
         ]),
       });
@@ -181,27 +196,29 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Source tenant</Label>
-              <ConnectedTenantSelect
-                value={form.source_tenant_id}
-                onChange={(value) => setForm({ ...form, source_tenant_id: value })}
-                tenants={tenantOptions}
-                placeholder="Select the source tenant"
+              <Label htmlFor="mp-source-tenant">Source tenant</Label>
+              <TenantTextEntry
+                id="mp-source-tenant"
+                value={form.source_tenant_text}
+                onChange={(value) => setForm({ ...form, source_tenant_text: value })}
+                tenants={tenants}
+                placeholder="contoso.com"
               />
               <p className="text-xs text-muted-foreground">
                 {isCloudSource(form.source_type)
-                  ? "Sites, mailboxes and users are read straight from this tenant."
-                  : "The tenant that will receive and own the migrated content."}
+                  ? "Type the source domain — sites, mailboxes and users are read from it."
+                  : "Type the tenant that will own the migrated content."}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Destination tenant</Label>
-              <ConnectedTenantSelect
-                value={form.target_tenant_id}
-                onChange={(value) => setForm({ ...form, target_tenant_id: value })}
-                tenants={tenantOptions}
-                placeholder="Select the destination tenant"
+              <Label htmlFor="mp-target-tenant">Destination tenant</Label>
+              <TenantTextEntry
+                id="mp-target-tenant"
+                value={form.target_tenant_text}
+                onChange={(value) => setForm({ ...form, target_tenant_text: value })}
+                tenants={tenants}
+                placeholder="fabrikam.com"
               />
               <p className="text-xs text-muted-foreground">{tenantHint}</p>
             </div>
@@ -235,7 +252,7 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
               />
               <TenantAuthCard
                 title="Destination sign-in"
-                subtitle={selectedTenant?.name || "Select a destination tenant first"}
+                subtitle={targetTenant?.name || form.target_tenant_text || "Type a destination tenant first"}
                 icon={Building2}
                 value={form.target_auth}
                 onChange={(target_auth) => setForm({ ...form, target_auth })}
