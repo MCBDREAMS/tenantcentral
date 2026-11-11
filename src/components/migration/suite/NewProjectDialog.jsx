@@ -15,6 +15,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MODES, SOURCE_TYPES, WORKLOADS, isCloudSource } from "./migrationMeta";
 import TenantTextEntry from "./TenantTextEntry";
+import { matchTenant } from "./tenantMatch";
 import TenantAuthCard from "./TenantAuthCard";
 import { emptyAuth } from "./authMethods";
 import { Building2, Cloud } from "lucide-react";
@@ -46,23 +47,7 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
   }, [open]);
 
   const sourceMeta = SOURCE_TYPES.find((s) => s.value === form.source_type) || SOURCE_TYPES[0];
-  const resolveTenant = (input) => {
-    const value = String(input || "").trim().toLowerCase();
-    if (!value) return null;
-    const exact =
-      tenants.find((t) => String(t.id).toLowerCase() === value) ||
-      tenants.find((t) => String(t.tenant_id || "").toLowerCase() === value) ||
-      tenants.find((t) => String(t.domain || "").toLowerCase() === value) ||
-      tenants.find((t) => String(t.name || "").toLowerCase() === value);
-    if (exact) return exact;
-    return (
-      tenants.find((t) => {
-        const domain = String(t.domain || "").toLowerCase();
-        return domain && value.includes(domain);
-      }) || null
-    );
-  };
-  const targetTenant = resolveTenant(form.target_tenant_text);
+  const targetTenant = matchTenant(tenants, form.target_tenant_text);
   const connectedCount = tenants.filter((t) => t.status === "connected").length;
   const tenantHint =
     tenants.length === 0
@@ -100,8 +85,8 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
       return;
     }
     const cloud = isCloudSource(form.source_type);
-    const tenant = resolveTenant(form.target_tenant_text);
-    const srcTenant = resolveTenant(form.source_tenant_text);
+    const tenant = matchTenant(tenants, form.target_tenant_text);
+    const srcTenant = matchTenant(tenants, form.source_tenant_text);
     if (srcTenant && tenant && srcTenant.id === tenant.id) {
       setError("Source and destination must be different tenants.");
       return;

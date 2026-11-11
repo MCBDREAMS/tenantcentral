@@ -4,15 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Download, Globe, Loader2, RefreshCw, Search } from "lucide-react";
 import SiteTable from "./SiteTable";
+import TenantTextEntry from "./TenantTextEntry";
+import { matchTenant } from "./tenantMatch";
 import { SOURCE_TYPES, isCloudSource } from "./migrationMeta";
 import { downloadText, toCsv } from "./csv";
-
-const hostName = (value) =>
-  String(value || "").replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
 
 // Source side of the SharePoint tab. For a SharePoint Online / Microsoft 365
 // source the site collections are read live from that tenant; an on-premises
@@ -22,34 +20,21 @@ export default function SourceSitesCard({ project, tenants = [], onRefresh }) {
   const cloud = isCloudSource(project.source_type);
   const meta = SOURCE_TYPES.find((s) => s.value === project.source_type);
 
-  const [sourceTenantId, setSourceTenantId] = useState(project.source_tenant_id || "");
+  const [sourceText, setSourceText] = useState(
+    project.source_tenant_name || project.source_endpoint || "",
+  );
   const [sites, setSites] = useState(null);
   const [loading, setLoading] = useState(false);
   const [warning, setWarning] = useState("");
   const [query, setQuery] = useState("");
   const [scriptLoading, setScriptLoading] = useState(false);
 
-  const sourceTenant = useMemo(() => {
-    const stored = tenants.find((t) => t.id === sourceTenantId);
-    if (stored) return stored;
-    const endpoint = hostName(project.source_endpoint);
-    if (!endpoint) return null;
-    return (
-      tenants.find((t) => t.tenant_id && t.domain && endpoint.includes(hostName(t.domain))) || null
-    );
-  }, [tenants, sourceTenantId, project.source_endpoint]);
+  const sourceTenant = matchTenant(tenants, sourceText);
 
-  const pickSourceTenant = async (id) => {
-    setSourceTenantId(id);
+  const applySourceText = (value) => {
+    setSourceText(value);
     setSites(null);
-    const tenant = tenants.find((t) => t.id === id);
-    if (!tenant) return;
-    await base44.entities.MigrationProject.update(project.id, {
-      source_tenant_id: tenant.id,
-      source_azure_tenant_id: tenant.tenant_id,
-      source_tenant_name: tenant.name,
-    }).catch(() => null);
-    onRefresh?.();
+    setWarning("");
   };
 
   const loadSourceSites = async () => {
@@ -60,6 +45,14 @@ export default function SourceSitesCard({ project, tenants = [], onRefresh }) {
     setLoading(true);
     setWarning("");
     try {
+      if (project.source_tenant_id !== sourceTenant.id) {
+        await base44.entities.MigrationProject.update(project.id, {
+          source_tenant_id: sourceTenant.id,
+          source_azure_tenant_id: sourceTenant.tenant_id,
+          source_tenant_name: sourceTenant.name,
+        }).catch(() => null);
+        onRefresh?.();
+      }
       const res = await base44.functions.invoke("portalData", {
         action: "list_sites",
         azure_tenant_id: sourceTenant.tenant_id,
@@ -150,18 +143,21 @@ export default function SourceSitesCard({ project, tenants = [], onRefresh }) {
               destination. Requires Sites.Read.All on the source tenant's app registration.
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={sourceTenant?.id || ""} onValueChange={pickSourceTenant}>
-                <SelectTrigger className="h-9 w-full sm:w-64">
-                  <SelectValue placeholder="Pick the source tenant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} {t.domain ? `(${t.domain})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-full sm:w-64">
+                <TenantTextEntry
+                  id="sp-source-tenant"
+                  value={sourceText}
+                  onChange={applySourceText}
+                  tenants={tenants}
+                  placeholder="contoso.com"
+                />
+              </div>
+              {sourceTenant && (
+                <Badge variant="secondary">
+                  {sourceTenant.name}
+                  {sourceTenant.status === "connected" ? " · connected" : ""}
+                </Badge>
+              )}
               <Button onClick={loadSourceSites} disabled={loading || !sourceTenant?.tenant_id}>
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -191,7 +187,8 @@ export default function SourceSitesCard({ project, tenants = [], onRefresh }) {
             {warning && <p className="text-sm text-amber-600">{warning}</p>}
             {!sourceTenant?.tenant_id && (
               <p className="text-xs text-muted-foreground">
-                Pick the source tenant so the app knows which organisation to read the sites from.
+                Type the source domain, or pick a tenant stored on the Tenants page, so the app knows
+                which organisation to read the sites from.
               </p>
             )}
             {sites && filtered.length === 0 && !warning && (

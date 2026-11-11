@@ -6,7 +6,7 @@ export default function SharePointSitesPanel({ project, tenants = [], onRefresh 
   return (
     <div className="space-y-4">
       <SourceSitesCard project={project} tenants={tenants} onRefresh={onRefresh} />
-      <DestinationSitesCard project={project} />
+      <DestinationSitesCard project={project} tenants={tenants} onRefresh={onRefresh} />
     </div>
   );
 }

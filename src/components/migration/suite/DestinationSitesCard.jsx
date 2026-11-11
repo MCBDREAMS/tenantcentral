@@ -7,22 +7,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Download, Loader2, RefreshCw, Search } from "lucide-react";
 import SiteTable from "./SiteTable";
+import TenantTextEntry from "./TenantTextEntry";
+import { matchTenant } from "./tenantMatch";
 import { downloadText, toCsv } from "./csv";
 
-export default function DestinationSitesCard({ project }) {
+export default function DestinationSitesCard({ project, tenants = [], onRefresh }) {
   const { toast } = useToast();
   const [sitesLoading, setSitesLoading] = useState(false);
   const [sites, setSites] = useState(null);
   const [warning, setWarning] = useState("");
   const [query, setQuery] = useState("");
+  const [destText, setDestText] = useState(project.target_tenant_name || project.target_domain || "");
+  const destTenant = matchTenant(tenants, destText);
+  const destAzureTenantId = destTenant?.tenant_id || project.target_azure_tenant_id;
 
   const loadSites = async () => {
     setSitesLoading(true);
     setWarning("");
     try {
+      if (destTenant && project.target_tenant_id !== destTenant.id) {
+        await base44.entities.MigrationProject.update(project.id, {
+          target_tenant_id: destTenant.id,
+          target_tenant_name: destTenant.name,
+          target_azure_tenant_id: destTenant.tenant_id,
+          target_domain: destTenant.domain,
+        }).catch(() => null);
+        onRefresh?.();
+      }
       const res = await base44.functions.invoke("portalData", {
         action: "list_sites",
-        azure_tenant_id: project.target_azure_tenant_id,
+        azure_tenant_id: destAzureTenantId,
         top: 500,
       });
       if (res.data?.error) throw new Error(res.data.error);
@@ -76,13 +90,32 @@ export default function DestinationSitesCard({ project }) {
           <Search className="h-4 w-4 text-primary" />
           Destination sites
           <span className="text-sm font-normal text-muted-foreground">
-            {project.target_tenant_name || "destination tenant"}
+            {destTenant?.name || destText || "destination tenant"}
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={loadSites} disabled={sitesLoading}>
+          <div className="w-full sm:w-64">
+            <TenantTextEntry
+              id="sp-destination-tenant"
+              value={destText}
+              onChange={(value) => {
+                setDestText(value);
+                setSites(null);
+                setWarning("");
+              }}
+              tenants={tenants}
+              placeholder="fabrikam.com"
+            />
+          </div>
+          {destTenant && (
+            <Badge variant="secondary">
+              {destTenant.name}
+              {destTenant.status === "connected" ? " · connected" : ""}
+            </Badge>
+          )}
+          <Button variant="outline" onClick={loadSites} disabled={sitesLoading || !destAzureTenantId}>
             {sitesLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -117,8 +150,9 @@ export default function DestinationSitesCard({ project }) {
 
         {!sites && !sitesLoading && (
           <p className="text-sm text-muted-foreground">
-            Load the list to see every site collection in the destination tenant before you pick
-            targets. Requires Sites.Read.All on the tenant's app registration.
+            Type the destination domain (a tenant stored on the Tenants page links automatically),
+            then load the list to see every site collection before you pick targets. Requires
+            Sites.Read.All on the tenant's app registration.
           </p>
         )}
       </CardContent>
