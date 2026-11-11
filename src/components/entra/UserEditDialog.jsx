@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { useToast } from "@/components/ui/use-toast";
 import { logAction } from "@/components/shared/auditLogger";
 
 const ENTRA_ROLES = [
@@ -27,6 +28,7 @@ const empty = {
 export default function UserEditDialog({ open, onOpenChange, user, tenant, onSaved }) {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
   const isNew = !user?.id;
 
   useEffect(() => {
@@ -40,16 +42,25 @@ export default function UserEditDialog({ open, onOpenChange, user, tenant, onSav
     if (isNew) {
       // Attempt to create via Graph
       if (tenant?.tenant_id) {
-        await base44.functions.invoke("tenantWrite", {
+        // Send no password unless the operator typed one — the server generates a random
+        // temporary password and returns it once, so nothing predictable is used.
+        const res = await base44.functions.invoke("tenantWrite", {
           action: "create_user",
           azure_tenant_id: tenant.tenant_id,
           display_name: form.display_name,
           upn: form.upn,
-          password: form.password || "TempPass123!",
+          password: form.password || undefined,
           job_title: form.job_title,
           department: form.department,
           account_enabled: form.account_enabled,
-        }).catch(() => {});
+        }).catch(() => null);
+        const tempPassword = res?.data?.temporary_password;
+        if (tempPassword) {
+          toast({
+            title: "Temporary password generated",
+            description: `Share this once with ${form.upn || form.display_name}: ${tempPassword} — they must change it at first sign-in.`,
+          });
+        }
       }
       const created = await base44.entities.EntraUser.create({ ...form, tenant_id: tenant?.id });
       await logAction({ action: "CREATE_ENTRA_USER", category: "entra_user", tenant_id: tenant?.id, tenant_name: tenant?.name, target_name: form.display_name, severity: "warning" });
@@ -97,7 +108,7 @@ export default function UserEditDialog({ open, onOpenChange, user, tenant, onSav
           {isNew && (
             <div className="col-span-2 space-y-1">
               <Label className="text-xs">Temporary Password</Label>
-              <Input type="password" value={form.password || ""} onChange={e => set("password", e.target.value)} placeholder="TempPass123!" />
+              <Input type="password" value={form.password || ""} onChange={e => set("password", e.target.value)} placeholder="Leave blank to auto-generate" />
             </div>
           )}
           <div className="space-y-1">
