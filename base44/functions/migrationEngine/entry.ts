@@ -164,7 +164,7 @@ async function createTargetUser(token, item, settings) {
     mailNickname: localPart(upn),
     userPrincipalName: upn,
     usageLocation: settings.usageLocation || 'US',
-    passwordProfile: { password: genPassword(), forceChangePassword: true },
+    passwordProfile: { password: genPassword(), forceChangePasswordNextSignIn: true },
     jobTitle: item.source.jobTitle || null,
     department: item.source.department || null,
   };
