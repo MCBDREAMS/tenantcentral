@@ -35,7 +35,6 @@ const navSections = [
   label: "Migration",
   section: null,
   items: [
-  { name: "Migration Hub", icon: ArrowRightLeft, page: "MigrationHub" },
   { name: "Tenant-to-Tenant Migration", icon: GitMerge, page: "TenantMigration" }]
 
 },
