@@ -13,20 +13,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MODES, SOURCE_TYPES, WORKLOADS, isCloudSource } from "./migrationMeta";
+import { MODES, SOURCE_TYPES, defaultWorkloads, isCloudSource, workloadsFor } from "./migrationMeta";
 import TenantTextEntry from "./TenantTextEntry";
 import { matchTenant } from "./tenantMatch";
 import TenantAuthCard from "./TenantAuthCard";
 import { emptyAuth } from "./authMethods";
 import { Building2, Cloud } from "lucide-react";
 
-const makeForm = () => ({
+const makeForm = (sourceType) => ({
   name: "",
-  source_type: "sharepoint_onprem",
+  source_type: sourceType || "sharepoint_onprem",
   source_endpoint: "",
   source_tenant_text: "",
   target_tenant_text: "",
-  workloads: ["sharepoint", "onedrive"],
+  workloads: defaultWorkloads(sourceType || "sharepoint_onprem"),
   mode: "standard",
   staging_account: "",
   notes: "",
@@ -34,19 +34,20 @@ const makeForm = () => ({
   target_auth: emptyAuth("credential"),
 });
 
-export default function NewProjectDialog({ open, onOpenChange, tenants = [], onCreated }) {
-  const [form, setForm] = useState(makeForm);
+export default function NewProjectDialog({ open, onOpenChange, tenants = [], initialSourceType = null, onCreated }) {
+  const [form, setForm] = useState(() => makeForm(initialSourceType));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
-      setForm(makeForm());
+      setForm(makeForm(initialSourceType));
       setError("");
     }
-  }, [open]);
+  }, [open, initialSourceType]);
 
   const sourceMeta = SOURCE_TYPES.find((s) => s.value === form.source_type) || SOURCE_TYPES[0];
+  const workloadChoices = workloadsFor(form.source_type);
   const targetTenant = matchTenant(tenants, form.target_tenant_text);
   const connectedCount = tenants.filter((t) => t.status === "connected").length;
   const tenantHint =
@@ -161,22 +162,33 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
 
           <div className="space-y-2">
             <Label>Source system</Label>
-            <Select
-              value={form.source_type}
-              onValueChange={(value) => setForm({ ...form, source_type: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SOURCE_TYPES.map((source) => (
-                  <SelectItem key={source.value} value={source.value}>
-                    {source.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{sourceMeta.hint}</p>
+            {initialSourceType ? (
+              <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+                <p className="text-sm font-medium text-foreground">{sourceMeta.label}</p>
+                <p className="text-xs text-muted-foreground">{sourceMeta.hint}</p>
+              </div>
+            ) : (
+              <>
+                <Select
+                  value={form.source_type}
+                  onValueChange={(value) =>
+                    setForm({ ...form, source_type: value, workloads: defaultWorkloads(value) })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SOURCE_TYPES.map((source) => (
+                      <SelectItem key={source.value} value={source.value}>
+                        {source.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{sourceMeta.hint}</p>
+              </>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -248,7 +260,7 @@ export default function NewProjectDialog({ open, onOpenChange, tenants = [], onC
           <div className="space-y-2">
             <Label>Workloads</Label>
             <div className="grid gap-2 sm:grid-cols-2">
-              {WORKLOADS.map((workload) => {
+              {workloadChoices.map((workload) => {
                 const active = form.workloads.includes(workload.id);
                 return (
                   <button
