@@ -12,6 +12,16 @@ function genPassword() {
   return 'Mig' + rnd.slice(0, 14) + '!1Aa';
 }
 function localPart(upn) { return (upn || '').split('@')[0] || 'user'; }
+// Graph only accepts a UPN on a domain that is verified in the target tenant, so a source
+// UPN is re-hosted on the target's own domain (its default domain first) when its domain
+// does not exist there. The local part is preserved to keep the account recognisable.
+function resolveTargetUpn(upn, targetDomains) {
+  const value = String(upn || '').trim();
+  const domain = value.split('@')[1]?.toLowerCase() || '';
+  const domains = (targetDomains || []).map((d) => String(d).toLowerCase()).filter(Boolean);
+  if (!value || !domain || domains.length === 0 || domains.includes(domain)) return value;
+  return `${localPart(value)}@${domains[0]}`;
+}
 // Graph mailNickname accepts only letters, digits, dot, hyphen and underscore — an AD group
 // name with spaces (very common on-prem) would be rejected as-is.
 function nickname(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 60) || 'group'; }
@@ -140,8 +150,11 @@ function mailboxFollowUp(mb) {
 
 async function createTargetUser(token, item, settings) {
   const tgt = item.target;
-  const upn = tgt.upn;
-  const followUp = mailboxFollowUp(item.mailbox);
+  const upn = resolveTargetUpn(tgt.upn, settings.targetDomains);
+  const rehosted = upn.toLowerCase() !== String(tgt.upn || '').trim().toLowerCase()
+    ? ` UPN re-hosted on the target's verified domain ${upn.split('@')[1]} because the original domain is not verified in the target tenant.`
+    : '';
+  const followUp = mailboxFollowUp(item.mailbox) + rehosted;
 
   // "migrate" attaches the source identity to an account that already exists in the target;
   // "create" provisions a brand-new account. Migrating falls back to create when the target
@@ -396,6 +409,19 @@ async function runBatch(base44, user, body) {
   const onpremSource = batch.source_kind === 'onprem';
   const tgtCreds = await getTenantCreds(base44, batch.target_azure_tenant_id);
   const tgtToken = await getAccessToken(batch.target_azure_tenant_id, tgtCreds.clientId, tgtCreds.clientSecret);
+  // New accounts can only be created on a domain verified in the target tenant, so the
+  // target's verified domains (default domain first) are resolved once per pass and used
+  // to re-host any UPN whose domain does not exist in the target.
+  let tgtDomains = [];
+  try {
+    const doms = await graphGet(tgtToken, '/domains?$select=id,isVerified,isDefault');
+    tgtDomains = (doms.value || []).
+    filter((d) => d.isVerified).
+    sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault)).
+    map((d) => d.id);
+  } catch (e) { /* no domain list → use the UPN exactly as supplied */ }
+  settings.targetDomains = tgtDomains;
+
   let srcToken = null;
   if (!onpremSource) {
     const srcCreds = await getTenantCreds(base44, batch.source_azure_tenant_id);
