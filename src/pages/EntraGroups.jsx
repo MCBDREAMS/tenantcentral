@@ -85,7 +85,15 @@ export default function EntraGroups({ selectedTenant, tenants = [] }) {
       <DataTable
         columns={columns}
         data={groups}
-        onExport={(d) => exportToCSV(d, "entra_groups")}
+        onExport={(d) => exportToCSV(d, "entra_groups", [
+          { key: "display_name", label: "Name" },
+          { key: "group_type", label: "Group Type" },
+          { key: "membership_type", label: "Membership" },
+          { key: "member_count", label: "Members", value: (r) => r.member_count ?? 0 },
+          { key: "mail", label: "Mail" },
+          { key: "tenant_id", label: "Tenant", value: (r) => getTenantName(r.tenant_id) },
+          { key: "description", label: "Description" },
+        ])}
         emptyMessage="No groups found"
       />
       <GroupEditDialog

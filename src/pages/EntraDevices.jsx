@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Monitor, RefreshCw, Loader2, UserPlus, CheckCircle2, XCircle, AlertTriangle, Info, Upload, Search } from "lucide-react";
+import { Monitor, RefreshCw, Loader2, UserPlus, CheckCircle2, XCircle, AlertTriangle, Info, Upload, Search, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import PageHeader from "@/components/shared/PageHeader";
 import QuickSyncButton from "@/components/shared/QuickSyncButton";
+import { exportToCSV } from "@/components/shared/exportUtils";
 import EntraDeviceDetail from "@/components/entra/EntraDeviceDetail";
 import OnboardIntuneDialog from "@/components/entra/OnboardIntuneDialog";
 import FilterBar, {
@@ -110,6 +111,26 @@ export default function EntraDevices({ selectedTenant }) {
     return intuneDevices.some(d => (d.device_name || "").toLowerCase() === name || (d.serial_number && d.serial_number === device.deviceId));
   };
 
+  const handleExport = () => {
+    const yesNo = (v) => (v === undefined || v === null ? "" : v ? "Yes" : "No");
+    exportToCSV(filteredDevices, "entra_devices", [
+      { key: "displayName", label: "Device Name" },
+      { key: "deviceId", label: "Device ID" },
+      { key: "operatingSystem", label: "OS" },
+      { key: "operatingSystemVersion", label: "OS Version" },
+      { key: "manufacturer", label: "Manufacturer" },
+      { key: "model", label: "Model" },
+      { key: "accountEnabled", label: "Enabled", value: (d) => yesNo(d.accountEnabled) },
+      { key: "trustType", label: "Join Type" },
+      { key: "isManaged", label: "Entra Managed", value: (d) => yesNo(d.isManaged) },
+      { key: "isCompliant", label: "Compliant", value: (d) => yesNo(d.isCompliant) },
+      { key: "_intune", label: "Registered In", value: (d) => (isInIntune(d) ? "Intune" : "Entra only") },
+      { key: "registrationDateTime", label: "Registration Date", value: (d) => (d.registrationDateTime || "").slice(0, 10) },
+      { key: "approximateLastSignInDateTime", label: "Last Activity", value: (d) => (d.approximateLastSignInDateTime || "").slice(0, 10) },
+      { key: "_tenant", label: "Tenant", value: () => selectedTenant?.name || "" },
+    ]);
+  };
+
   const handleAddToGroup = async () => {
     if (!selectedGroupId || !groupDialogDevice) return;
     setAddingToGroup(true);
@@ -152,6 +173,10 @@ export default function EntraDevices({ selectedTenant }) {
               label="Sync Devices"
               onSynced={() => refetch()}
             />
+            <Button variant="outline" className="gap-2" onClick={handleExport} disabled={isLoading || filteredDevices.length === 0}>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
             <Button variant="outline" className="gap-2" onClick={() => refetch()} disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh

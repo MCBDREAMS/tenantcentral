@@ -1,19 +1,33 @@
-export function exportToCSV(data, filename) {
+/**
+ * Export rows to CSV.
+ * @param {Array<object>} data   records to export
+ * @param {string} filename      base file name (date is appended)
+ * @param {Array<{key: string, label?: string, value?: (row) => any}>} [columns]
+ *        Optional explicit columns. Without it, every record field except id/_private is used.
+ */
+export function exportToCSV(data, filename, columns) {
   if (!data || data.length === 0) return;
 
-  const headers = Object.keys(data[0]).filter(k => k !== 'id' && !k.startsWith('_'));
+  const cols = columns && columns.length
+    ? columns
+    : Object.keys(data[0])
+        .filter(k => k !== 'id' && !k.startsWith('_'))
+        .map(k => ({ key: k, label: k }));
+
+  const escape = (val) => `"${String(val).replace(/"/g, '""')}"`;
+
   const csvRows = [
-    headers.join(','),
+    cols.map(c => escape(c.label || c.key)).join(','),
     ...data.map(row =>
-      headers.map(h => {
-        const val = row[h];
-        const str = val === null || val === undefined ? '' : String(val);
-        return `"${str.replace(/"/g, '""')}"`;
+      cols.map(c => {
+        const raw = c.value ? c.value(row) : row[c.key];
+        return escape(raw === null || raw === undefined ? '' : raw);
       }).join(',')
-    )
+    ),
   ];
 
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  // BOM keeps Excel from mangling accented characters.
+  const blob = new Blob(["\uFEFF" + csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

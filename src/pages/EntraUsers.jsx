@@ -186,7 +186,21 @@ export default function EntraUsers({ selectedTenant, tenants = [] }) {
       <DataTable
         columns={columns}
         data={users}
-        onExport={(d) => exportToCSV(d, "entra_users")}
+        onExport={(d) => exportToCSV(d, "entra_users", [
+          { key: "display_name", label: "Display Name" },
+          { key: "upn", label: "UPN" },
+          { key: "email", label: "Email" },
+          { key: "user_type", label: "Account Type" },
+          { key: "account_enabled", label: "Enabled", value: (r) => (r.account_enabled !== false ? "Yes" : "No") },
+          { key: "mfa_status", label: "MFA Status" },
+          { key: "mfa_methods", label: "MFA Methods" },
+          { key: "entra_roles", label: "Directory Role" },
+          { key: "job_title", label: "Job Title" },
+          { key: "department", label: "Department" },
+          { key: "licenses", label: "Licenses" },
+          { key: "tenant_id", label: "Tenant", value: (r) => getTenantName(r.tenant_id) },
+          { key: "last_sign_in", label: "Last Sign-In", value: (r) => r.last_sign_in || "Never" },
+        ])}
         emptyMessage="No users found"
       />
       {detailUser && (
