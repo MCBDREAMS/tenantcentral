@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowRightLeft, Check, ChevronsRight, Server } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronsRight, Server, Terminal } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useRbac } from "@/components/shared/useRbac";
 import PageHeader from "@/components/shared/PageHeader";
@@ -14,6 +14,7 @@ import MigrationRunConsole from "@/components/migration/MigrationRunConsole";
 import OnPremAgentPicker from "@/components/migration/OnPremAgentPicker";
 import OnPremSourceStep from "@/components/migration/OnPremSourceStep";
 import OnPremAccountsStep from "@/components/migration/OnPremAccountsStep";
+import PowerShellConsole from "@/components/migration/PowerShellConsole";
 
 const WORKLOADS = [
   { id: "mailboxes", label: "Exchange Mailboxes", kind: "users", note: "Identity + mailbox (body via Exchange move request)" },
@@ -51,6 +52,7 @@ export default function ShareGateConsole() {
   // RBAC-scoped tenant list (source AND target are chosen from tenants this user may manage).
   const tenants = useMemo(() => filterTenants(allTenants) || [], [allTenants, rbac]);
 
+  const [view, setView] = useState("wizard"); // "wizard" | "ps" — the PS session keeps its transcript
   const [step, setStep] = useState(0);
   const [sourceMode, setSourceMode] = useState("m365"); // "m365" | "onprem"
   const [onpremScan, setOnpremScan] = useState(null); // AdAgentScan summary chosen as the source
@@ -163,6 +165,27 @@ export default function ShareGateConsole() {
         icon={ArrowRightLeft}
       />
 
+      {/* Wizard / PowerShell session */}
+      <div className="inline-flex rounded-lg border overflow-hidden mb-6">
+        <button
+          onClick={() => setView("wizard")}
+          className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${
+            view === "wizard" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <ArrowRightLeft className="h-3.5 w-3.5" />Migration console
+        </button>
+        <button
+          onClick={() => setView("ps")}
+          className={`px-3 py-1.5 text-sm border-l flex items-center gap-1.5 ${
+            view === "ps" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <Terminal className="h-3.5 w-3.5" />PowerShell session
+        </button>
+      </div>
+
+      <div className={view === "wizard" ? "" : "hidden"}>
       {/* Stepper */}
       <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
         {STEPS.map((s, i) => (
@@ -363,6 +386,11 @@ export default function ShareGateConsole() {
         ) : (
           <Button variant="outline" onClick={() => setStep(0)}>Start a new batch</Button>
         )}
+      </div>
+      </div>
+
+      <div className={view === "ps" ? "" : "hidden"}>
+        <PowerShellConsole sourceTenant={sourceTenant} targetTenant={targetTenant} />
       </div>
     </div>
   );
